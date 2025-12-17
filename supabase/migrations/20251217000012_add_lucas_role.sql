@@ -1,11 +1,13 @@
 -- Update roles constraint and permissions for Lucas
 
 -- 1. Update the role check constraint to include 'lucas'
-ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_role_check;
+-- Note: We use the array containment operator <@ because 'roles' is a text[] column
+ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_roles_check;
+ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_role_check; -- cleanup old one if it somehow stuck
 
 ALTER TABLE public.profiles 
-ADD CONSTRAINT profiles_role_check 
-CHECK (role IN (
+ADD CONSTRAINT profiles_roles_check 
+CHECK (roles <@ ARRAY[
   'admin', 
   'employee', 
   'gruppe_vaupel', 
@@ -18,7 +20,7 @@ CHECK (role IN (
   'flori', 
   'marcio',
   'lucas'
-));
+]::text[]);
 
 -- 2. Update the supervisor policy to include Lucas for Vaupel
 DROP POLICY IF EXISTS "Supervisors can update supervisee absences" ON public.absences;
