@@ -244,7 +244,7 @@ export const Calendar = () => {
             <div className="space-y-4">
               {pendingAbsences.map((absence) => {
                 const isOwn = absence.user_id === user?.id;
-                const canModerate = isAdmin;
+                const canModerate = checkCanModerate(absence.profiles);
 
                 if (!isOwn && !canModerate) return null;
 
@@ -314,7 +314,7 @@ export const Calendar = () => {
                   </div>
                 );
               })}
-              {pendingAbsences.filter(a => a.user_id === user?.id || isAdmin).length === 0 && (
+              {pendingAbsences.filter(a => a.user_id === user?.id || checkCanModerate(a.profiles)).length === 0 && (
                  <p className="text-gray-500 dark:text-gray-400 text-center py-4">Keine relevanten Anträge.</p>
               )}
             </div>
