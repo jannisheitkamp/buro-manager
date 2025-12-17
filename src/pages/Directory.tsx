@@ -18,6 +18,7 @@ const ROLES = [
   'jannis',
   'flori',
   'marcio',
+  'lucas',
 ];
 
 export const Directory = () => {

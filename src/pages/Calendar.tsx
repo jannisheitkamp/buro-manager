@@ -125,7 +125,7 @@ export const Calendar = () => {
     // Custom permission logic based on roles
     if (myRoles.includes('tim') && targetRoles.includes('jannis')) return true;
     if (myRoles.includes('morris') && targetRoles.includes('flori')) return true;
-    if (myRoles.includes('vaupel') && targetRoles.includes('marcio')) return true;
+    if (myRoles.includes('vaupel') && (targetRoles.includes('marcio') || targetRoles.includes('lucas'))) return true;
 
     return false;
   };
