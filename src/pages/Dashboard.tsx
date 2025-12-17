@@ -209,18 +209,18 @@ export const Dashboard = () => {
                   
                   <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto">
                     <div className={cn(
-                      "flex items-center px-3 py-1 rounded-full text-sm font-medium mr-4",
+                      "flex items-center px-2.5 py-1 rounded-full text-xs sm:text-sm font-medium sm:mr-4",
                       statusConfig?.color || "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300"
                     )}>
-                      <StatusIcon className="h-4 w-4 mr-2" />
+                      <StatusIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
                       {statusConfig?.label || 'Unbekannt'}
                     </div>
-                    <div className="text-right">
+                    <div className="text-right ml-auto sm:ml-0">
                       {status?.message && (
-                        <p className="text-sm text-gray-600 dark:text-gray-400 italic">"{status.message}"</p>
+                        <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 italic">"{status.message}"</p>
                       )}
                       {status?.updated_at && (
-                        <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                        <p className="text-[10px] sm:text-xs text-gray-400 dark:text-gray-500 mt-0.5 sm:mt-1">
                           vor {formatDistanceToNow(new Date(status.updated_at), { locale: de })}
                         </p>
                       )}

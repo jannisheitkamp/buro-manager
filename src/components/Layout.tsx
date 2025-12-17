@@ -32,22 +32,33 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
   const { theme, toggleTheme } = useTheme();
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex transition-colors duration-200">
-      {/* Mobile Menu Button */}
-      <button
-        className="lg:hidden fixed top-4 right-4 z-50 p-2 bg-white rounded-md shadow-md"
-        onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-      >
-        <Menu className="h-6 w-6" />
-      </button>
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col lg:flex-row transition-colors duration-200">
+      {/* Mobile Header */}
+      <div className="lg:hidden bg-white dark:bg-gray-800 border-b dark:border-gray-700 p-4 flex items-center justify-between sticky top-0 z-30">
+        <h1 className="text-lg font-bold text-gray-900 dark:text-white">Büro Manager</h1>
+        <div className="flex items-center gap-2">
+            <button
+              onClick={toggleTheme}
+              className="p-2 text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700 rounded-full transition-colors"
+            >
+              {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+            </button>
+            <button
+              className="p-2 text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700 rounded-md"
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            >
+              <Menu className="h-6 w-6" />
+            </button>
+        </div>
+      </div>
 
       {/* Sidebar */}
       <div className={cn(
-        "fixed inset-y-0 left-0 z-40 w-64 bg-white dark:bg-gray-800 border-r dark:border-gray-700 transform transition-transform duration-200 ease-in-out lg:translate-x-0 lg:static lg:inset-0",
+        "fixed inset-y-0 left-0 z-40 w-64 bg-white dark:bg-gray-800 border-r dark:border-gray-700 transform transition-transform duration-200 ease-in-out lg:translate-x-0 lg:static lg:inset-0 lg:h-screen lg:sticky lg:top-0",
         isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"
       )}>
         <div className="h-full flex flex-col">
-          <div className="p-6 border-b dark:border-gray-700 flex items-center justify-between">
+          <div className="p-6 border-b dark:border-gray-700 flex items-center justify-between hidden lg:flex">
             <h1 className="text-xl font-bold text-gray-900 dark:text-white">Büro Manager</h1>
             <button
               onClick={toggleTheme}
@@ -57,7 +68,7 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
             </button>
           </div>
           
-          <nav className="flex-1 p-4 space-y-1">
+          <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
             {navigation.map((item) => {
               const Icon = item.icon;
               const isActive = location.pathname === item.href;
@@ -101,7 +112,7 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
       )}
 
       {/* Main Content */}
-      <main className="flex-1 p-4 md:p-8 lg:p-12 overflow-y-auto w-full">
+      <main className="flex-1 p-4 md:p-8 lg:p-12 overflow-y-auto w-full max-w-full">
         {children}
       </main>
     </div>
