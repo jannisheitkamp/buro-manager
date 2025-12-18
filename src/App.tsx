@@ -20,6 +20,8 @@ import { ChatBot } from '@/components/ChatBot';
 
 import { PageTransition } from '@/components/PageTransition';
 
+import { GeneralCalendar } from '@/pages/GeneralCalendar';
+
 function App() {
   const setUser = useStore((state) => state.setUser);
   const setLoading = useStore((state) => state.setLoading);
@@ -59,6 +61,7 @@ function App() {
         
         <Route element={<ProtectedRoute />}>
           <Route path="/" element={<><Layout><PageTransition><Dashboard /></PageTransition></Layout><ChatBot /></>} />
+          <Route path="/general-calendar" element={<><Layout><PageTransition><GeneralCalendar /></PageTransition></Layout><ChatBot /></>} />
           <Route path="/calendar" element={<><Layout><PageTransition><Calendar /></PageTransition></Layout><ChatBot /></>} />
           <Route path="/bookings" element={<><Layout><PageTransition><Bookings /></PageTransition></Layout><ChatBot /></>} />
           <Route path="/board" element={<><Layout><PageTransition><Board /></PageTransition></Layout><ChatBot /></>} />

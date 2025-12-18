@@ -21,7 +21,8 @@ import { useTheme } from '@/hooks/useTheme';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-  { name: 'Kalender', href: '/calendar', icon: CalendarDays },
+  { name: 'Kalender', href: '/general-calendar', icon: CalendarDays },
+  { name: 'Abwesenheiten', href: '/calendar', icon: CalendarDays },
   { name: 'Buchungen', href: '/bookings', icon: Building2 },
   { name: 'Schwarzes Brett', href: '/board', icon: ClipboardList },
   { name: 'Umfragen', href: '/polls', icon: BarChart2 },
