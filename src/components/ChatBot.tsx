@@ -163,7 +163,7 @@ export const ChatBot = () => {
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          "fixed bottom-6 right-6 z-50 p-4 rounded-full shadow-lg transition-all duration-300 hover:scale-110",
+          "fixed bottom-6 right-6 z-[100] p-4 rounded-full shadow-lg transition-all duration-300 hover:scale-110",
           isOpen 
             ? "bg-red-500 text-white rotate-90" 
             : "bg-indigo-600 text-white hover:bg-indigo-700"
@@ -175,7 +175,7 @@ export const ChatBot = () => {
       {/* Chat Window */}
       <div
         className={cn(
-          "fixed bottom-24 right-6 z-50 w-80 sm:w-96 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-100 dark:border-gray-700 overflow-hidden transition-all duration-300 origin-bottom-right flex flex-col",
+          "fixed bottom-24 right-6 z-[100] w-80 sm:w-96 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-100 dark:border-gray-700 overflow-hidden transition-all duration-300 origin-bottom-right flex flex-col",
           isOpen 
             ? "opacity-100 scale-100 translate-y-0" 
             : "opacity-0 scale-95 translate-y-10 pointer-events-none"
