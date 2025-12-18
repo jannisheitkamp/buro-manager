@@ -109,6 +109,36 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
         </div>
       </div>
 
+      {/* Mobile Bottom Navigation Bar */}
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 z-50 px-6 py-2 flex justify-between items-center safe-area-pb">
+        {navigation.slice(0, 5).map((item) => {
+          const Icon = item.icon;
+          const isActive = location.pathname === item.href;
+          return (
+            <Link
+              key={item.name}
+              to={item.href}
+              className={cn(
+                "flex flex-col items-center gap-1 p-2 rounded-lg transition-colors",
+                isActive 
+                  ? "text-indigo-600 dark:text-indigo-400" 
+                  : "text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
+              )}
+            >
+              <Icon className={cn("h-6 w-6 transition-transform", isActive ? "scale-110" : "")} />
+              <span className="text-[10px] font-medium">{item.name}</span>
+            </Link>
+          );
+        })}
+        <button
+           className="flex flex-col items-center gap-1 p-2 rounded-lg text-gray-500 dark:text-gray-400"
+           onClick={() => setIsMobileMenuOpen(true)}
+        >
+            <Menu className="h-6 w-6" />
+            <span className="text-[10px] font-medium">Mehr</span>
+        </button>
+      </div>
+
       {/* Overlay for mobile */}
       {isMobileMenuOpen && (
         <div 
@@ -118,7 +148,7 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
       )}
 
       {/* Main Content */}
-      <main className="flex-1 p-4 md:p-8 lg:p-12 overflow-y-auto w-full max-w-full">
+      <main className="flex-1 p-4 md:p-8 lg:p-12 overflow-y-auto w-full max-w-full pb-24 lg:pb-12">
         {children}
       </main>
     </div>
