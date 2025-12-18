@@ -117,6 +117,14 @@ export const ChatBot = () => {
         navigate('/polls');
         responseText = 'Hier sind die Umfragen! 📊';
 
+      } else if (lowerText.includes('rückruf') || lowerText.includes('callback') || lowerText.includes('telefon') || lowerText.includes('anruf') || lowerText.includes('notiz')) {
+        navigate('/callbacks');
+        responseText = 'Ich habe dich zu den Telefon-Notizen gebracht. Hier kannst du Rückrufe für Kollegen eintragen oder sehen, wer dich angerufen hat! 📞';
+
+      } else if (lowerText.includes('paket') || lowerText.includes('parcel') || lowerText.includes('lieferung')) {
+        navigate('/parcels');
+        responseText = 'Hier ist die Paketstation. Du kannst neue Pakete eintragen oder sehen, ob etwas für dich angekommen ist. 📦';
+
       } else {
         responseText = 'Das habe ich leider nicht verstanden. Ich lerne noch! Probier es mal mit "Wer ist im Büro?" oder "Ist der Raum frei?".';
       }
