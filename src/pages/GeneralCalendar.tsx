@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { useStore } from '@/store/useStore';
 import { format, startOfWeek, addDays, startOfMonth, endOfMonth, endOfWeek, isSameMonth, isSameDay, addMonths, subMonths, isToday } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, Clock, MapPin, AlignLeft } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Clock, MapPin, AlignLeft } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { Modal } from '@/components/Modal';
 import { toast } from 'react-hot-toast';
@@ -18,6 +18,7 @@ type CalendarEvent = {
   user_id: string;
   location?: string;
   color?: string; // 'blue', 'red', 'green', 'yellow'
+  type?: 'event' | 'absence' | 'booking' | 'parcel';
   profiles?: {
       full_name: string;
       avatar_url?: string;
@@ -45,25 +46,126 @@ export const GeneralCalendar = () => {
     const start = startOfWeek(startOfMonth(currentDate)).toISOString();
     const end = endOfWeek(endOfMonth(currentDate)).toISOString();
 
-    const { data, error } = await supabase
-        .from('calendar_events') // We need to create this table!
+    // 1. Calendar Events
+    const { data: calendarData } = await supabase
+        .from('calendar_events')
         .select('*, profiles(full_name, avatar_url)')
         .gte('start_time', start)
         .lte('end_time', end);
+
+    // 2. Absences (Leaves)
+    // Note: Absences use DATE type, so we compare simply
+    const { data: absenceData } = await supabase
+        .from('absences')
+        .select('*, profiles(full_name, avatar_url)')
+        .eq('status', 'approved')
+        .or(`start_date.lte.${end},end_date.gte.${start}`);
+
+    // 3. Bookings (Rooms)
+    const { data: bookingData } = await supabase
+        .from('bookings')
+        .select('*, profiles(full_name, avatar_url)')
+        .gte('start_time', start)
+        .lte('end_time', end);
+
+    // 4. Parcels (Expected)
+    const { data: parcelData } = await supabase
+        .from('parcels')
+        .select('*')
+        .eq('status', 'expected')
+        .gte('created_at', start)
+        .lte('created_at', end);
+
+
+    // Transform and merge all events
+    const allEvents: CalendarEvent[] = [];
+
+    // Add Calendar Events
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    calendarData?.forEach((e: any) => {
+        allEvents.push({
+            id: e.id,
+            title: e.title,
+            start_time: e.start_time,
+            end_time: e.end_time,
+            user_id: e.user_id,
+            color: e.color || 'blue',
+            type: 'event',
+            profiles: e.profiles
+        });
+    });
+
+    // Add Absences
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    absenceData?.forEach((a: any) => {
+        // Create an event for each day of the absence within the view
+        let d = new Date(a.start_date);
+        const endDate = new Date(a.end_date);
+        
+        // Prevent infinite loop if dates are invalid
+        if (d > endDate) return;
+
+        while (d <= endDate) {
+            allEvents.push({
+                id: `${a.id}-${d.toISOString()}`,
+                title: `Urlaub: ${a.profiles?.full_name}`,
+                start_time: d.toISOString(),
+                end_time: d.toISOString(),
+                user_id: a.user_id,
+                color: 'green',
+                type: 'absence',
+                profiles: a.profiles
+            });
+            d = addDays(d, 1);
+        }
+    });
+
+    // Add Bookings
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    bookingData?.forEach((b: any) => {
+        allEvents.push({
+            id: b.id,
+            title: `Raum: ${b.resource_name} (${b.title})`,
+            start_time: b.start_time,
+            end_time: b.end_time,
+            user_id: b.user_id,
+            color: 'yellow',
+            type: 'booking',
+            profiles: b.profiles
+        });
+    });
     
-    if (error) {
-        console.error('Error fetching events:', error);
-    } else {
-        setEvents(data || []);
-    }
+    // Add Parcels
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    parcelData?.forEach((p: any) => {
+        allEvents.push({
+            id: p.id,
+            title: `Paket: ${p.carrier}`,
+            start_time: p.created_at,
+            end_time: p.created_at, // Just a point in time
+            user_id: p.recipient_id || '',
+            color: 'red',
+            type: 'parcel'
+        });
+    });
+
+    setEvents(allEvents);
   };
 
   useEffect(() => {
-    // Ideally we would create the table here if it doesn't exist, but we'll do it via migration tool
     fetchEvents();
     
-    const sub = supabase.channel('calendar_events').on('postgres_changes', { event: '*', schema: 'public', table: 'calendar_events' }, fetchEvents).subscribe();
-    return () => { sub.unsubscribe(); };
+    const sub1 = supabase.channel('cal_1').on('postgres_changes', { event: '*', schema: 'public', table: 'calendar_events' }, fetchEvents).subscribe();
+    const sub2 = supabase.channel('cal_2').on('postgres_changes', { event: '*', schema: 'public', table: 'absences' }, fetchEvents).subscribe();
+    const sub3 = supabase.channel('cal_3').on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, fetchEvents).subscribe();
+    const sub4 = supabase.channel('cal_4').on('postgres_changes', { event: '*', schema: 'public', table: 'parcels' }, fetchEvents).subscribe();
+
+    return () => { 
+        sub1.unsubscribe(); 
+        sub2.unsubscribe();
+        sub3.unsubscribe();
+        sub4.unsubscribe();
+    };
   }, [currentDate]);
 
   const handleCreateEvent = async (e: React.FormEvent) => {
@@ -185,7 +287,7 @@ export const GeneralCalendar = () => {
                     <div 
                         key={ev.id} 
                         className={cn(
-                            "text-xs px-1.5 py-0.5 rounded truncate border-l-2 cursor-pointer hover:opacity-80",
+                            "text-xs px-1.5 py-0.5 rounded truncate border-l-2 cursor-pointer hover:opacity-80 flex items-center gap-1",
                             ev.color === 'red' ? "bg-red-100 text-red-700 border-red-500 dark:bg-red-900/30 dark:text-red-200" :
                             ev.color === 'green' ? "bg-green-100 text-green-700 border-green-500 dark:bg-green-900/30 dark:text-green-200" :
                             ev.color === 'yellow' ? "bg-yellow-100 text-yellow-700 border-yellow-500 dark:bg-yellow-900/30 dark:text-yellow-200" :
@@ -193,7 +295,8 @@ export const GeneralCalendar = () => {
                         )}
                         title={ev.title}
                     >
-                        {format(new Date(ev.start_time), 'HH:mm')} {ev.title}
+                        {ev.type === 'absence' && <span className="w-1.5 h-1.5 rounded-full bg-current opacity-50" />}
+                        <span className="truncate">{format(new Date(ev.start_time), 'HH:mm')} {ev.title}</span>
                     </div>
                 ))}
             </div>
