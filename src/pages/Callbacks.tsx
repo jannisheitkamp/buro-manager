@@ -139,7 +139,7 @@ export const Callbacks = () => {
 
   const isAdmin = profile?.roles?.includes('admin');
 
-  if (loading) return <div className="p-8 text-center">Laden...</div>;
+  if (loading) return <div className="p-8 text-center">Lade...</div>;
 
   return (
     <div className="space-y-6">
@@ -155,11 +155,11 @@ export const Callbacks = () => {
         </div>
         
         <div className="flex gap-2 w-full sm:w-auto">
-             <div className="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-lg">
+             <div className="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-xl">
                 <button
                     onClick={() => setFilter('open')}
                     className={cn(
-                        "px-3 py-1.5 text-sm font-medium rounded-md transition-all",
+                        "px-3 py-1.5 text-sm font-medium rounded-lg transition-all",
                         filter === 'open' 
                             ? "bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm" 
                             : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
@@ -170,7 +170,7 @@ export const Callbacks = () => {
                 <button
                     onClick={() => setFilter('done')}
                     className={cn(
-                        "px-3 py-1.5 text-sm font-medium rounded-md transition-all",
+                        "px-3 py-1.5 text-sm font-medium rounded-lg transition-all",
                         filter === 'done' 
                             ? "bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm" 
                             : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
@@ -182,7 +182,7 @@ export const Callbacks = () => {
 
             <button
               onClick={() => setIsModalOpen(true)}
-              className="flex-1 sm:flex-none bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition-colors shadow-sm"
+              className="flex-1 sm:flex-none bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-lg shadow-indigo-200 dark:shadow-none"
             >
               <Plus className="w-4 h-4" />
               <span className="hidden sm:inline">Notiz erfassen</span>
@@ -191,7 +191,7 @@ export const Callbacks = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
         {filteredCallbacks.map((cb) => {
             const isHighPrio = cb.priority === 'high';
             const isDone = cb.status === 'done';
@@ -202,10 +202,10 @@ export const Callbacks = () => {
                 <div 
                     key={cb.id} 
                     className={cn(
-                        "bg-white dark:bg-gray-800 rounded-xl p-5 border shadow-sm transition-all relative overflow-hidden group",
+                        "bg-white dark:bg-gray-800 rounded-2xl p-6 border shadow-sm transition-all relative overflow-hidden group hover:shadow-md hover:-translate-y-1",
                         isForMe && !isDone ? "ring-2 ring-indigo-500/20 border-indigo-200 dark:border-indigo-900" : "border-gray-100 dark:border-gray-700",
                         isHighPrio && !isDone ? "bg-red-50/30 dark:bg-red-900/10" : "",
-                        isDone && "opacity-60 grayscale-[0.5]"
+                        isDone && "opacity-60 grayscale-[0.5] hover:opacity-80"
                     )}
                 >
                     {isHighPrio && !isDone && (

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '@/store/useStore';
-import { Building2 } from 'lucide-react';
+import { Building2, ArrowRight, Sparkles } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
 export const Login = () => {
@@ -55,87 +55,136 @@ export const Login = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="flex justify-center">
-          <Building2 className="h-12 w-12 text-blue-600" />
+    <div className="min-h-screen flex bg-white dark:bg-gray-900">
+      {/* Left Side - Image/Brand */}
+      <div className="hidden lg:flex lg:w-1/2 bg-indigo-600 relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-indigo-600 to-purple-700 opacity-90 z-10" />
+        <img 
+            src="https://images.unsplash.com/photo-1497366216548-37526070297c?ixlib=rb-1.2.1&auto=format&fit=crop&w=1950&q=80" 
+            alt="Office" 
+            className="absolute inset-0 w-full h-full object-cover"
+        />
+        <div className="relative z-20 flex flex-col justify-between h-full p-12 text-white">
+            <div>
+                <div className="flex items-center gap-3 mb-8">
+                    <div className="bg-white/20 p-2.5 rounded-xl backdrop-blur-sm">
+                        <Building2 className="h-8 w-8 text-white" />
+                    </div>
+                    <span className="text-2xl font-bold tracking-tight">Büro Manager</span>
+                </div>
+                <h1 className="text-5xl font-bold leading-tight mb-6">
+                    Das moderne OS <br/> für deine Agentur.
+                </h1>
+                <p className="text-lg text-indigo-100 max-w-md leading-relaxed">
+                    Organisiere Rückrufe, Pakete und Anwesenheiten an einem Ort. Effizient, übersichtlich und einfach schön.
+                </p>
+            </div>
+            <div className="flex items-center gap-4 text-sm text-indigo-200">
+                <div className="flex -space-x-2">
+                    {[1,2,3,4].map(i => (
+                        <div key={i} className="w-8 h-8 rounded-full bg-white/20 border-2 border-indigo-600 flex items-center justify-center text-xs">
+                             <Sparkles className="w-3 h-3" />
+                        </div>
+                    ))}
+                </div>
+                <p>Nutze die Power von KI & Automation.</p>
+            </div>
         </div>
-        <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-          {mode === 'signin' ? 'Anmelden beim Büro Manager' : 'Neuen Account erstellen'}
-        </h2>
       </div>
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
-          <form className="space-y-6" onSubmit={handleAuth}>
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                E-Mail Adresse
-              </label>
-              <div className="mt-1">
-                <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  autoComplete="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                />
-              </div>
+      {/* Right Side - Form */}
+      <div className="flex-1 flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-20 xl:px-24">
+        <div className="mx-auto w-full max-w-sm lg:w-96">
+            <div className="mb-8 lg:hidden text-center">
+                 <div className="flex justify-center mb-4">
+                    <div className="bg-indigo-600 p-3 rounded-xl inline-block">
+                        <Building2 className="h-8 w-8 text-white" />
+                    </div>
+                 </div>
+                 <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Büro Manager</h2>
             </div>
 
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                Passwort
-              </label>
-              <div className="mt-1">
-                <input
-                  id="password"
-                  name="password"
-                  type="password"
-                  autoComplete="current-password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                />
-              </div>
+            <div className="text-left mb-8">
+                <h2 className="text-3xl font-bold text-gray-900 dark:text-white">
+                    {mode === 'signin' ? 'Willkommen zurück' : 'Account erstellen'}
+                </h2>
+                <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                    {mode === 'signin' ? 'Bitte melden Sie sich an, um fortzufahren.' : 'Starten Sie jetzt mit Ihrem Team.'}
+                </p>
             </div>
 
-            <div>
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
-              >
-                {loading ? 'Laden...' : (mode === 'signin' ? 'Anmelden' : 'Registrieren')}
-              </button>
-            </div>
-          </form>
+            <form className="space-y-6" onSubmit={handleAuth}>
+                <div>
+                    <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        E-Mail Adresse
+                    </label>
+                    <div className="mt-1">
+                        <input
+                        id="email"
+                        name="email"
+                        type="email"
+                        autoComplete="email"
+                        required
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        className="appearance-none block w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-all"
+                        placeholder="name@firma.de"
+                        />
+                    </div>
+                </div>
 
-          <div className="mt-6">
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-300" />
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-gray-500">
-                  Oder
-                </span>
-              </div>
-            </div>
+                <div>
+                    <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Passwort
+                    </label>
+                    <div className="mt-1">
+                        <input
+                        id="password"
+                        name="password"
+                        type="password"
+                        autoComplete="current-password"
+                        required
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="appearance-none block w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-all"
+                        placeholder="••••••••"
+                        />
+                    </div>
+                </div>
 
-            <div className="mt-6">
-              <button
-                onClick={() => setMode(mode === 'signin' ? 'signup' : 'signin')}
-                className="w-full flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-              >
-                {mode === 'signin' ? 'Account erstellen' : 'Zurück zum Login'}
-              </button>
+                <div>
+                    <button
+                        type="submit"
+                        disabled={loading}
+                        className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-lg text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 transition-all hover:scale-[1.02]"
+                    >
+                        {loading ? 'Laden...' : (mode === 'signin' ? 'Anmelden' : 'Registrieren')}
+                        {!loading && <ArrowRight className="ml-2 w-4 h-4" />}
+                    </button>
+                </div>
+            </form>
+
+            <div className="mt-8">
+                <div className="relative">
+                    <div className="absolute inset-0 flex items-center">
+                        <div className="w-full border-t border-gray-300 dark:border-gray-700" />
+                    </div>
+                    <div className="relative flex justify-center text-sm">
+                        <span className="px-2 bg-white dark:bg-gray-900 text-gray-500">
+                            {mode === 'signin' ? 'Neu hier?' : 'Bereits registriert?'}
+                        </span>
+                    </div>
+                </div>
+
+                <div className="mt-6">
+                    <button
+                        onClick={() => setMode(mode === 'signin' ? 'signup' : 'signin')}
+                        className="w-full flex justify-center py-3 px-4 border-2 border-gray-100 dark:border-gray-700 rounded-xl shadow-sm text-sm font-bold text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all"
+                    >
+                        {mode === 'signin' ? 'Jetzt Account erstellen' : 'Zum Login zurückkehren'}
+                    </button>
+                </div>
             </div>
-          </div>
         </div>
       </div>
     </div>
