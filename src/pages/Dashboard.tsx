@@ -12,9 +12,12 @@ import {
   Palmtree, 
   ThermometerSun, 
   LogOut,
-  MessageSquare
+  MessageSquare,
+  Phone,
+  ArrowRight
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
+import { Link } from 'react-router-dom';
 
 // import { Skeleton } from '@/components/Skeleton';
 import { toast } from 'react-hot-toast';
@@ -44,9 +47,27 @@ type UserWithStatus = Profile & {
 export const Dashboard = () => {
   const user = useStore((state) => state.user);
   const [colleagues, setColleagues] = useState<UserWithStatus[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [openCallbacks, setOpenCallbacks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusMessage, setStatusMessage] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+
+  const fetchCallbacks = async () => {
+    if (!user) return;
+    // Fetch callbacks that are:
+    // 1. Assigned to me AND not done
+    // 2. Assigned to nobody (pool) AND not done
+    const { data } = await supabase
+        .from('callbacks')
+        .select('*')
+        .neq('status', 'done')
+        .or(`assigned_to.eq.${user.id},assigned_to.is.null`)
+        .order('priority', { ascending: false })
+        .limit(3);
+    
+    setOpenCallbacks(data || []);
+  };
 
   const fetchColleagues = async () => {
     // 1. Fetch all profiles
@@ -87,6 +108,7 @@ export const Dashboard = () => {
 
   useEffect(() => {
     fetchColleagues();
+    fetchCallbacks();
 
     // Realtime subscription
     const subscription = supabase
@@ -100,10 +122,17 @@ export const Dashboard = () => {
       )
       .subscribe();
 
+    // Callbacks Realtime
+    const cbChannel = supabase
+        .channel('dashboard_callbacks')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'callbacks' }, fetchCallbacks)
+        .subscribe();
+
     return () => {
       subscription.unsubscribe();
+      cbChannel.unsubscribe();
     };
-  }, []);
+  }, [user]); // Re-run if user changes (for correct ID filtering)
 
   const handleStatusUpdate = async (status: UserStatus['status']) => {
     if (!user) return;
@@ -141,6 +170,41 @@ export const Dashboard = () => {
 
   return (
     <div className="space-y-8">
+      {/* Callbacks Widget */}
+      {openCallbacks.length > 0 && (
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-red-100 dark:border-red-900/30 overflow-hidden">
+            <div className="bg-red-50 dark:bg-red-900/10 px-6 py-4 border-b border-red-100 dark:border-red-900/30 flex items-center justify-between">
+                <h3 className="text-red-800 dark:text-red-400 font-bold flex items-center gap-2">
+                    <Phone className="w-5 h-5" /> Offene Rückrufe für dich
+                </h3>
+                <Link to="/callbacks" className="text-sm text-red-600 dark:text-red-400 hover:underline flex items-center gap-1">
+                    Alle ansehen <ArrowRight className="w-4 h-4" />
+                </Link>
+            </div>
+            <div className="divide-y divide-gray-100 dark:divide-gray-700">
+                {openCallbacks.map(cb => (
+                    <div key={cb.id} className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors flex justify-between items-center">
+                        <div>
+                            <p className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                                {cb.customer_name}
+                                {cb.priority === 'high' && <span className="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-bold">DRINGEND</span>}
+                            </p>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">{cb.topic || 'Kein Thema'}</p>
+                        </div>
+                        <div className="text-right">
+                             <a href={`tel:${cb.phone}`} className="text-indigo-600 hover:underline text-sm font-medium">
+                                {cb.phone}
+                             </a>
+                             {cb.assigned_to === user?.id && (
+                                 <p className="text-xs text-green-600 mt-1">Dir zugewiesen</p>
+                             )}
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+      )}
+
       {/* Status Update Section */}
       <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Mein Status setzen</h2>
