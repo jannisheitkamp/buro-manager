@@ -54,14 +54,14 @@ function App() {
         <Route path="/login" element={<Login />} />
         
         <Route element={<ProtectedRoute />}>
-          <Route path="/" element={<Layout><Dashboard /></Layout>} />
-          <Route path="/calendar" element={<Layout><Calendar /></Layout>} />
-          <Route path="/bookings" element={<Layout><Bookings /></Layout>} />
-          <Route path="/board" element={<Layout><Board /></Layout>} />
-          <Route path="/polls" element={<Layout><Polls /></Layout>} />
-          <Route path="/parcels" element={<Layout><Parcels /></Layout>} />
-          <Route path="/directory" element={<Layout><Directory /></Layout>} />
-          <Route path="/profile" element={<Layout><ProfilePage /></Layout>} />
+          <Route path="/" element={<><Layout><Dashboard /></Layout><ChatBot /></>} />
+          <Route path="/calendar" element={<><Layout><Calendar /></Layout><ChatBot /></>} />
+          <Route path="/bookings" element={<><Layout><Bookings /></Layout><ChatBot /></>} />
+          <Route path="/board" element={<><Layout><Board /></Layout><ChatBot /></>} />
+          <Route path="/polls" element={<><Layout><Polls /></Layout><ChatBot /></>} />
+          <Route path="/parcels" element={<><Layout><Parcels /></Layout><ChatBot /></>} />
+          <Route path="/directory" element={<><Layout><Directory /></Layout><ChatBot /></>} />
+          <Route path="/profile" element={<><Layout><ProfilePage /></Layout><ChatBot /></>} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />
