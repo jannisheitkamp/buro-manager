@@ -16,6 +16,7 @@ import {
 import { cn } from '@/utils/cn';
 import { useState } from 'react';
 import { useTheme } from '@/hooks/useTheme';
+import { ChatBot } from './ChatBot';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
