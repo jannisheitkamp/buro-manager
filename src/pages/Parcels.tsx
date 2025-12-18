@@ -2,26 +2,29 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useStore } from '@/store/useStore';
 import { Parcel, Profile } from '@/types';
-import { Package, Plus, Check, Search, Box, Truck } from 'lucide-react';
+import { Package, Plus, Check, Search, Box, Truck, Trash2, Clock } from 'lucide-react';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { Modal } from '@/components/Modal';
+import { ConfirmModal } from '@/components/ConfirmModal';
 import { toast } from 'react-hot-toast';
 import { cn } from '@/utils/cn';
 
 export const Parcels = () => {
-  const { user } = useStore();
+  const { user, profile } = useStore();
   const [parcels, setParcels] = useState<Parcel[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'mine'>('all');
 
   // Form State
   const [recipientId, setRecipientId] = useState('');
   const [carrier, setCarrier] = useState('');
   const [location, setLocation] = useState('Empfang');
+  const [status, setStatus] = useState<'pending' | 'expected'>('pending');
 
   const fetchParcels = async () => {
     try {
@@ -67,21 +70,25 @@ export const Parcels = () => {
 
     setSubmitting(true);
     try {
+      // If "expected", we set the location to "Erwartet" or keep it as user selected?
+      // Better: Use status field. DB constraints allow text, so 'expected' works.
+      
       const { error } = await supabase.from('parcels').insert({
         recipient_id: recipientId,
         created_by: user.id,
         carrier: carrier || 'Unbekannt',
-        location,
-        status: 'pending'
+        location: status === 'expected' ? 'Unterwegs' : location,
+        status: status // 'pending' or 'expected'
       });
 
       if (error) throw error;
 
-      toast.success('Paket erfasst!');
+      toast.success(status === 'expected' ? 'Paket angekündigt!' : 'Paket erfasst!');
       setIsModalOpen(false);
       setRecipientId('');
       setCarrier('');
       setLocation('Empfang');
+      setStatus('pending');
     } catch (error) {
       console.error('Error creating parcel:', error);
       toast.error('Fehler beim Erfassen.');
@@ -107,6 +114,38 @@ export const Parcels = () => {
       toast.error('Fehler beim Aktualisieren.');
     }
   };
+  
+  const handleArrived = async (parcelId: string) => {
+    try {
+      const { error } = await supabase
+        .from('parcels')
+        .update({ 
+            status: 'pending',
+            location: 'Empfang', // Default to reception when arrived
+            created_at: new Date().toISOString() // Update timestamp to now
+        })
+        .eq('id', parcelId);
+
+      if (error) throw error;
+      toast.success('Paket ist jetzt da!');
+    } catch (error) {
+      console.error('Error updating parcel:', error);
+      toast.error('Fehler beim Aktualisieren.');
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteId) return;
+    try {
+        const { error } = await supabase.from('parcels').delete().eq('id', deleteId);
+        if (error) throw error;
+        toast.success('Eintrag gelöscht.');
+        setDeleteId(null);
+    } catch (error) {
+        console.error('Error deleting parcel:', error);
+        toast.error('Fehler beim Löschen.');
+    }
+  };
 
   const filteredParcels = parcels.filter(p => {
     if (filter === 'mine') return p.recipient_id === user?.id;
@@ -115,6 +154,9 @@ export const Parcels = () => {
 
   const pendingCount = parcels.filter(p => p.status === 'pending').length;
   const myPendingCount = parcels.filter(p => p.status === 'pending' && p.recipient_id === user?.id).length;
+  const expectedCount = parcels.filter(p => p.status === 'expected').length;
+
+  const isAdmin = profile?.roles?.includes('admin');
 
   if (loading) return <div className="p-8 text-center">Laden...</div>;
 
@@ -126,8 +168,9 @@ export const Parcels = () => {
             <Package className="w-8 h-8" />
             Paketstation
           </h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            {pendingCount} Pakete am Empfang ({myPendingCount} für dich)
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 flex gap-3">
+            <span>📦 {pendingCount} am Empfang</span>
+            {expectedCount > 0 && <span className="text-indigo-500">🚚 {expectedCount} erwartet</span>}
           </p>
         </div>
         
@@ -162,7 +205,7 @@ export const Parcels = () => {
               className="flex-1 sm:flex-none bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition-colors"
             >
               <Plus className="w-4 h-4" />
-              <span className="hidden sm:inline">Paket erfassen</span>
+              <span className="hidden sm:inline">Erfassen / Ankündigen</span>
               <span className="sm:hidden">Neu</span>
             </button>
         </div>
@@ -171,14 +214,19 @@ export const Parcels = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filteredParcels.map((parcel) => {
             const isMine = parcel.recipient_id === user?.id;
+            const isCreator = parcel.created_by === user?.id;
             const isPending = parcel.status === 'pending';
+            const isExpected = parcel.status === 'expected';
+            const isCollected = parcel.status === 'collected';
 
             return (
                 <div 
                     key={parcel.id} 
                     className={cn(
-                        "bg-white dark:bg-gray-800 rounded-xl p-5 border shadow-sm transition-all relative overflow-hidden",
-                        isPending ? "border-indigo-100 dark:border-indigo-900/30" : "border-gray-100 dark:border-gray-700 opacity-75"
+                        "bg-white dark:bg-gray-800 rounded-xl p-5 border shadow-sm transition-all relative overflow-hidden group",
+                        isPending ? "border-indigo-100 dark:border-indigo-900/30" : 
+                        isExpected ? "border-yellow-100 dark:border-yellow-900/30 bg-yellow-50/50 dark:bg-yellow-900/10" :
+                        "border-gray-100 dark:border-gray-700 opacity-75"
                     )}
                 >
                     {isPending && isMine && (
@@ -186,14 +234,21 @@ export const Parcels = () => {
                             FÜR DICH
                         </div>
                     )}
+                    {isExpected && (
+                        <div className="absolute top-0 right-0 bg-yellow-500 text-white text-[10px] font-bold px-2 py-1 rounded-bl-lg flex items-center gap-1">
+                            <Clock className="w-3 h-3" /> ERWARTET
+                        </div>
+                    )}
 
                     <div className="flex items-start justify-between mb-4">
                         <div className="flex items-center gap-3">
                              <div className={cn(
                                  "w-10 h-10 rounded-full flex items-center justify-center",
-                                 isPending ? "bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400" : "bg-gray-100 dark:bg-gray-700 text-gray-400"
+                                 isPending ? "bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400" : 
+                                 isExpected ? "bg-yellow-100 dark:bg-yellow-900/20 text-yellow-600 dark:text-yellow-400" :
+                                 "bg-gray-100 dark:bg-gray-700 text-gray-400"
                              )}>
-                                 <Box className="w-5 h-5" />
+                                 {isExpected ? <Truck className="w-5 h-5" /> : <Box className="w-5 h-5" />}
                              </div>
                              <div>
                                  <p className="font-semibold text-gray-900 dark:text-white text-sm">
@@ -204,6 +259,16 @@ export const Parcels = () => {
                                  </p>
                              </div>
                         </div>
+                        
+                        {(isCreator || isAdmin || isCollected) && (
+                            <button 
+                                onClick={() => setDeleteId(parcel.id)}
+                                className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1"
+                                title="Eintrag löschen"
+                            >
+                                <Trash2 className="w-4 h-4" />
+                            </button>
+                        )}
                     </div>
 
                     <div className="space-y-2 mb-4">
@@ -212,10 +277,10 @@ export const Parcels = () => {
                             <span className="font-medium text-gray-900 dark:text-white">{parcel.location}</span>
                         </div>
                         <div className="flex justify-between text-sm">
-                            <span className="text-gray-500 dark:text-gray-400">Eingetroffen:</span>
+                            <span className="text-gray-500 dark:text-gray-400">{isExpected ? 'Erstellt:' : 'Eingetroffen:'}</span>
                             <span className="text-gray-900 dark:text-white">{format(new Date(parcel.created_at), 'dd.MM. HH:mm', { locale: de })}</span>
                         </div>
-                        {!isPending && parcel.collected_at && (
+                        {isCollected && parcel.collected_at && (
                             <div className="flex justify-between text-sm">
                                 <span className="text-gray-500 dark:text-gray-400">Abgeholt:</span>
                                 <span className="text-green-600 dark:text-green-400">{format(new Date(parcel.collected_at), 'dd.MM. HH:mm', { locale: de })}</span>
@@ -223,7 +288,14 @@ export const Parcels = () => {
                         )}
                     </div>
 
-                    {isPending ? (
+                    {isExpected ? (
+                         <button
+                           onClick={() => handleArrived(parcel.id)}
+                           className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                         >
+                           <Box className="w-4 h-4" /> Ist jetzt da
+                         </button>
+                    ) : isPending ? (
                         <button
                             onClick={() => handleCollect(parcel.id)}
                             className="w-full py-2 bg-gray-900 hover:bg-gray-800 dark:bg-white dark:hover:bg-gray-100 text-white dark:text-gray-900 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
@@ -250,9 +322,37 @@ export const Parcels = () => {
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title="Neues Paket erfassen"
+        title="Paket"
       >
         <form onSubmit={handleCreateParcel} className="space-y-4">
+          
+          <div className="flex p-1 bg-gray-100 dark:bg-gray-700 rounded-lg mb-4">
+             <button
+                type="button"
+                onClick={() => setStatus('pending')}
+                className={cn(
+                    "flex-1 py-1.5 text-sm font-medium rounded-md transition-all",
+                    status === 'pending' 
+                        ? "bg-white dark:bg-gray-600 shadow-sm text-indigo-600 dark:text-indigo-400" 
+                        : "text-gray-500 dark:text-gray-400"
+                )}
+             >
+                Ist da (Empfang)
+             </button>
+             <button
+                type="button"
+                onClick={() => setStatus('expected')}
+                className={cn(
+                    "flex-1 py-1.5 text-sm font-medium rounded-md transition-all",
+                    status === 'expected' 
+                        ? "bg-white dark:bg-gray-600 shadow-sm text-indigo-600 dark:text-indigo-400" 
+                        : "text-gray-500 dark:text-gray-400"
+                )}
+             >
+                Ankündigen
+             </button>
+          </div>
+
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Empfänger
@@ -272,7 +372,7 @@ export const Parcels = () => {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Lieferdienst (Optional)
+              Lieferdienst / Info
             </label>
             <input
               type="text"
@@ -283,21 +383,23 @@ export const Parcels = () => {
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Ablageort
-            </label>
-            <select
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
-              className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            >
-              <option value="Empfang">Empfang</option>
-              <option value="Poststelle">Poststelle</option>
-              <option value="Lager">Lager</option>
-              <option value="Küche">Küche</option>
-            </select>
-          </div>
+          {status === 'pending' && (
+            <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Ablageort
+                </label>
+                <select
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                <option value="Empfang">Empfang</option>
+                <option value="Poststelle">Poststelle</option>
+                <option value="Lager">Lager</option>
+                <option value="Küche">Küche</option>
+                </select>
+            </div>
+          )}
 
           <div className="flex justify-end gap-3 mt-6">
             <button
@@ -312,11 +414,21 @@ export const Parcels = () => {
               disabled={submitting}
               className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md transition-colors disabled:opacity-50"
             >
-              {submitting ? 'Speichere...' : 'Erfassen'}
+              {submitting ? 'Speichere...' : (status === 'expected' ? 'Ankündigen' : 'Erfassen')}
             </button>
           </div>
         </form>
       </Modal>
+
+      <ConfirmModal
+        isOpen={!!deleteId}
+        onClose={() => setDeleteId(null)}
+        onConfirm={handleDelete}
+        title="Paket-Eintrag löschen"
+        message="Möchten Sie diesen Eintrag wirklich löschen?"
+        confirmText="Löschen"
+        isDestructive
+      />
     </div>
   );
 };

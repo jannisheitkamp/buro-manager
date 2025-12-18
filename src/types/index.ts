@@ -14,7 +14,7 @@ export type Parcel = {
   created_by: string;
   carrier: string | null;
   location: string;
-  status: 'pending' | 'collected';
+  status: 'pending' | 'collected' | 'expected';
   collected_at: string | null;
   created_at: string;
   profiles?: Profile; // Recipient profile
