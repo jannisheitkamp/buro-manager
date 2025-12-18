@@ -39,10 +39,16 @@ export const Login = () => {
         if (error) throw error;
         await fetchProfile();
         toast.success('Erfolgreich angemeldet!');
-        navigate('/');
       }
-    } catch (err: any) {
-      toast.error(err.message || 'Ein Fehler ist aufgetreten.');
+
+      navigate('/');
+    } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+      console.error('Login error:', err);
+      let msg = 'Ein Fehler ist aufgetreten.';
+      if (err.message?.includes('Invalid login credentials')) {
+        msg = 'Falsche E-Mail oder Passwort.';
+      }
+      toast.error(msg);
     } finally {
       setLoading(false);
     }

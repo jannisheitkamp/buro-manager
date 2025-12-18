@@ -14,7 +14,7 @@ import { toast } from 'react-hot-toast';
 export const Board = () => {
   const { user, profile } = useStore();
   const [posts, setPosts] = useState<Post[]>([]);
-  const [loading, setLoading] = useState(true);
+  // const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -38,7 +38,7 @@ export const Board = () => {
     } catch (error) {
       console.error('Error fetching posts:', error);
     } finally {
-      setLoading(false);
+      // setLoading(false);
     }
   };
 

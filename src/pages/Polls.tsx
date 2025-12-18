@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useStore } from '@/store/useStore';
-import { Poll, PollOption, PollVote } from '@/types';
+import { Poll } from '@/types';
 import { Plus, BarChart2, Trash2, CheckCircle2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -134,9 +134,7 @@ export const Polls = () => {
           // Clicked same option -> remove vote (toggle)
            await supabase.from('poll_votes').delete().eq('id', existingVote.id);
         } else {
-          // Clicked different option -> update vote (delete old, add new? or just delete old implicitly by constraint? 
-          // We have unique constraint, so we must delete first or upsert logic.
-          // Simplest: Delete old, insert new.
+          // Clicked different option -> update vote
           await supabase.from('poll_votes').delete().eq('id', existingVote.id);
           await supabase.from('poll_votes').insert({ poll_id: pollId, option_id: optionId, user_id: user.id });
         }

@@ -2,12 +2,11 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Booking } from '@/types';
 import { useStore } from '@/store/useStore';
-import { format, parseISO, isSameDay, addDays, startOfDay, isBefore, setHours, setMinutes } from 'date-fns';
+import { format, parseISO, addDays, startOfDay, isBefore, setHours, setMinutes } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { Plus, Trash2, Calendar as CalendarIcon, Clock, MapPin } from 'lucide-react';
+import { Plus, Trash2, Calendar as CalendarIcon, MapPin } from 'lucide-react';
 import { Modal } from '@/components/Modal';
 import { ConfirmModal } from '@/components/ConfirmModal';
-import { cn } from '@/utils/cn';
 import { toast } from 'react-hot-toast';
 
 const RESOURCES = ['Besprechungsraum'];
@@ -15,7 +14,7 @@ const RESOURCES = ['Besprechungsraum'];
 export const Bookings = () => {
   const { user } = useStore();
   const [bookings, setBookings] = useState<Booking[]>([]);
-  const [loading, setLoading] = useState(true);
+  // const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -50,7 +49,7 @@ export const Bookings = () => {
     } catch (error) {
       console.error('Error fetching bookings:', error);
     } finally {
-      setLoading(false);
+      // setLoading(false);
     }
   };
 
@@ -107,11 +106,13 @@ export const Bookings = () => {
       // Check overlaps (client-side first for immediate feedback, RLS/DB constraint ideally handles this too)
       const hasOverlap = bookings.some(b => {
         if (b.resource_name !== formData.resource_name) return false;
+        // Skip current booking if we were editing (not implemented yet, but good practice)
+        
         const bStart = parseISO(b.start_time);
         const bEnd = parseISO(b.end_time);
-        return (
-            (isBefore(startDate, bEnd) && isBefore(bStart, endDate)) // Standard overlap check
-        );
+        
+        // Overlap logic: (StartA < EndB) and (EndA > StartB)
+        return isBefore(startDate, bEnd) && isBefore(bStart, endDate);
       });
 
       if (hasOverlap) {
@@ -134,7 +135,7 @@ export const Bookings = () => {
       setFormData(prev => ({ ...prev, title: '' }));
       fetchBookings();
       toast.success('Raum erfolgreich gebucht!');
-    } catch (error: any) {
+    } catch (error: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
       console.error('Error creating booking:', error);
       if (error.message?.includes('Zeitraum überschneidet')) {
         toast.error('Dieser Zeitraum ist bereits belegt.');

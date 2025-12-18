@@ -2,15 +2,20 @@ import { create } from 'zustand';
 import { supabase } from '@/lib/supabase';
 import { Profile } from '@/types';
 
-interface StoreState {
-  user: any | null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type User = any;
+
+export interface StoreState {
+  user: User | null;
   profile: Profile | null;
   loading: boolean;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   setUser: (user: any) => void;
   setLoading: (loading: boolean) => void;
   setProfile: (profile: Profile | null) => void;
   fetchProfile: () => Promise<void>;
-  signOut: () => Promise<void>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  signOut: () => Promise<any>;
 }
 
 export const useStore = create<StoreState>((set, get) => ({

@@ -16,12 +16,13 @@ import {
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 
-import { Skeleton } from '@/components/Skeleton';
+// import { Skeleton } from '@/components/Skeleton';
 import { toast } from 'react-hot-toast';
 
 type StatusOption = {
   value: UserStatus['status'];
   label: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   icon: any;
   color: string;
 };
@@ -71,14 +72,14 @@ export const Dashboard = () => {
     }
 
     // 3. Merge data
-    const merged = profiles.map(profile => {
+    const merged = profiles?.map(profile => {
       // Find the most recent status for this user
       const latestStatus = statuses?.find(s => s.user_id === profile.id);
       return {
         ...profile,
         current_status: latestStatus
       };
-    });
+    }) || [];
 
     setColleagues(merged);
     setLoading(false);
