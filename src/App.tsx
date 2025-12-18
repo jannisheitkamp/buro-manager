@@ -15,6 +15,7 @@ import { Parcels } from '@/pages/Parcels';
 import { Directory } from '@/pages/Directory';
 import { ProfilePage } from '@/pages/ProfilePage';
 import { Toaster } from 'react-hot-toast';
+import { ChatBot } from '@/components/ChatBot';
 
 function App() {
   const setUser = useStore((state) => state.setUser);
