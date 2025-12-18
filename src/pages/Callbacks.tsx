@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useStore } from '@/store/useStore';
 import { Callback, Profile } from '@/types';
-import { Phone, Plus, Check, UserPlus, Flame, Search, CheckCircle2, User } from 'lucide-react';
+import { Phone, Plus, Check, User as UserIcon, AlertCircle, Search, ArrowRight, PenTool } from 'lucide-react';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { Modal } from '@/components/Modal';
@@ -37,7 +37,6 @@ export const Callbacks = () => {
           assignee:assigned_to(*),
           completer:completed_by(*)
         `)
-        .order('priority', { ascending: false }) // High priority first
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -86,7 +85,7 @@ export const Callbacks = () => {
 
       if (error) throw error;
 
-      toast.success('Rückruf angelegt!');
+      toast.success('Notiz erstellt!');
       setIsModalOpen(false);
       // Reset form
       setCustomerName('');
@@ -99,21 +98,6 @@ export const Callbacks = () => {
       toast.error('Fehler beim Erstellen.');
     } finally {
       setSubmitting(false);
-    }
-  };
-
-  const handleTakeOver = async (id: string) => {
-    if (!user) return;
-    try {
-        const { error } = await supabase
-            .from('callbacks')
-            .update({ assigned_to: user.id, status: 'in_progress' })
-            .eq('id', id);
-        
-        if (error) throw error;
-        toast.success('Übernommen!');
-    } catch (error) {
-        toast.error('Fehler.');
     }
   };
 
@@ -161,10 +145,10 @@ export const Callbacks = () => {
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
             <Phone className="w-8 h-8 text-indigo-600" />
-            Rückruf-Zentrale
+            Telefon-Notizen
           </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Verpasse keinen Lead. Schnelle Reaktion gewinnt!
+            Wer hat angerufen? Wer soll zurückrufen?
           </p>
         </div>
         
@@ -199,7 +183,7 @@ export const Callbacks = () => {
               className="flex-1 sm:flex-none bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition-colors shadow-sm"
             >
               <Plus className="w-4 h-4" />
-              <span className="hidden sm:inline">Rückruf anlegen</span>
+              <span className="hidden sm:inline">Notiz erfassen</span>
               <span className="sm:hidden">Neu</span>
             </button>
         </div>
@@ -209,80 +193,78 @@ export const Callbacks = () => {
         {filteredCallbacks.map((cb) => {
             const isHighPrio = cb.priority === 'high';
             const isDone = cb.status === 'done';
-            const assignedToMe = cb.assigned_to === user?.id;
+            const isForMe = cb.assigned_to === user?.id;
 
             return (
                 <div 
                     key={cb.id} 
                     className={cn(
                         "bg-white dark:bg-gray-800 rounded-xl p-5 border shadow-sm transition-all relative overflow-hidden group",
-                        isHighPrio && !isDone ? "border-red-200 dark:border-red-900/50 bg-red-50/30 dark:bg-red-900/10" : "border-gray-100 dark:border-gray-700",
+                        isForMe && !isDone ? "ring-2 ring-indigo-500/20 border-indigo-200 dark:border-indigo-900" : "border-gray-100 dark:border-gray-700",
+                        isHighPrio && !isDone ? "bg-red-50/30 dark:bg-red-900/10" : "",
                         isDone && "opacity-60 grayscale-[0.5]"
                     )}
                 >
                     {isHighPrio && !isDone && (
-                        <div className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-bold px-2 py-1 rounded-bl-lg flex items-center gap-1">
-                            <Flame className="w-3 h-3" /> DRINGEND
+                        <div className="absolute top-0 right-0 bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-300 text-[10px] font-bold px-2 py-1 rounded-bl-lg flex items-center gap-1">
+                            <AlertCircle className="w-3 h-3" /> WICHTIG
+                        </div>
+                    )}
+                    
+                    {isForMe && !isDone && (
+                        <div className="absolute top-0 left-0 bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 text-[10px] font-bold px-2 py-1 rounded-br-lg">
+                            FÜR DICH
                         </div>
                     )}
 
-                    <div className="flex justify-between items-start mb-3">
-                        <div>
-                            <h3 className="font-bold text-lg text-gray-900 dark:text-white">
-                                {cb.customer_name}
-                            </h3>
-                            {cb.topic && (
-                                <p className="text-gray-600 dark:text-gray-300 text-sm mt-0.5">
-                                    {cb.topic}
-                                </p>
-                            )}
+                    <div className="mb-4 mt-2">
+                        <div className="flex items-start gap-3">
+                             <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center flex-shrink-0">
+                                <Phone className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                             </div>
+                             <div>
+                                <h3 className="font-bold text-gray-900 dark:text-white leading-tight">
+                                    {cb.customer_name}
+                                </h3>
+                                <a href={`tel:${cb.phone}`} className="text-indigo-600 hover:underline text-sm font-medium block mt-0.5">
+                                    {cb.phone || 'Keine Nummer'}
+                                </a>
+                             </div>
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 mb-4">
-                        <Phone className="w-4 h-4" />
-                        <a href={`tel:${cb.phone}`} className="hover:text-indigo-600 hover:underline">
-                            {cb.phone || 'Keine Nummer'}
-                        </a>
+                    <div className="bg-gray-50 dark:bg-gray-700/30 rounded-lg p-3 mb-4">
+                        <p className="text-gray-700 dark:text-gray-300 text-sm">
+                            {cb.topic || 'Keine Notiz hinterlassen.'}
+                        </p>
                     </div>
 
-                    <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
-                        <div className="flex items-center gap-2 text-xs text-gray-400">
-                            <span>{format(new Date(cb.created_at), 'HH:mm')} Uhr</span>
-                            <span>•</span>
-                            <span>von {cb.creator?.full_name?.split(' ')[0] || '?'}</span>
+                    <div className="flex items-center justify-between pt-2 border-t border-gray-100 dark:border-gray-700">
+                        <div className="flex flex-col gap-0.5">
+                            <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+                                <PenTool className="w-3 h-3" />
+                                <span>Notiert von {cb.creator?.full_name?.split(' ')[0]}</span>
+                            </div>
+                            <div className="text-[10px] text-gray-400">
+                                {format(new Date(cb.created_at), 'dd.MM. HH:mm', { locale: de })} Uhr
+                            </div>
                         </div>
 
                         {!isDone && (
-                            <div className="flex gap-2">
-                                {!cb.assigned_to ? (
-                                    <button 
-                                        onClick={() => handleTakeOver(cb.id)}
-                                        className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-md text-sm font-medium transition-colors flex items-center gap-1"
-                                    >
-                                        <UserPlus className="w-3.5 h-3.5" /> Ich
-                                    </button>
-                                ) : (
-                                    <div className="flex items-center gap-1 text-xs bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 px-2 py-1 rounded-md">
-                                        <User className="w-3 h-3" />
-                                        {cb.assignee?.full_name?.split(' ')[0]}
-                                    </div>
-                                )}
+                            <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
+                                    <ArrowRight className="w-3 h-3" />
+                                    {cb.assignee?.full_name?.split(' ')[0] || 'Alle'}
+                                </div>
                                 
                                 <button 
                                     onClick={() => handleComplete(cb.id)}
-                                    className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm font-medium transition-colors flex items-center gap-1"
+                                    className="p-2 bg-green-600 hover:bg-green-700 text-white rounded-full shadow-sm transition-colors"
+                                    title="Erledigt"
                                 >
-                                    <Check className="w-3.5 h-3.5" />
+                                    <Check className="w-4 h-4" />
                                 </button>
                             </div>
-                        )}
-                        
-                        {isDone && (
-                             <div className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1 font-medium">
-                                <CheckCircle2 className="w-3.5 h-3.5" />
-                                Erledigt ({cb.completer?.full_name?.split(' ')[0]})
-                             </div>
                         )}
                     </div>
                 </div>
@@ -294,7 +276,7 @@ export const Callbacks = () => {
                 <div className="bg-gray-50 dark:bg-gray-700/50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
                     <Phone className="w-8 h-8 opacity-50" />
                 </div>
-                <p>Keine Rückrufe in dieser Liste.</p>
+                <p>Keine Notizen vorhanden.</p>
             </div>
         )}
       </div>
@@ -302,54 +284,70 @@ export const Callbacks = () => {
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title="Rückruf anlegen"
+        title="Rückruf notieren"
       >
         <form onSubmit={handleCreateCallback} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Kunde / Name *
+              Wer hat angerufen? *
             </label>
             <input
               required
               type="text"
               value={customerName}
               onChange={(e) => setCustomerName(e.target.value)}
-              placeholder="z.B. Herr Müller (Firma XYZ)"
+              placeholder="Name / Firma"
               className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Telefonnummer *
+              Rückruf-Nummer *
             </label>
             <input
               required
               type="tel"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              placeholder="0171 12345678"
+              placeholder="0171..."
               className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Thema / Stichwort
+              Worum geht es? (Notiz)
             </label>
-            <input
-              type="text"
+            <textarea
+              rows={3}
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
-              placeholder="z.B. KFZ Schaden, Angebot Hausrat"
+              placeholder="Hat Fragen zu Vertrag XYZ..."
               className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
+            <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Für wen? *
+                </label>
+                <select
+                required
+                value={assignedTo}
+                onChange={(e) => setAssignedTo(e.target.value)}
+                className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                <option value="">-- Bitte wählen --</option>
+                {profiles.map(p => (
+                    <option key={p.id} value={p.id}>{p.full_name}</option>
+                ))}
+                </select>
+            </div>
              <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Priorität
+                Dringlichkeit
                 </label>
                 <select
                 value={priority}
@@ -357,22 +355,7 @@ export const Callbacks = () => {
                 className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
                 <option value="normal">Normal</option>
-                <option value="high">🔥 Dringend</option>
-                </select>
-            </div>
-            <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Zuweisen an (Optional)
-                </label>
-                <select
-                value={assignedTo}
-                onChange={(e) => setAssignedTo(e.target.value)}
-                className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                >
-                <option value="">-- Niemand (Pool) --</option>
-                {profiles.map(p => (
-                    <option key={p.id} value={p.id}>{p.full_name}</option>
-                ))}
+                <option value="high">🔥 Wichtig</option>
                 </select>
             </div>
           </div>
@@ -390,7 +373,7 @@ export const Callbacks = () => {
               disabled={submitting}
               className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md transition-colors disabled:opacity-50"
             >
-              {submitting ? 'Speichere...' : 'Anlegen'}
+              {submitting ? 'Speichere...' : 'Notieren'}
             </button>
           </div>
         </form>
