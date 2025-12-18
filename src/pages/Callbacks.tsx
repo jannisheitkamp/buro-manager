@@ -196,6 +196,7 @@ export const Callbacks = () => {
             const isHighPrio = cb.priority === 'high';
             const isDone = cb.status === 'done';
             const isForMe = cb.assigned_to === user?.id;
+            const isCreator = cb.created_by === user?.id;
 
             return (
                 <div 
