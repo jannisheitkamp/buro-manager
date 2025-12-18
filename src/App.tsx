@@ -11,6 +11,7 @@ import { Calendar } from '@/pages/Calendar';
 import { Bookings } from '@/pages/Bookings';
 import { Board } from '@/pages/Board';
 import { Polls } from '@/pages/Polls';
+import { Parcels } from '@/pages/Parcels';
 import { Directory } from '@/pages/Directory';
 import { ProfilePage } from '@/pages/ProfilePage';
 import { Toaster } from 'react-hot-toast';

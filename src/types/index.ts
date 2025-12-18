@@ -8,6 +8,18 @@ export type Profile = {
   created_at: string;
 };
 
+export type Parcel = {
+  id: string;
+  recipient_id: string;
+  created_by: string;
+  carrier: string | null;
+  location: string;
+  status: 'pending' | 'collected';
+  collected_at: string | null;
+  created_at: string;
+  profiles?: Profile; // Recipient profile
+};
+
 export type UserStatus = {
   id: string;
   user_id: string;

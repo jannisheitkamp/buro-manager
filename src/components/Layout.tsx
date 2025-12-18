@@ -11,7 +11,8 @@ import {
   LogOut,
   Menu,
   Moon,
-  Sun
+  Sun,
+  Package
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { useState } from 'react';
@@ -24,6 +25,7 @@ const navigation = [
   { name: 'Buchungen', href: '/bookings', icon: Building2 },
   { name: 'Schwarzes Brett', href: '/board', icon: ClipboardList },
   { name: 'Umfragen', href: '/polls', icon: BarChart2 },
+  { name: 'Pakete', href: '/parcels', icon: Package },
   { name: 'Verzeichnis', href: '/directory', icon: Users },
   { name: 'Profil', href: '/profile', icon: UserCircle },
 ];
