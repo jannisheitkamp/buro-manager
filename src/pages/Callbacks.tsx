@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useStore } from '@/store/useStore';
 import { Callback, Profile } from '@/types';
-import { Phone, Plus, Check, User as UserIcon, AlertCircle, Search, ArrowRight, PenTool } from 'lucide-react';
+import { Phone, Plus, Check, User as UserIcon, AlertCircle, Search, ArrowRight, PenTool, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { Modal } from '@/components/Modal';
@@ -11,7 +11,7 @@ import { toast } from 'react-hot-toast';
 import { cn } from '@/utils/cn';
 
 export const Callbacks = () => {
-  const { user } = useStore();
+  const { user, profile } = useStore();
   const [callbacks, setCallbacks] = useState<Callback[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -137,6 +137,8 @@ export const Callbacks = () => {
     return true;
   });
 
+  const isAdmin = profile?.roles?.includes('admin');
+
   if (loading) return <div className="p-8 text-center">Laden...</div>;
 
   return (
@@ -218,18 +220,30 @@ export const Callbacks = () => {
                     )}
 
                     <div className="mb-4 mt-2">
-                        <div className="flex items-start gap-3">
-                             <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center flex-shrink-0">
-                                <Phone className="w-5 h-5 text-gray-500 dark:text-gray-400" />
-                             </div>
-                             <div>
-                                <h3 className="font-bold text-gray-900 dark:text-white leading-tight">
-                                    {cb.customer_name}
-                                </h3>
-                                <a href={`tel:${cb.phone}`} className="text-indigo-600 hover:underline text-sm font-medium block mt-0.5">
-                                    {cb.phone || 'Keine Nummer'}
-                                </a>
-                             </div>
+                        <div className="flex items-start justify-between">
+                            <div className="flex items-start gap-3">
+                                <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center flex-shrink-0">
+                                    <Phone className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-gray-900 dark:text-white leading-tight">
+                                        {cb.customer_name}
+                                    </h3>
+                                    <a href={`tel:${cb.phone}`} className="text-indigo-600 hover:underline text-sm font-medium block mt-0.5">
+                                        {cb.phone || 'Keine Nummer'}
+                                    </a>
+                                </div>
+                            </div>
+
+                            {(isCreator || isAdmin || isDone) && (
+                                <button 
+                                    onClick={() => setDeleteId(cb.id)}
+                                    className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1"
+                                    title="Notiz löschen"
+                                >
+                                    <Trash2 className="w-4 h-4" />
+                                </button>
+                            )}
                         </div>
                     </div>
 
