@@ -25,6 +25,7 @@ const navigation = [
   { name: 'Buchungen', href: '/bookings', icon: Building2 },
   { name: 'Schwarzes Brett', href: '/board', icon: ClipboardList },
   { name: 'Umfragen', href: '/polls', icon: BarChart2 },
+  { name: 'Rückrufe', href: '/callbacks', icon: Phone },
   { name: 'Pakete', href: '/parcels', icon: Package },
   { name: 'Verzeichnis', href: '/directory', icon: Users },
   { name: 'Profil', href: '/profile', icon: UserCircle },
