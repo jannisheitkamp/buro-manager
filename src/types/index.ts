@@ -20,6 +20,23 @@ export type Parcel = {
   profiles?: Profile; // Recipient profile
 };
 
+export type Callback = {
+  id: string;
+  created_at: string;
+  created_by: string;
+  customer_name: string;
+  phone: string | null;
+  topic: string | null;
+  priority: 'normal' | 'high';
+  status: 'open' | 'in_progress' | 'done';
+  assigned_to: string | null;
+  completed_at: string | null;
+  completed_by: string | null;
+  creator?: Profile;
+  assignee?: Profile;
+  completer?: Profile;
+};
+
 export type UserStatus = {
   id: string;
   user_id: string;

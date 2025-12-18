@@ -60,6 +60,7 @@ function App() {
           <Route path="/bookings" element={<><Layout><Bookings /></Layout><ChatBot /></>} />
           <Route path="/board" element={<><Layout><Board /></Layout><ChatBot /></>} />
           <Route path="/polls" element={<><Layout><Polls /></Layout><ChatBot /></>} />
+          <Route path="/callbacks" element={<><Layout><Callbacks /></Layout><ChatBot /></>} />
           <Route path="/parcels" element={<><Layout><Parcels /></Layout><ChatBot /></>} />
           <Route path="/directory" element={<><Layout><Directory /></Layout><ChatBot /></>} />
           <Route path="/profile" element={<><Layout><ProfilePage /></Layout><ChatBot /></>} />

@@ -12,7 +12,8 @@ import {
   Menu,
   Moon,
   Sun,
-  Package
+  Package,
+  Phone
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { useState } from 'react';
