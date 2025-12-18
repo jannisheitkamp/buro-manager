@@ -7,7 +7,15 @@ export default {
     container: {
       center: true,
     },
-    extend: {},
+    extend: {
+      fontFamily: {
+        sans: ['Inter', 'sans-serif'],
+      },
+      colors: {
+        // Custom softer gray palette example if needed, but standard tailwind colors are fine for now.
+        // We will rely on opacity and blur for the "premium" feel.
+      }
+    },
   },
   plugins: [],
 };
