@@ -250,44 +250,46 @@ export const Calendar = () => {
 
                 return (
                   <div key={absence.id} className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-2 gap-3">
+                      <div className="flex items-center gap-3 overflow-hidden">
                         <img
                           src={absence.profiles?.avatar_url || `https://ui-avatars.com/api/?name=${absence.profiles?.full_name || 'User'}&background=random`}
                           alt={absence.profiles?.full_name || ''}
-                          className="w-8 h-8 rounded-full"
+                          className="w-8 h-8 rounded-full flex-shrink-0"
                         />
-                        <div>
-                          <p className="font-medium text-gray-900 dark:text-white">
+                        <div className="min-w-0">
+                          <p className="font-medium text-gray-900 dark:text-white truncate">
                             {absence.profiles?.full_name} {isOwn && '(Du)'}
                           </p>
-                          <span className={cn("px-2 py-0.5 rounded-full text-xs font-medium", getTypeColor(absence.type))}>
+                          <span className={cn("px-2 py-0.5 rounded-full text-xs font-medium inline-block mt-1", getTypeColor(absence.type))}>
                             {getTypeLabel(absence.type)}
                           </span>
                         </div>
                       </div>
-                      <div className="flex items-center gap-1">
-                         <button
-                           onClick={() => generateVacationRequestPDF(absence, absence.profiles!)}
-                           className="text-gray-400 hover:text-indigo-600 transition-colors p-1"
-                           title="PDF herunterladen"
-                         >
-                           <Download className="w-4 h-4" />
-                         </button>
-                         {absence.status === 'pending' && <span className="flex items-center text-xs text-yellow-600 dark:text-yellow-400 gap-1"><Clock className="w-3 h-3"/> Warten</span>}
-                         {isOwn && (
+                      <div className="flex items-center justify-between sm:justify-end gap-1 w-full sm:w-auto pl-11 sm:pl-0">
+                         <div className="flex items-center gap-1">
                            <button
-                             onClick={() => setDeleteId(absence.id)}
-                             className="text-gray-400 hover:text-red-500 transition-colors p-1 ml-2"
-                             title="Antrag löschen"
+                             onClick={() => generateVacationRequestPDF(absence, absence.profiles!)}
+                             className="text-gray-400 hover:text-indigo-600 transition-colors p-1"
+                             title="PDF herunterladen"
                            >
-                             <Trash2 className="w-4 h-4" />
+                             <Download className="w-4 h-4" />
                            </button>
-                         )}
+                           {absence.status === 'pending' && <span className="flex items-center text-xs text-yellow-600 dark:text-yellow-400 gap-1"><Clock className="w-3 h-3"/> <span className="hidden sm:inline">Warten</span></span>}
+                           {isOwn && (
+                             <button
+                               onClick={() => setDeleteId(absence.id)}
+                               className="text-gray-400 hover:text-red-500 transition-colors p-1 ml-2"
+                               title="Antrag löschen"
+                             >
+                               <Trash2 className="w-4 h-4" />
+                             </button>
+                           )}
+                         </div>
                       </div>
                     </div>
                     
-                    <div className="flex items-center justify-between mt-2 pl-11">
+                    <div className="flex items-center justify-between mt-2 pl-11 sm:pl-11">
                       <p className="text-sm text-gray-500 dark:text-gray-400">
                         {format(parseISO(absence.start_date), 'dd. MMM', { locale: de })} - {format(parseISO(absence.end_date), 'dd. MMM yyyy', { locale: de })}
                       </p>

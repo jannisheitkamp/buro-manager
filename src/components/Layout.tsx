@@ -5,6 +5,7 @@ import {
   CalendarDays, 
   Building2, 
   ClipboardList, 
+  BarChart2,
   Users, 
   UserCircle, 
   LogOut,
@@ -21,6 +22,7 @@ const navigation = [
   { name: 'Abwesenheiten', href: '/calendar', icon: CalendarDays },
   { name: 'Buchungen', href: '/bookings', icon: Building2 },
   { name: 'Schwarzes Brett', href: '/board', icon: ClipboardList },
+  { name: 'Umfragen', href: '/polls', icon: BarChart2 },
   { name: 'Verzeichnis', href: '/directory', icon: Users },
   { name: 'Profil', href: '/profile', icon: UserCircle },
 ];

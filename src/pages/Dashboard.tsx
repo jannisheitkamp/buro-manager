@@ -45,6 +45,7 @@ export const Dashboard = () => {
   const [colleagues, setColleagues] = useState<UserWithStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusMessage, setStatusMessage] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
 
   const fetchColleagues = async () => {
     // 1. Fetch all profiles
@@ -128,6 +129,15 @@ export const Dashboard = () => {
 
   const myStatus = colleagues.find(c => c.id === user?.id)?.current_status;
 
+  const filteredColleagues = colleagues.filter(colleague => {
+    const searchLower = searchQuery.toLowerCase();
+    const name = (colleague.full_name || '').toLowerCase();
+    const email = (colleague.email || '').toLowerCase();
+    const statusLabel = STATUS_OPTIONS.find(o => o.value === colleague.current_status?.status)?.label.toLowerCase() || '';
+    
+    return name.includes(searchLower) || email.includes(searchLower) || statusLabel.includes(searchLower);
+  });
+
   return (
     <div className="space-y-8">
       {/* Status Update Section */}
@@ -175,17 +185,34 @@ export const Dashboard = () => {
 
       {/* Colleagues List */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/30">
+        <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Anwesenheitsliste</h2>
+          <div className="relative">
+             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Users className="h-4 w-4 text-gray-400" />
+             </div>
+             <input
+               type="text"
+               placeholder="Kollegen suchen..."
+               value={searchQuery}
+               onChange={(e) => setSearchQuery(e.target.value)}
+               className="block w-full sm:w-64 pl-9 pr-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md leading-5 bg-white dark:bg-gray-700 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
+             />
+          </div>
         </div>
         <ul className="divide-y divide-gray-200 dark:divide-gray-700">
-          {colleagues.map((colleague) => {
+          {filteredColleagues.length === 0 ? (
+             <li className="p-8 text-center text-gray-500 dark:text-gray-400">
+               Keine Kollegen gefunden.
+             </li>
+          ) : (
+            filteredColleagues.map((colleague) => {
             const status = colleague.current_status;
             const statusConfig = STATUS_OPTIONS.find(o => o.value === status?.status);
             const StatusIcon = statusConfig?.icon || Users;
 
             return (
-              <li key={colleague.id} className="p-4 sm:p-6 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+              <li key={colleague.id} className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div className="flex items-center space-x-4">
                     <div className="flex-shrink-0">
@@ -229,7 +256,8 @@ export const Dashboard = () => {
                 </div>
               </li>
             );
-          })}
+          })
+          )}
         </ul>
       </div>
     </div>

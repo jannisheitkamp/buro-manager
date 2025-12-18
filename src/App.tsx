@@ -56,6 +56,7 @@ function App() {
           <Route path="/calendar" element={<Layout><Calendar /></Layout>} />
           <Route path="/bookings" element={<Layout><Bookings /></Layout>} />
           <Route path="/board" element={<Layout><Board /></Layout>} />
+          <Route path="/polls" element={<Layout><Polls /></Layout>} />
           <Route path="/directory" element={<Layout><Directory /></Layout>} />
           <Route path="/profile" element={<Layout><ProfilePage /></Layout>} />
         </Route>

@@ -48,3 +48,28 @@ export type Post = {
   created_at: string;
   profiles?: Profile;
 };
+
+export type Poll = {
+  id: string;
+  created_by: string;
+  question: string;
+  is_active: boolean;
+  created_at: string;
+  profiles?: Profile;
+  options?: PollOption[];
+  votes?: PollVote[];
+};
+
+export type PollOption = {
+  id: string;
+  poll_id: string;
+  text: string;
+};
+
+export type PollVote = {
+  id: string;
+  poll_id: string;
+  option_id: string;
+  user_id: string;
+  created_at: string;
+};
