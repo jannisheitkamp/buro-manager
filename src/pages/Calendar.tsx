@@ -171,17 +171,17 @@ export const Calendar = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 lg:bg-transparent lg:shadow-none lg:border-none lg:p-0">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-          <CalendarIcon className="w-8 h-8" />
+          <CalendarIcon className="w-8 h-8 text-indigo-600 dark:text-indigo-400" />
           Abwesenheitskalender
         </h1>
         <button
           onClick={() => setIsModalOpen(true)}
-          className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
+          className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl flex items-center justify-center gap-2 transition-all shadow-md hover:shadow-lg active:scale-95"
         >
-          <Plus className="w-4 h-4" />
-          Antrag stellen
+          <Plus className="w-5 h-5" />
+          <span className="font-medium">Antrag stellen</span>
         </button>
       </div>
 
