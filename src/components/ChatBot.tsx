@@ -258,8 +258,8 @@ export const ChatBot = () => {
              </div>
           )}
           <div ref={messagesEndRef} />
-        </div>4/80/80ackdrp-blu-m bord
-.5 transition-all focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:bg-white dark:focus-within:bg-gray-700
+        </div>
+
         {/* Input Area */}
         <div className="p-4 bg-white/80 dark:bg-gray-800/80 backdrop-blur-md border-t border-gray-100 dark:border-gray-700">
           <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-700/50 rounded-full px-4 py-2.5 transition-all focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:bg-white dark:focus-within:bg-gray-700">
