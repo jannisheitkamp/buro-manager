@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useStore } from '@/store/useStore';
 import { Profile, UserStatus } from '@/types';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow, format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { 
   Briefcase, 
@@ -14,13 +14,15 @@ import {
   LogOut,
   MessageSquare,
   Phone,
-  ArrowRight
+  ArrowRight,
+  Package,
+  Plus
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
-import { Link } from 'react-router-dom';
-
-// import { Skeleton } from '@/components/Skeleton';
+import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
+import { motion } from 'framer-motion';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 type StatusOption = {
   value: UserStatus['status'];
@@ -46,93 +48,88 @@ type UserWithStatus = Profile & {
 
 export const Dashboard = () => {
   const user = useStore((state) => state.user);
+  const profile = useStore((state) => state.profile);
   const [colleagues, setColleagues] = useState<UserWithStatus[]>([]);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [openCallbacks, setOpenCallbacks] = useState<any[]>([]);
+  const [stats, setStats] = useState({
+    callbacksCount: 0,
+    parcelsCount: 0,
+    officeCount: 0
+  });
   const [loading, setLoading] = useState(true);
   const [statusMessage, setStatusMessage] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const navigate = useNavigate();
 
-  const fetchCallbacks = async () => {
+  const chartData = [
+    { name: 'Mo', calls: 4 },
+    { name: 'Di', calls: 7 },
+    { name: 'Mi', calls: 5 },
+    { name: 'Do', calls: 8 },
+    { name: 'Fr', calls: 6 },
+    { name: 'Sa', calls: 1 },
+    { name: 'So', calls: 0 },
+  ];
+
+  const fetchData = async () => {
     if (!user) return;
-    // Fetch callbacks that are:
-    // 1. Assigned to me AND not done
-    // 2. Assigned to nobody (pool) AND not done
-    const { data } = await supabase
+    
+    // 1. Fetch Callbacks (assigned or pool)
+    const { data: cbData, count: cbCount } = await supabase
         .from('callbacks')
-        .select('*')
+        .select('*', { count: 'exact' })
         .neq('status', 'done')
         .or(`assigned_to.eq.${user.id},assigned_to.is.null`)
-        .order('priority', { ascending: false })
-        .limit(3);
+        .order('priority', { ascending: false });
     
-    setOpenCallbacks(data || []);
-  };
+    setOpenCallbacks(cbData?.slice(0, 3) || []);
 
-  const fetchColleagues = async () => {
-    // 1. Fetch all profiles
-    const { data: profiles, error: profilesError } = await supabase
-      .from('profiles')
-      .select('*');
+    // 2. Fetch Parcels (pending)
+    const { count: parcelCount } = await supabase
+        .from('parcels')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'pending');
 
-    if (profilesError) {
-      console.error('Error fetching profiles:', profilesError);
-      return;
-    }
-
-    // 2. Fetch latest status for each user
-    // In a real app with many users, we might want a more optimized query or view
-    const { data: statuses, error: statusError } = await supabase
+    // 3. Fetch Colleagues & Status
+    const { data: profiles } = await supabase.from('profiles').select('*');
+    const { data: statuses } = await supabase
       .from('user_status')
       .select('*')
       .order('updated_at', { ascending: false });
 
-    if (statusError) {
-      console.error('Error fetching statuses:', statusError);
-      return;
-    }
-
-    // 3. Merge data
-    const merged = profiles?.map(profile => {
-      // Find the most recent status for this user
-      const latestStatus = statuses?.find(s => s.user_id === profile.id);
-      return {
-        ...profile,
-        current_status: latestStatus
-      };
-    }) || [];
+    const merged = profiles?.map(p => ({
+        ...p,
+        current_status: statuses?.find(s => s.user_id === p.id)
+    })) || [];
 
     setColleagues(merged);
+    
+    const officeCount = merged.filter(c => c.current_status?.status === 'office').length;
+
+    setStats({
+        callbacksCount: cbCount || 0,
+        parcelsCount: parcelCount || 0,
+        officeCount
+    });
+
     setLoading(false);
   };
 
   useEffect(() => {
-    fetchColleagues();
-    fetchCallbacks();
+    fetchData();
 
-    // Realtime subscription
-    const subscription = supabase
-      .channel('public:user_status')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'user_status' },
-        () => {
-          fetchColleagues(); // Refresh on any change
-        }
-      )
-      .subscribe();
-
-    // Callbacks Realtime
-    const cbChannel = supabase
-        .channel('dashboard_callbacks')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'callbacks' }, fetchCallbacks)
-        .subscribe();
+    // Realtime subscriptions
+    const sub1 = supabase.channel('dash_status').on('postgres_changes', { event: '*', schema: 'public', table: 'user_status' }, fetchData).subscribe();
+    const sub2 = supabase.channel('dash_cb').on('postgres_changes', { event: '*', schema: 'public', table: 'callbacks' }, fetchData).subscribe();
+    const sub3 = supabase.channel('dash_parcels').on('postgres_changes', { event: '*', schema: 'public', table: 'parcels' }, fetchData).subscribe();
 
     return () => {
-      subscription.unsubscribe();
-      cbChannel.unsubscribe();
+      sub1.unsubscribe();
+      sub2.unsubscribe();
+      sub3.unsubscribe();
     };
-  }, [user]); // Re-run if user changes (for correct ID filtering)
+  }, [user]);
 
   const handleStatusUpdate = async (status: UserStatus['status']) => {
     if (!user) return;
@@ -150,180 +147,232 @@ export const Dashboard = () => {
       console.error('Error updating status:', error);
       toast.error('Fehler beim Aktualisieren des Status');
     } else {
-      setStatusMessage(''); // Reset message after update
+      setStatusMessage('');
       toast.success('Status aktualisiert');
     }
   };
 
-  if (loading) return <div>Laden...</div>;
+  if (loading) return <div className="p-8 text-center">Lade Cockpit...</div>;
 
   const myStatus = colleagues.find(c => c.id === user?.id)?.current_status;
 
   const filteredColleagues = colleagues.filter(colleague => {
     const searchLower = searchQuery.toLowerCase();
     const name = (colleague.full_name || '').toLowerCase();
-    const email = (colleague.email || '').toLowerCase();
     const statusLabel = STATUS_OPTIONS.find(o => o.value === colleague.current_status?.status)?.label.toLowerCase() || '';
-    
-    return name.includes(searchLower) || email.includes(searchLower) || statusLabel.includes(searchLower);
+    return name.includes(searchLower) || statusLabel.includes(searchLower);
   });
 
   return (
-    <div className="space-y-8">
-      {/* Callbacks Widget */}
-      {openCallbacks.length > 0 && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-red-100 dark:border-red-900/30 overflow-hidden">
-            <div className="bg-red-50 dark:bg-red-900/10 px-6 py-4 border-b border-red-100 dark:border-red-900/30 flex items-center justify-between">
-                <h3 className="text-red-800 dark:text-red-400 font-bold flex items-center gap-2">
-                    <Phone className="w-5 h-5" /> Offene Rückrufe für dich
-                </h3>
-                <Link to="/callbacks" className="text-sm text-red-600 dark:text-red-400 hover:underline flex items-center gap-1">
-                    Alle ansehen <ArrowRight className="w-4 h-4" />
-                </Link>
-            </div>
-            <div className="divide-y divide-gray-100 dark:divide-gray-700">
-                {openCallbacks.map(cb => (
-                    <div key={cb.id} className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors flex justify-between items-center">
-                        <div>
-                            <p className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                                {cb.customer_name}
-                                {cb.priority === 'high' && <span className="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-bold">DRINGEND</span>}
-                            </p>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">{cb.topic || 'Kein Thema'}</p>
-                        </div>
-                        <div className="text-right">
-                             <a href={`tel:${cb.phone}`} className="text-indigo-600 hover:underline text-sm font-medium">
-                                {cb.phone}
-                             </a>
-                             {cb.assigned_to === user?.id && (
-                                 <p className="text-xs text-green-600 mt-1">Dir zugewiesen</p>
-                             )}
-                        </div>
-                    </div>
-                ))}
-            </div>
+    <div className="space-y-8 pb-12">
+      {/* Header Section */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+                Guten Morgen, {profile?.full_name?.split(' ')[0] || 'Nutzer'}! 👋
+            </h1>
+            <p className="text-gray-500 dark:text-gray-400 mt-1">
+                Heute ist {format(new Date(), 'EEEE, d. MMMM', { locale: de })}.
+            </p>
         </div>
-      )}
-
-      {/* Status Update Section */}
-      <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Mein Status setzen</h2>
-        
-        <div className="flex gap-4 mb-4">
-          <div className="flex-1 relative">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <MessageSquare className="h-5 w-5 text-gray-400" />
-            </div>
-            <input
-              type="text"
-              placeholder="Nachricht (optional, z.B. 'Bin um 14 Uhr zurück')"
-              className="block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md leading-5 bg-white dark:bg-gray-700 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-              value={statusMessage}
-              onChange={(e) => setStatusMessage(e.target.value)}
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
-          {STATUS_OPTIONS.map((option) => {
-            const Icon = option.icon;
-            const isSelected = myStatus?.status === option.value;
-            return (
-              <button
-                key={option.value}
-                onClick={() => handleStatusUpdate(option.value)}
-                className={cn(
-                  "flex flex-col items-center justify-center p-3 rounded-lg border transition-all",
-                  isSelected 
-                    ? "ring-2 ring-offset-2 ring-blue-500 border-transparent shadow-sm dark:ring-offset-gray-800" 
-                    : "border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700",
-                  option.color
-                )}
-              >
-                <Icon className="h-6 w-6 mb-2" />
-                <span className="text-xs font-medium">{option.label}</span>
-              </button>
-            );
-          })}
+        <div className="flex gap-2">
+            <button 
+                onClick={() => navigate('/callbacks')}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-lg shadow-indigo-200 dark:shadow-none flex items-center gap-2"
+            >
+                <Plus className="w-4 h-4" />
+                Rückruf notieren
+            </button>
         </div>
       </div>
 
-      {/* Colleagues List */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Anwesenheitsliste</h2>
-          <div className="relative">
-             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Users className="h-4 w-4 text-gray-400" />
-             </div>
-             <input
-               type="text"
-               placeholder="Kollegen suchen..."
-               value={searchQuery}
-               onChange={(e) => setSearchQuery(e.target.value)}
-               className="block w-full sm:w-64 pl-9 pr-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md leading-5 bg-white dark:bg-gray-700 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
-             />
-          </div>
-        </div>
-        <ul className="divide-y divide-gray-200 dark:divide-gray-700">
-          {filteredColleagues.length === 0 ? (
-             <li className="p-8 text-center text-gray-500 dark:text-gray-400">
-               Keine Kollegen gefunden.
-             </li>
-          ) : (
-            filteredColleagues.map((colleague) => {
-            const status = colleague.current_status;
-            const statusConfig = STATUS_OPTIONS.find(o => o.value === status?.status);
-            const StatusIcon = statusConfig?.icon || Users;
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <motion.div 
+            whileHover={{ y: -5 }}
+            className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center justify-between"
+        >
+            <div>
+                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Offene Rückrufe</p>
+                <h3 className="text-3xl font-bold text-gray-900 dark:text-white mt-1">{stats.callbacksCount}</h3>
+            </div>
+            <div className="w-12 h-12 bg-red-50 dark:bg-red-900/20 rounded-full flex items-center justify-center text-red-600 dark:text-red-400">
+                <Phone className="w-6 h-6" />
+            </div>
+        </motion.div>
 
-            return (
-              <li key={colleague.id} className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div className="flex items-center space-x-4">
-                    <div className="flex-shrink-0">
-                      <div className="h-12 w-12 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-xl font-bold text-gray-500 dark:text-gray-400 overflow-hidden">
-                        {colleague.avatar_url ? (
-                          <img src={colleague.avatar_url} alt="" className="h-12 w-12 rounded-full object-cover" />
-                        ) : (
-                          colleague.full_name?.charAt(0).toUpperCase() || '?'
-                        )}
-                      </div>
+        <motion.div 
+            whileHover={{ y: -5 }}
+            className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center justify-between"
+        >
+            <div>
+                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Pakete erwartet</p>
+                <h3 className="text-3xl font-bold text-gray-900 dark:text-white mt-1">{stats.parcelsCount}</h3>
+            </div>
+            <div className="w-12 h-12 bg-blue-50 dark:bg-blue-900/20 rounded-full flex items-center justify-center text-blue-600 dark:text-blue-400">
+                <Package className="w-6 h-6" />
+            </div>
+        </motion.div>
+
+        <motion.div 
+            whileHover={{ y: -5 }}
+            className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center justify-between"
+        >
+            <div>
+                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Im Büro</p>
+                <h3 className="text-3xl font-bold text-gray-900 dark:text-white mt-1">{stats.officeCount}</h3>
+            </div>
+            <div className="w-12 h-12 bg-green-50 dark:bg-green-900/20 rounded-full flex items-center justify-center text-green-600 dark:text-green-400">
+                <Users className="w-6 h-6" />
+            </div>
+        </motion.div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Main Content (Left 2 cols) */}
+        <div className="lg:col-span-2 space-y-8">
+            
+            {/* My Status */}
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+                <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                    <MessageSquare className="w-5 h-5 text-indigo-500" />
+                    Mein Status
+                </h2>
+                
+                <div className="flex gap-4 mb-6">
+                    <div className="flex-1 relative">
+                        <input
+                        type="text"
+                        placeholder="Nachricht (z.B. 'Im Meeting bis 14 Uhr')"
+                        className="block w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border-none rounded-xl text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-indigo-500"
+                        value={statusMessage}
+                        onChange={(e) => setStatusMessage(e.target.value)}
+                        />
                     </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-900 dark:text-white">
-                        {colleague.full_name || colleague.email}
-                      </p>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        {colleague.roles?.includes('admin') ? 'Administrator' : 'Mitarbeiter'}
-                      </p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto">
-                    <div className={cn(
-                      "flex items-center px-2.5 py-1 rounded-full text-xs sm:text-sm font-medium sm:mr-4",
-                      statusConfig?.color || "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300"
-                    )}>
-                      <StatusIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
-                      {statusConfig?.label || 'Unbekannt'}
-                    </div>
-                    <div className="text-right ml-auto sm:ml-0">
-                      {status?.message && (
-                        <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 italic">"{status.message}"</p>
-                      )}
-                      {status?.updated_at && (
-                        <p className="text-[10px] sm:text-xs text-gray-400 dark:text-gray-500 mt-0.5 sm:mt-1">
-                          vor {formatDistanceToNow(new Date(status.updated_at), { locale: de })}
-                        </p>
-                      )}
-                    </div>
-                  </div>
                 </div>
-              </li>
-            );
-          })
-          )}
-        </ul>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-3">
+                {STATUS_OPTIONS.map((option) => {
+                    const Icon = option.icon;
+                    const isSelected = myStatus?.status === option.value;
+                    return (
+                    <button
+                        key={option.value}
+                        onClick={() => handleStatusUpdate(option.value)}
+                        className={cn(
+                        "flex flex-col items-center justify-center p-3 rounded-xl border transition-all duration-200",
+                        isSelected 
+                            ? "ring-2 ring-offset-2 ring-indigo-500 border-transparent shadow-md dark:ring-offset-gray-800 scale-105" 
+                            : "border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 hover:scale-105",
+                        option.color
+                        )}
+                    >
+                        <Icon className="h-6 w-6 mb-2" />
+                        <span className="text-xs font-medium">{option.label}</span>
+                    </button>
+                    );
+                })}
+                </div>
+            </div>
+
+            {/* Colleagues List */}
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+                <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+                    <h2 className="text-lg font-bold text-gray-900 dark:text-white">Team Status</h2>
+                    <input
+                        type="text"
+                        placeholder="Suchen..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="bg-gray-50 dark:bg-gray-900 border-none rounded-lg px-3 py-1.5 text-sm w-40 focus:ring-2 focus:ring-indigo-500"
+                    />
+                </div>
+                <div className="max-h-[400px] overflow-y-auto">
+                    {filteredColleagues.map((colleague) => {
+                        const status = colleague.current_status;
+                        const statusConfig = STATUS_OPTIONS.find(o => o.value === status?.status);
+                        
+                        return (
+                            <div key={colleague.id} className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors border-b border-gray-50 dark:border-gray-700/50 last:border-0 flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm">
+                                        {colleague.full_name?.charAt(0) || '?'}
+                                    </div>
+                                    <div>
+                                        <p className="font-medium text-gray-900 dark:text-white">{colleague.full_name}</p>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">{statusConfig?.label || 'Abwesend'}</p>
+                                    </div>
+                                </div>
+                                <div className="text-right">
+                                    {status?.message && <span className="text-xs italic text-gray-500 block">"{status.message}"</span>}
+                                    {status?.updated_at && <span className="text-[10px] text-gray-400 block">{formatDistanceToNow(new Date(status.updated_at), { locale: de })}</span>}
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+
+        </div>
+
+        {/* Sidebar Widgets (Right Col) */}
+        <div className="space-y-8">
+            
+            {/* Callbacks Widget */}
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+                <div className="p-4 border-b border-gray-100 dark:border-gray-700 bg-red-50/50 dark:bg-red-900/10 flex items-center justify-between">
+                    <h3 className="font-bold text-red-700 dark:text-red-400 flex items-center gap-2">
+                        <Phone className="w-4 h-4" /> Wichtig
+                    </h3>
+                    <Link to="/callbacks" className="text-xs font-medium text-red-600 hover:underline">Alle ansehen</Link>
+                </div>
+                <div className="divide-y divide-gray-100 dark:divide-gray-700">
+                    {openCallbacks.length === 0 ? (
+                        <div className="p-8 text-center text-gray-400 text-sm">Alles erledigt! ✅</div>
+                    ) : (
+                        openCallbacks.map(cb => (
+                            <div key={cb.id} className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
+                                <div className="flex justify-between items-start mb-1">
+                                    <span className="font-semibold text-gray-900 dark:text-white text-sm">{cb.customer_name}</span>
+                                    {cb.priority === 'high' && <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />}
+                                </div>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2">{cb.topic}</p>
+                                <div className="mt-2 flex justify-between items-center">
+                                    <a href={`tel:${cb.phone}`} className="text-xs text-indigo-600 font-medium hover:underline">{cb.phone}</a>
+                                    <span className="text-[10px] text-gray-400">{format(new Date(cb.created_at), 'HH:mm')}</span>
+                                </div>
+                            </div>
+                        ))
+                    )}
+                </div>
+            </div>
+
+            {/* Weekly Activity Chart (Mock) */}
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+                <h3 className="font-bold text-gray-900 dark:text-white mb-4">Aktivität (Woche)</h3>
+                <div className="h-48 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={chartData}>
+                            <defs>
+                                <linearGradient id="colorCalls" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3}/>
+                                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
+                                </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+                            <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#9ca3af'}} />
+                            <YAxis axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#9ca3af'}} />
+                            <Tooltip 
+                                contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                                itemStyle={{ color: '#4f46e5' }}
+                            />
+                            <Area type="monotone" dataKey="calls" stroke="#6366f1" strokeWidth={3} fillOpacity={1} fill="url(#colorCalls)" />
+                        </AreaChart>
+                    </ResponsiveContainer>
+                </div>
+            </div>
+
+        </div>
       </div>
     </div>
   );
