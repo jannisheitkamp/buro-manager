@@ -8,8 +8,9 @@ import { cn } from '@/utils/cn';
 import { Modal } from '@/components/Modal';
 import { toast } from 'react-hot-toast';
 
-// Helper to format currency
-const formatCurrency = (amount: number) => {
+// Helper to format currency safely
+const formatCurrency = (amount: number | null | undefined) => {
+  if (amount === null || amount === undefined || isNaN(amount)) return '0,00 €';
   return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(amount);
 };
 
@@ -72,29 +73,31 @@ export const Production = () => {
     // 2. Calculate Valuation Sum & Commission based on Category
     let valSum = 0;
     let comm = 0;
-    const rate = Number(commissionRate) || 0;
+    const rate = Number(commissionRate);
 
-    if (category === 'life') {
-        // AP Summe = Jahresbrutto * Laufzeit
-        // Provision = AP Summe * Promille
-        valSum = grossYearly * duration;
-        comm = valSum * (rate / 1000); // Promille!
-    } 
-    else if (category === 'property' || category === 'legal' || category === 'car') {
-        // Sach/Recht/KFZ: Provision = Jahresnetto * Prozent
-        valSum = netYearly; // In Property often just the yearly net is the base
-        comm = netYearly * (rate / 100); // Percent!
-    }
-    else if (category === 'health') {
-        if (subCategory.toLowerCase().includes('reise')) {
-             // Reise: Jahresbrutto * 10%
-             valSum = grossYearly;
-             comm = grossYearly * (rate / 100);
-        } else {
-             // Normal KV: Monatsbrutto * Faktor (z.B. 3 MB)
-             // Here rate is the Factor (e.g. 3)
-             valSum = grossP; // Base is monthly gross
-             comm = grossP * rate; 
+    if (!isNaN(rate)) {
+        if (category === 'life') {
+            // AP Summe = Jahresbrutto * Laufzeit
+            // Provision = AP Summe * Promille
+            valSum = grossYearly * duration;
+            comm = valSum * (rate / 1000); // Promille!
+        } 
+        else if (category === 'property' || category === 'legal' || category === 'car') {
+            // Sach/Recht/KFZ: Provision = Jahresnetto * Prozent
+            valSum = netYearly; // In Property often just the yearly net is the base
+            comm = netYearly * (rate / 100); // Percent!
+        }
+        else if (category === 'health') {
+            if (subCategory && subCategory.toLowerCase().includes('reise')) {
+                 // Reise: Jahresbrutto * 10%
+                 valSum = grossYearly;
+                 comm = grossYearly * (rate / 100);
+            } else {
+                 // Normal KV: Monatsbrutto * Faktor (z.B. 3 MB)
+                 // Here rate is the Factor (e.g. 3)
+                 valSum = grossP; // Base is monthly gross
+                 comm = grossP * rate; 
+            }
         }
     }
 
