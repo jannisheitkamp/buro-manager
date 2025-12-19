@@ -25,6 +25,7 @@ const navigation = [
   { name: 'Kalender', href: '/general-calendar', icon: CalendarDays },
   { name: 'Abwesenheiten', href: '/calendar', icon: CalendarDays },
   { name: 'Buchungen', href: '/bookings', icon: Building2 },
+  { name: 'Produktion', href: '/production', icon: TrendingUp },
   { name: 'Schwarzes Brett', href: '/board', icon: ClipboardList },
   { name: 'Umfragen', href: '/polls', icon: BarChart2 },
   { name: 'Rückrufe', href: '/callbacks', icon: Phone },
