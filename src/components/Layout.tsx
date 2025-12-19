@@ -13,7 +13,8 @@ import {
   Moon,
   Sun,
   Package,
-  Phone
+  Phone,
+  TrendingUp
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { useState } from 'react';

@@ -22,6 +22,8 @@ import { PageTransition } from '@/components/PageTransition';
 
 import { GeneralCalendar } from '@/pages/GeneralCalendar';
 
+import { Production } from '@/pages/Production';
+
 function App() {
   const setUser = useStore((state) => state.setUser);
   const setLoading = useStore((state) => state.setLoading);
@@ -64,6 +66,7 @@ function App() {
           <Route path="/general-calendar" element={<><Layout><PageTransition><GeneralCalendar /></PageTransition></Layout><ChatBot /></>} />
           <Route path="/calendar" element={<><Layout><PageTransition><Calendar /></PageTransition></Layout><ChatBot /></>} />
           <Route path="/bookings" element={<><Layout><PageTransition><Bookings /></PageTransition></Layout><ChatBot /></>} />
+          <Route path="/production" element={<><Layout><PageTransition><Production /></PageTransition></Layout><ChatBot /></>} />
           <Route path="/board" element={<><Layout><PageTransition><Board /></PageTransition></Layout><ChatBot /></>} />
           <Route path="/polls" element={<><Layout><PageTransition><Polls /></PageTransition></Layout><ChatBot /></>} />
           <Route path="/callbacks" element={<><Layout><PageTransition><Callbacks /></PageTransition></Layout><ChatBot /></>} />
