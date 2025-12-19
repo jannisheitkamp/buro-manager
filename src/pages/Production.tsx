@@ -24,9 +24,18 @@ export const Production = () => {
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
+  // --- Config ---
+  const INSURANCE_TYPES = [
+    { id: 'life', label: 'Leben', icon: '🌱', subcategories: ['Leben', 'BU'] },
+    { id: 'property', label: 'Sach', icon: '🏠', subcategories: ['PHV', 'HR', 'UNF', 'Sach'] },
+    { id: 'car', label: 'KFZ', icon: '🚗', subcategories: ['KFZ'] },
+    { id: 'legal', label: 'Recht', icon: '⚖️', subcategories: ['Rechtsschutz'] },
+    { id: 'other', label: 'Sonstige', icon: '📂', subcategories: ['Sonstige'] },
+  ];
+
   // --- Form State ---
-  const [category, setCategory] = useState('life'); // life, property, health, legal, car
-  const [subCategory, setSubCategory] = useState('');
+  const [category, setCategory] = useState('life'); 
+  const [subCategory, setSubCategory] = useState(INSURANCE_TYPES[0].subcategories[0]);
   
   // Basic Info
   const [policyNumber, setPolicyNumber] = useState('');
@@ -59,7 +68,7 @@ export const Production = () => {
     if (paymentMethod === 'quarterly') factor = 4;
     if (paymentMethod === 'half_yearly') factor = 2;
     if (paymentMethod === 'yearly') factor = 1;
-    if (paymentMethod === 'one_time') factor = 1; // Special case
+    if (paymentMethod === 'one_time') factor = 1;
 
     const netP = Number(netPremium) || 0;
     const grossP = Number(grossPremium) || 0;
@@ -70,41 +79,50 @@ export const Production = () => {
     setNetPremiumYearly(netYearly);
     setGrossPremiumYearly(grossYearly);
 
-    // 2. Calculate Valuation Sum & Commission based on Category
+    // 2. Determine Rate and Calculate Commission
     let valSum = 0;
     let comm = 0;
-    const rate = Number(commissionRate);
+    let rate = 0;
 
-    if (!isNaN(rate)) {
-        if (category === 'life') {
-            // AP Summe = Jahresbrutto * Laufzeit
-            // Provision = AP Summe * Promille
-            valSum = grossYearly * duration;
-            comm = valSum * (rate / 1000); // Promille!
-        } 
-        else if (category === 'property' || category === 'legal' || category === 'car') {
-            // Sach/Recht/KFZ: Provision = Jahresnetto * Prozent
-            valSum = netYearly; // In Property often just the yearly net is the base
-            comm = netYearly * (rate / 100); // Percent!
-        }
-        else if (category === 'health') {
-            if (subCategory && subCategory.toLowerCase().includes('reise')) {
-                 // Reise: Jahresbrutto * 10%
-                 valSum = grossYearly;
-                 comm = grossYearly * (rate / 100);
-            } else {
-                 // Normal KV: Monatsbrutto * Faktor (z.B. 3 MB)
-                 // Here rate is the Factor (e.g. 3)
-                 valSum = grossP; // Base is monthly gross
-                 comm = grossP * rate; 
-            }
-        }
+    // Set Rate based on SubCategory (Sparte) if not manually overridden or empty
+    // Logic: If user changes Sparte, we might want to auto-set rate. 
+    // For simplicity here, we calculate based on the current subCategory logic.
+    
+    if (subCategory === 'Leben' || subCategory === 'BU') {
+        rate = 8.0; // Promille
+        valSum = grossYearly * duration;
+        comm = valSum * (rate / 1000);
+    } 
+    else if (['PHV', 'HR', 'UNF', 'Sach'].includes(subCategory)) {
+        rate = 7.5; // Percent
+        valSum = netYearly;
+        comm = netYearly * (rate / 100);
     }
-
+    else if (subCategory === 'KFZ') {
+        rate = 3.0; // Percent
+        valSum = netYearly;
+        comm = netYearly * (rate / 100);
+    }
+    else if (subCategory === 'Rechtsschutz') {
+        rate = 5.0; // Percent
+        valSum = netYearly;
+        comm = netYearly * (rate / 100);
+    }
+    
+    // Update state only if calculated
+    setCommissionRate(rate);
     setValuationSum(valSum);
     setCommissionAmount(comm);
 
-  }, [netPremium, grossPremium, duration, paymentMethod, category, subCategory, commissionRate]);
+  }, [netPremium, grossPremium, duration, paymentMethod, subCategory]); // Removed commissionRate from dep to avoid loop if we wanted manual override, but here we strictly follow rules first.
+  
+  // Update Category when SubCategory changes (reverse lookup if needed, or just handle in UI)
+  useEffect(() => {
+      const parent = INSURANCE_TYPES.find(t => t.subcategories.includes(subCategory));
+      if (parent && parent.id !== category) {
+          setCategory(parent.id);
+      }
+  }, [subCategory]);
 
   // --- Presets for Rates ---
   useEffect(() => {
@@ -345,13 +363,16 @@ export const Production = () => {
                 {/* 1. Category Selection */}
                 <div className="grid grid-cols-5 gap-2">
                     {[
-                        { id: 'life', label: 'Leben', icon: '🌱' },
-                        { id: 'property', label: 'Sach', icon: '🏠' },
-                        { id: 'health', label: 'Kranken', icon: '🏥' },
-                        { id: 'legal', label: 'Recht', icon: '⚖️' },
-                        { id: 'car', label: 'KFZ', icon: '🚗' },
-                    ].map(c => (
+                        { id: 'life', lbel: 'Leben', ion:'🌱'},
+                        { id: 'property', la el: 'Sach', ic ': '🏠' },life', label: 'Leben', icon: '🌱' },
+                        {{id: 'health',ilabel:d'Kran: n', ioon: '🏥' t,y', label: 'Sach', icon: '🏠' },
+                        {{id: 'legal',ilabel:d'Rhch'', ic, : '⚖️' },abel: 'Kranken', icon: '🏥' },
+                        { id:{'car', label:i'KFZ',dic: : '🚗' },
+                    ].map(glabe(: 'Recht', icon: '⚖️' },
                         <button
+                    { id: 'cka:={'KFZ} icon: '🚗' },
+                ].map(c => (typ="bn"
+                          <bonClick={()u=>tsetCategory(c.id)on
                             key={c.id}
                             type="button"
                             onClick={() => setCategory(c.id)}
@@ -397,22 +418,15 @@ export const Production = () => {
                     <div className="grid grid-cols-2 gap-4">
                         <div>
                             <label className="block text-xs font-medium text-gray-500 mb-1">Sparte / Tarif</label>
-                            <input 
-                                type="text" 
-                                list="subCategories"
-                                placeholder={category === 'health' ? 'z.B. Reise-KV' : 'z.B. Privathaftpflicht'}
+                            <select 
                                 value={subCategory} 
                                 onChange={e => setSubCategory(e.target.value)} 
                                 className="w-full rounded-lg border-gray-300 bg-white px-3 py-2 text-sm focus:ring-indigo-500" 
-                            />
-                            <datalist id="subCategories">
-                                <option value="Privathaftpflicht" />
-                                <option value="Unfall" />
-                                <option value="Hausrat" />
-                                <option value="Wohngebäude" />
-                                <option value="Reise-KV" />
-                                <option value="Zahnzusatz" />
-                            </datalist>
+                            >
+                                {INSURANCE_TYPES.find(c => c.id === category)?.subcategories.map(sc => (
+                                    <option key={sc} value={sc}>{sc}</option>
+                                ))}
+                            </select>
                         </div>
                         <div>
                             <label className="block text-xs font-medium text-gray-500 mb-1">Zahlweise</label>
