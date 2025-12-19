@@ -362,25 +362,19 @@ export const Production = () => {
                 
                 {/* 1. Category Selection */}
                 <div className="grid grid-cols-5 gap-2">
-                    {[
-                        { id: 'life', lbel: 'Leben', ion:'🌱'},
-                        { id: 'property', la el: 'Sach', ic ': '🏠' },life', label: 'Leben', icon: '🌱' },
-                        {{id: 'health',ilabel:d'Kran: n', ioon: '🏥' t,y', label: 'Sach', icon: '🏠' },
-                        {{id: 'legal',ilabel:d'Rhch'', ic, : '⚖️' },abel: 'Kranken', icon: '🏥' },
-                        { id:{'car', label:i'KFZ',dic: : '🚗' },
-                    ].map(glabe(: 'Recht', icon: '⚖️' },
+                    {INSURANCE_TYPES.map(c => (
                         <button
-                    { id: 'cka:={'KFZ} icon: '🚗' },
-                ].map(c => (typ="bn"
-                          <bonClick={()u=>tsetCategory(c.id)on
                             key={c.id}
                             type="button"
-                            onClick={() => setCategory(c.id)}
+                            onClick={() => {
+                                setCategory(c.id);
+                                setSubCategory(c.subcategories[0]);
+                            }}
                             className={cn(
                                 "flex flex-col items-center justify-center p-2 rounded-xl border transition-all",
                                 category === c.id 
-                                    ? "border-indigo-500 bg-indigo-50 text-indigo-700 ring-1 ring-indigo-500" 
-                                    : "border-gray-200 hover:bg-gray-50"
+                                    ? "border-indigo-500 bg-indigo-50 text-indigo-700 ring-1 ring-indigo-500 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-500" 
+                                    : "border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-700 dark:text-gray-300"
                             )}
                         >
                             <span className="text-xl mb-1">{c.icon}</span>
@@ -471,14 +465,14 @@ export const Production = () => {
                     <div className="grid grid-cols-3 gap-4">
                         <div>
                             <label className="block text-xs font-medium text-indigo-400 mb-1">
-                                {category === 'life' ? 'Promille' : (category === 'health' && !subCategory.includes('Reise') ? 'MB-Faktor' : 'Prozent')}
+                                {category === 'life' ? 'Promille' : 'Prozent'}
                             </label>
                             <input 
                                 type="number" 
                                 step="0.1" 
                                 value={commissionRate} 
-                                onChange={e => setCommissionRate(e.target.value ? Number(e.target.value) : '')}
-                                className="w-full rounded-lg border-indigo-200 bg-white px-3 py-1.5 text-sm focus:ring-indigo-500 font-bold text-indigo-700" 
+                                readOnly
+                                className="w-full rounded-lg border-indigo-200 bg-gray-50 px-3 py-1.5 text-sm font-bold text-indigo-700 cursor-not-allowed" 
                             />
                         </div>
                         <div>
