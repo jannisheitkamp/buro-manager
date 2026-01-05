@@ -93,6 +93,16 @@ export const Production = () => {
         valSum = grossYearly * duration;
         comm = valSum * (rate / 1000);
     } 
+    else if (['KV Voll', 'KV Zusatz'].includes(subCategory)) {
+        rate = 3.0; // Monatsbeiträge
+        valSum = grossP;
+        comm = grossP * rate;
+    }
+    else if (subCategory === 'Reise-KV') {
+        rate = 10.0; // Prozent
+        valSum = grossYearly;
+        comm = grossYearly * (rate / 100);
+    }
     else if (['PHV', 'HR', 'UNF', 'Sach'].includes(subCategory)) {
         rate = 7.5; // Percent
         valSum = netYearly;
