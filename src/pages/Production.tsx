@@ -27,6 +27,7 @@ export const Production = () => {
   // --- Config ---
   const INSURANCE_TYPES = [
     { id: 'life', label: 'Leben', icon: '🌱', subcategories: ['Leben', 'BU'] },
+    { id: 'health', label: 'Kranken', icon: '🏥', subcategories: ['KV Voll', 'KV Zusatz', 'Reise-KV'] },
     { id: 'property', label: 'Sach', icon: '🏠', subcategories: ['PHV', 'HR', 'UNF', 'Sach'] },
     { id: 'car', label: 'KFZ', icon: '🚗', subcategories: ['KFZ'] },
     { id: 'legal', label: 'Recht', icon: '⚖️', subcategories: ['Rechtsschutz'] },
@@ -475,7 +476,7 @@ export const Production = () => {
                     <div className="grid grid-cols-3 gap-4">
                         <div>
                             <label className="block text-xs font-medium text-indigo-400 mb-1">
-                                {category === 'life' ? 'Promille' : 'Prozent'}
+                                {category === 'life' ? 'Promille' : (['KV Voll', 'KV Zusatz'].includes(subCategory) ? 'MB-Faktor' : 'Prozent')}
                             </label>
                             <input 
                                 type="number" 
@@ -487,7 +488,7 @@ export const Production = () => {
                         </div>
                         <div>
                             <label className="block text-xs font-medium text-indigo-400 mb-1">
-                                {category === 'life' ? 'Bewertungssumme' : 'Basis (Jahresbeitrag)'}
+                                {category === 'life' ? 'Bewertungssumme' : (['KV Voll', 'KV Zusatz'].includes(subCategory) ? 'Monatsbeitrag' : 'Jahresbeitrag (Netto/Brutto)')}
                             </label>
                             <div className="text-sm font-medium text-indigo-900 py-2">
                                 {formatCurrency(valuationSum)}
