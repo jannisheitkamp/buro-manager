@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { useStore } from '@/store/useStore';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { TrendingUp, Plus, Search, Filter, Euro, FileText, Trash2}cide-react';
+import { TrendingUp, Plus, Search, Filter, Euro, FileText, Trash2, Download } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { Modal } from '@/components/Modal';
 import { toast } from 'react-hot-toast';
@@ -25,6 +25,7 @@ export const Production = () => {
   const [searchQuery, setSearchQuery] = useState('');
 
   // --- Config ---
+  // Define insurance types and subcategories
   const INSURANCE_TYPES = [
     { id: 'life', label: 'Leben', icon: '🌱', subcategories: ['Leben', 'BU'] },
     { id: 'health', label: 'Kranken', icon: '🏥', subcategories: ['KV Voll', 'KV Zusatz', 'Reise-KV'] },
