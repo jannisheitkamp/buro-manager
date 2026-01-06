@@ -236,7 +236,7 @@ export const Dashboard = () => {
                             onKeyDown={e => e.key === 'Enter' && handleStatusUpdate(myCurrentStatus?.status || 'office')}
                         />
                     </div>
-                    <div className="flex gap-1 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0 no-scrollbar">
+                    <div className="grid grid-cols-4 sm:flex gap-1 w-full sm:w-auto">
                         {STATUS_CONFIG.map(s => {
                             const Icon = s.icon;
                             const active = myCurrentStatus?.status === s.value;
@@ -245,13 +245,15 @@ export const Dashboard = () => {
                                     key={s.value}
                                     onClick={() => handleStatusUpdate(s.value)}
                                     className={cn(
-                                        "p-2 rounded-xl transition-all flex items-center gap-2 shrink-0",
-                                        active ? "bg-white dark:bg-gray-800 shadow-sm ring-1 ring-black/5 dark:ring-white/10" : "hover:bg-gray-200/50 dark:hover:bg-gray-700/50 text-gray-400 grayscale hover:grayscale-0"
+                                        "p-2 rounded-xl transition-all flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2",
+                                        active 
+                                            ? cn("shadow-sm ring-1 ring-black/5 dark:ring-white/10 font-bold", s.bgColor, s.color) 
+                                            : "hover:bg-gray-200/50 dark:hover:bg-gray-700/50 text-gray-500 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700"
                                     )}
                                     title={s.label}
                                 >
-                                    <Icon className={cn("w-5 h-5", active ? s.color : "")} />
-                                    {active && <span className="text-xs font-medium pr-1">{s.label}</span>}
+                                    <Icon className={cn("w-4 h-4", active ? "scale-110" : "")} />
+                                    <span className={cn("text-[10px] sm:text-xs", active ? "" : "hidden xl:block")}>{s.label}</span>
                                 </button>
                             )
                         })}
