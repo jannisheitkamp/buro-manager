@@ -23,6 +23,7 @@ import { PageTransition } from '@/components/PageTransition';
 import { GeneralCalendar } from '@/pages/GeneralCalendar';
 
 import { Production } from '@/pages/Production';
+import { Onboarding } from '@/pages/Onboarding';
 
 function App() {
   const setUser = useStore((state) => state.setUser);

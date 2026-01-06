@@ -34,6 +34,33 @@ export const Production = () => {
     { id: 'other', label: 'Sonstige', icon: '📂', subcategories: ['Sonstige'] },
   ];
 
+  // --- User Rates State ---
+  const [userRates, setUserRates] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    const loadRates = async () => {
+        if (!user) return;
+        const { data } = await supabase.from('user_commission_settings').select('*').eq('user_id', user.id);
+        
+        const rates: Record<string, number> = {};
+        // Defaults
+        rates['Leben'] = 8.0; rates['BU'] = 8.0;
+        rates['KV Voll'] = 3.0; rates['KV Zusatz'] = 3.0; rates['Reise-KV'] = 10.0;
+        rates['PHV'] = 7.5; rates['HR'] = 7.5; rates['UNF'] = 7.5; rates['Sach'] = 7.5;
+        rates['KFZ'] = 3.0; rates['Rechtsschutz'] = 5.0; rates['Sonstige'] = 5.0;
+
+        // Overwrite with DB values
+        if (data) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            data.forEach((row: any) => {
+                if (row.sub_category) rates[row.sub_category] = Number(row.rate_value);
+            });
+        }
+        setUserRates(rates);
+    };
+    loadRates();
+  }, [user]);
+
   // --- Form State ---
   const [category, setCategory] = useState('life'); 
   const [subCategory, setSubCategory] = useState(INSURANCE_TYPES[0].subcategories[0]);
@@ -85,37 +112,26 @@ export const Production = () => {
     let comm = 0;
     let rate = 0;
 
-    // Set Rate based on SubCategory (Sparte) if not manually overridden or empty
-    // Logic: If user changes Sparte, we might want to auto-set rate. 
-    // For simplicity here, we calculate based on the current subCategory logic.
-    
+    // Get rate from loaded user settings (or default if not loaded yet)
+    // Fallback to defaults if userRates is not yet populated (though useEffect handles that)
+    rate = userRates[subCategory] || 0;
+
+    // Fallback logic if rate is 0 (maybe user set it to 0, or not loaded)
+    // We trust the rate from userRates mostly, but we need the calculation logic per type.
+
     if (subCategory === 'Leben' || subCategory === 'BU') {
-        rate = 8.0; // Promille
         valSum = grossYearly * duration;
         comm = valSum * (rate / 1000);
     } 
     else if (['KV Voll', 'KV Zusatz'].includes(subCategory)) {
-        rate = 3.0; // Monatsbeiträge
         valSum = grossP;
         comm = grossP * rate;
     }
     else if (subCategory === 'Reise-KV') {
-        rate = 10.0; // Prozent
         valSum = grossYearly;
         comm = grossYearly * (rate / 100);
     }
-    else if (['PHV', 'HR', 'UNF', 'Sach'].includes(subCategory)) {
-        rate = 7.5; // Percent
-        valSum = netYearly;
-        comm = netYearly * (rate / 100);
-    }
-    else if (subCategory === 'KFZ') {
-        rate = 3.0; // Percent
-        valSum = netYearly;
-        comm = netYearly * (rate / 100);
-    }
-    else if (subCategory === 'Rechtsschutz') {
-        rate = 5.0; // Percent
+    else if (['PHV', 'HR', 'UNF', 'Sach', 'KFZ', 'Rechtsschutz', 'Sonstige'].includes(subCategory)) {
         valSum = netYearly;
         comm = netYearly * (rate / 100);
     }
@@ -125,7 +141,7 @@ export const Production = () => {
     setValuationSum(valSum);
     setCommissionAmount(comm);
 
-  }, [netPremium, grossPremium, duration, paymentMethod, subCategory]); // Removed commissionRate from dep to avoid loop if we wanted manual override, but here we strictly follow rules first.
+  }, [netPremium, grossPremium, duration, paymentMethod, subCategory, userRates]); 
   
   // Update Category when SubCategory changes (reverse lookup if needed, or just handle in UI)
   useEffect(() => {
@@ -134,18 +150,6 @@ export const Production = () => {
           setCategory(parent.id);
       }
   }, [subCategory]);
-
-  // --- Presets for Rates ---
-  useEffect(() => {
-    if (category === 'life') setCommissionRate(8.0); // 8 Promille
-    if (category === 'property') setCommissionRate(7.5); // 7.5%
-    if (category === 'legal') setCommissionRate(5.0); // 5%
-    if (category === 'car') setCommissionRate(3.0); // 3%
-    if (category === 'health') {
-        if (subCategory.toLowerCase().includes('reise')) setCommissionRate(10.0);
-        else setCommissionRate(3.0); // 3 MB
-    }
-  }, [category, subCategory]);
 
 
   const fetchEntries = async () => {

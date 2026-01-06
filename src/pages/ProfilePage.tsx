@@ -138,23 +138,33 @@ export const ProfilePage = () => {
 
       {/* Main Profile Card */}
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-8">
-        <div className="flex items-center gap-6 mb-8">
-            <img
-              src={avatarUrl || `https://ui-avatars.com/api/?name=${fullName || 'User'}&background=random`}
-              alt={fullName}
-              className="w-20 h-20 rounded-full object-cover shadow-sm bg-gray-100"
-            />
-            <div>
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white">{fullName || 'Dein Name'}</h2>
-                <p className="text-gray-500 dark:text-gray-400">{user?.email}</p>
-                <div className="mt-2 flex flex-wrap gap-1">
-                    {profile?.roles?.map(role => (
-                        <span key={role} className="inline-block px-2 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-xs text-gray-600 dark:text-gray-300 capitalize">
-                            {role.replace(/_/g, ' ')}
-                        </span>
-                    ))}
+        <div className="flex items-center justify-between mb-8">
+            <div className="flex items-center gap-6">
+                <img
+                  src={avatarUrl || `https://ui-avatars.com/api/?name=${fullName || 'User'}&background=random`}
+                  alt={fullName}
+                  className="w-20 h-20 rounded-full object-cover shadow-sm bg-gray-100"
+                />
+                <div>
+                    <h2 className="text-xl font-bold text-gray-900 dark:text-white">{fullName || 'Dein Name'}</h2>
+                    <p className="text-gray-500 dark:text-gray-400">{user?.email}</p>
+                    <div className="mt-2 flex flex-wrap gap-1">
+                        {profile?.roles?.map(role => (
+                            <span key={role} className="inline-block px-2 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-xs text-gray-600 dark:text-gray-300 capitalize">
+                                {role.replace(/_/g, ' ')}
+                            </span>
+                        ))}
+                    </div>
                 </div>
             </div>
+            
+            <button
+                onClick={() => navigate('/onboarding')}
+                className="hidden sm:flex items-center gap-2 px-4 py-2 text-sm text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors border border-indigo-100"
+            >
+                <Settings className="w-4 h-4" />
+                Provisionssätze
+            </button>
         </div>
 
         <form onSubmit={handleUpdate} className="space-y-6">
