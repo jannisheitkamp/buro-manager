@@ -237,24 +237,59 @@ export const Production = () => {
   const handleExport = () => {
       if (filteredEntries.length === 0) return;
       
-      const headers = ['Datum', 'Kunde', 'Sparte', 'Zahlweise', 'Netto', 'Brutto', 'Provision'];
+      const headers = [
+          'Datum', 
+          'Nachname', 
+          'Vorname', 
+          'Schein-Nr', 
+          'Sparte', 
+          'Tarif', 
+          'Zahlweise', 
+          'Beitrag (Brutto)', 
+          'Beitrag (Netto)', 
+          'Bewertungssumme', 
+          'Satz', 
+          'Provision'
+      ];
+
+      // Helper for German number format (comma as decimal)
+      const fmtNum = (val: number | null | undefined) => {
+          if (val === null || val === undefined) return '';
+          return val.toString().replace('.', ',');
+      };
+
+      // Helper maps
+      const catMap: Record<string, string> = {
+          'life': 'Leben', 'health': 'Kranken', 'property': 'Sach',
+          'car': 'KFZ', 'legal': 'Recht', 'other': 'Sonstige'
+      };
+      const payMap: Record<string, string> = {
+          'monthly': 'Monatlich', 'quarterly': 'Vierteljährlich',
+          'half_yearly': 'Halbjährlich', 'yearly': 'Jährlich', 'one_time': 'Einmalig'
+      };
+
       const csvContent = [
-          headers.join(';'),
+          '\uFEFF' + headers.join(';'), // Add BOM for Excel
           ...filteredEntries.map(e => [
               format(new Date(e.submission_date), 'dd.MM.yyyy'),
-              `"${e.customer_name}, ${e.customer_firstname || ''}"`,
-              e.category,
-              e.payment_method,
-              e.net_premium,
-              e.gross_premium,
-              e.commission_amount
+              `"${e.customer_name || ''}"`,
+              `"${e.customer_firstname || ''}"`,
+              `"${e.policy_number || ''}"`,
+              catMap[e.category] || e.category,
+              `"${e.sub_category || ''}"`,
+              payMap[e.payment_method] || e.payment_method,
+              fmtNum(e.gross_premium),
+              fmtNum(e.net_premium),
+              fmtNum(e.valuation_sum),
+              fmtNum(e.commission_rate),
+              fmtNum(e.commission_amount)
           ].join(';'))
       ].join('\n');
 
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const link = document.createElement('a');
       link.href = URL.createObjectURL(blob);
-      link.download = `Produktion_Export_${new Date().toISOString().split('T')[0]}.csv`;
+      link.download = `Produktion_Export_${format(new Date(), 'yyyy-MM-dd')}.csv`;
       link.click();
   };
 
