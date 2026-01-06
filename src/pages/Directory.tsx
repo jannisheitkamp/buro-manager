@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Profile } from '@/types';
-import { Mail, Shield, User, Edit, CheckCircle, Clock}de-react';
+import { Mail, Shield, User, Edit, CheckCircle, Clock, RefreshCcw } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import { Modal } from '@/components/Modal';
 import { toast } from 'react-hot-toast';
 import { cn } from '@/utils/cn';
 
+// Roles configuration
 const ROLES = [
   'admin',
   'employee',
