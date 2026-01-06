@@ -65,8 +65,8 @@ export const GeneralCalendar = () => {
     const { data: bookingData } = await supabase
         .from('bookings')
         .select('*, profiles(full_name, avatar_url)')
-        .gte('start_time', start)
-        .lte('end_time', end);
+        .lte('start_time', end)
+        .gte('end_time', start);
 
     // 4. Parcels (Expected)
     const { data: parcelData } = await supabase
