@@ -16,7 +16,6 @@ import { Callbacks } from '@/pages/Callbacks';
 import { Directory } from '@/pages/Directory';
 import { ProfilePage } from '@/pages/ProfilePage';
 import { Toaster } from 'react-hot-toast';
-import { ChatBot } from '@/components/ChatBot';
 
 import { PageTransition } from '@/components/PageTransition';
 
@@ -71,17 +70,17 @@ function App() {
           <Route element={<MfaCheck />}>
             <Route path="/onboarding" element={<Onboarding />} />
             <Route element={<OnboardingCheck />}>
-              <Route path="/" element={<><Layout><PageTransition><Dashboard /></PageTransition></Layout><ChatBot /></>} />
-              <Route path="/general-calendar" element={<><Layout><PageTransition><GeneralCalendar /></PageTransition></Layout><ChatBot /></>} />
-              <Route path="/calendar" element={<><Layout><PageTransition><Calendar /></PageTransition></Layout><ChatBot /></>} />
-              <Route path="/bookings" element={<><Layout><PageTransition><Bookings /></PageTransition></Layout><ChatBot /></>} />
-              <Route path="/production" element={<><Layout><PageTransition><Production /></PageTransition></Layout><ChatBot /></>} />
-              <Route path="/board" element={<><Layout><PageTransition><Board /></PageTransition></Layout><ChatBot /></>} />
-              <Route path="/polls" element={<><Layout><PageTransition><Polls /></PageTransition></Layout><ChatBot /></>} />
-              <Route path="/callbacks" element={<><Layout><PageTransition><Callbacks /></PageTransition></Layout><ChatBot /></>} />
-              <Route path="/parcels" element={<><Layout><PageTransition><Parcels /></PageTransition></Layout><ChatBot /></>} />
-              <Route path="/directory" element={<><Layout><PageTransition><Directory /></PageTransition></Layout><ChatBot /></>} />
-              <Route path="/profile" element={<><Layout><PageTransition><ProfilePage /></PageTransition></Layout><ChatBot /></>} />
+              <Route path="/" element={<Layout><PageTransition><Dashboard /></PageTransition></Layout>} />
+              <Route path="/general-calendar" element={<Layout><PageTransition><GeneralCalendar /></PageTransition></Layout>} />
+              <Route path="/calendar" element={<Layout><PageTransition><Calendar /></PageTransition></Layout>} />
+              <Route path="/bookings" element={<Layout><PageTransition><Bookings /></PageTransition></Layout>} />
+              <Route path="/production" element={<Layout><PageTransition><Production /></PageTransition></Layout>} />
+              <Route path="/board" element={<Layout><PageTransition><Board /></PageTransition></Layout>} />
+              <Route path="/polls" element={<Layout><PageTransition><Polls /></PageTransition></Layout>} />
+              <Route path="/callbacks" element={<Layout><PageTransition><Callbacks /></PageTransition></Layout>} />
+              <Route path="/parcels" element={<Layout><PageTransition><Parcels /></PageTransition></Layout>} />
+              <Route path="/directory" element={<Layout><PageTransition><Directory /></PageTransition></Layout>} />
+              <Route path="/profile" element={<Layout><PageTransition><ProfilePage /></PageTransition></Layout>} />
             </Route>
           </Route>
         </Route>
