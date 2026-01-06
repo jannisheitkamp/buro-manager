@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { useStore } from '@/store/useStore';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { TrendingUp, Plus, Search, Filter, Euro, FileText, Trash2, Download } from 'lucide-react';
+import { TrendingUp, Plus, Search, Filter, Euro, FileText, Trash2, Download, Pencil } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { Modal } from '@/components/Modal';
 import { toast } from 'react-hot-toast';
@@ -23,6 +23,7 @@ export const Production = () => {
   const [submitting, setSubmitting] = useState(false);
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   // --- Config ---
   // Define insurance types and subcategories
@@ -181,7 +182,7 @@ export const Production = () => {
     setSubmitting(true);
 
     try {
-        const { error } = await supabase.from('production_entries').insert({
+        const payload = {
             user_id: user.id,
             submission_date: submissionDate,
             policy_number: policyNumber,
@@ -201,15 +202,25 @@ export const Production = () => {
             commission_amount: commissionAmount,
             liability_rate: liabilityActive ? Number(liabilityRate) : 0,
             status: 'submitted'
-        });
+        };
 
-        if (error) throw error;
-        toast.success('Vertrag erfasst!');
+        if (editingId) {
+            const { error } = await supabase
+                .from('production_entries')
+                .update(payload)
+                .eq('id', editingId);
+            if (error) throw error;
+            toast.success('Vertrag aktualisiert!');
+        } else {
+            const { error } = await supabase
+                .from('production_entries')
+                .insert(payload);
+            if (error) throw error;
+            toast.success('Vertrag erfasst!');
+        }
+
         setIsModalOpen(false);
-        // Reset (simplified)
-        setCustomerName('');
-        setNetPremium('');
-        setGrossPremium('');
+        resetForm();
         fetchEntries();
     } catch (err) {
         console.error(err);
@@ -217,6 +228,44 @@ export const Production = () => {
     } finally {
         setSubmitting(false);
     }
+  };
+
+  const resetForm = () => {
+      setEditingId(null);
+      setCustomerName('');
+      setCustomerFirstname('');
+      setPolicyNumber('');
+      setSubmissionDate(new Date().toISOString().split('T')[0]);
+      setNetPremium('');
+      setGrossPremium('');
+      setDuration(1);
+      setPaymentMethod('monthly');
+      setLiabilityRate(10);
+      setLiabilityActive(true);
+      // Reset category to defaults if needed
+  };
+
+  const handleEdit = (entry: any) => {
+      setEditingId(entry.id);
+      setSubmissionDate(entry.submission_date);
+      setPolicyNumber(entry.policy_number || '');
+      setCustomerName(entry.customer_name || '');
+      setCustomerFirstname(entry.customer_firstname || '');
+      setCategory(entry.category);
+      setSubCategory(entry.sub_category);
+      setStartDate(entry.start_date || '');
+      setPaymentMethod(entry.payment_method);
+      setDuration(entry.duration || 1);
+      setNetPremium(entry.net_premium || '');
+      setGrossPremium(entry.gross_premium || '');
+      // Commission fields are auto-calculated by useEffect, 
+      // BUT we need to set the inputs correctly so the useEffect triggers correctly.
+      
+      setLiabilityRate(entry.liability_rate || 0);
+      setLiabilityActive((entry.liability_rate || 0) > 0);
+      if ((entry.liability_rate || 0) === 0) setLiabilityRate(10); // Default if was 0
+
+      setIsModalOpen(true);
   };
 
   const handleDelete = async (id: string) => {
@@ -446,7 +495,7 @@ export const Production = () => {
         <Modal
             isOpen={isModalOpen}
             onClose={() => setIsModalOpen(false)}
-            title="Neuen Vertrag erfassen"
+            title={editingId ? "Vertrag bearbeiten" : "Neuen Vertrag erfassen"}
         >
             <form onSubmit={handleSubmit} className="space-y-6">
                 
