@@ -234,6 +234,30 @@ export const ProfilePage = () => {
         </form>
       </div>
 
+      {/* Commission Settings Section (Alternative Access) */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-8">
+        <div className="flex items-start justify-between">
+            <div className="flex items-center gap-3">
+                <div className="bg-blue-50 dark:bg-blue-900/30 p-2 rounded-lg">
+                    <Settings className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                </div>
+                <div>
+                    <h3 className="text-lg font-bold text-gray-900 dark:text-white">Provision & Sätze</h3>
+                    <p className="text-sm text-gray-500">Verwalte deine individuellen Provisionssätze für alle Sparten.</p>
+                </div>
+            </div>
+        </div>
+        <div className="mt-6 border-t border-gray-100 dark:border-gray-700 pt-6">
+            <button 
+                onClick={() => navigate('/onboarding')}
+                className="w-full sm:w-auto bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
+            >
+                <Settings className="w-4 h-4" />
+                Einstellungen bearbeiten
+            </button>
+        </div>
+      </div>
+
       {/* Security & 2FA Section */}
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-8">
         <div className="flex items-start justify-between">
