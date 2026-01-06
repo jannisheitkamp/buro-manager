@@ -195,8 +195,9 @@ export const Dashboard = () => {
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
                 Guten Morgen, {profile?.full_name?.split(' ')[0] || 'Nutzer'}! 👋
             </h1>
-            <p className="text-gray-500 dark:text-gray-400 mt-1">
-                Heute ist {format(new Date(), 'EEEE, d. MMMM', { locale: de })}.
+            <p className="text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-2">
+                Hier ist dein persönlicher Überblick für {format(new Date(), 'EEEE, d. MMMM', { locale: de })}.
+                <span className="bg-indigo-50 text-indigo-700 text-[10px] px-2 py-0.5 rounded-full border border-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-800">Privat</span>
             </p>
         </div>
         <div className="flex gap-2">
@@ -278,10 +279,12 @@ export const Dashboard = () => {
         <div className="lg:col-span-2 space-y-8">
             
             {/* My Status */}
-            <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
-                <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50 dark:bg-indigo-900/20 rounded-bl-full -mr-10 -mt-10 pointer-events-none" />
+                
+                <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2 relative z-10">
                     <MessageSquare className="w-5 h-5 text-indigo-500" />
-                    Mein Status
+                    Wie arbeitest du heute?
                 </h2>
                 
                 <div className="flex gap-4 mb-6">
