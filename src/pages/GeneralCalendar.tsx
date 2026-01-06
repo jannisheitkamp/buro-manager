@@ -48,16 +48,27 @@ export const GeneralCalendar = () => {
 
     console.log('Fetching events for range:', { start, end });
 
-    // 1. Calendar Events: Load if they overlap with the view range
-    const { data: calendarData, error: calError } = await supabase
+    // 1. Calendar Events: Try with profiles first, fallback without if relationship error
+    let calendarData;
+    const { data: dataWithProfiles, error: calError } = await supabase
         .from('calendar_events')
         .select('*, profiles(full_name, avatar_url)')
         .lte('start_time', end)
         .gte('end_time', start);
 
-    if (calError) {
+    if (calError && calError.message.includes('relationship')) {
+        console.warn('Relationship error, fetching without profiles:', calError);
+        const { data: dataSimple } = await supabase
+            .from('calendar_events')
+            .select('*')
+            .lte('start_time', end)
+            .gte('end_time', start);
+        calendarData = dataSimple;
+    } else if (calError) {
         console.error('Error fetching calendar events:', calError);
         toast.error(`DB Error: ${calError.message}`);
+    } else {
+        calendarData = dataWithProfiles;
     }
 
     // 2. Absences (Leaves)
