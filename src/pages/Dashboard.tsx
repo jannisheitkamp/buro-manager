@@ -230,7 +230,7 @@ export const Dashboard = () => {
                         <input 
                             type="text" 
                             placeholder="Was machst du gerade? (z.B. 'Kundenmeeting')" 
-                            className="w-full bg-transparent border-none text-sm focus:ring-0 placeholder-gray-400"
+                            className="w-full bg-transparent border-none text-sm focus:ring-0 placeholder-gray-400 text-gray-900 dark:text-white dark:placeholder-gray-500"
                             value={statusMessage}
                             onChange={e => setStatusMessage(e.target.value)}
                             onKeyDown={e => e.key === 'Enter' && handleStatusUpdate(myCurrentStatus?.status || 'office')}
