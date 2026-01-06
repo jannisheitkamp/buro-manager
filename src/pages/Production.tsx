@@ -83,6 +83,8 @@ export const Production = () => {
   
   // Commission Logic
   const [commissionRate, setCommissionRate] = useState<number | ''>(''); // e.g. 8.0 (Promille) or 7.5 (Percent)
+  const [liabilityActive, setLiabilityActive] = useState(true);
+  const [liabilityRate, setLiabilityRate] = useState<number>(10);
   
   // Calculated Fields (derived)
   const [netPremiumYearly, setNetPremiumYearly] = useState(0);
@@ -197,6 +199,7 @@ export const Production = () => {
             commission_rate: Number(commissionRate),
             valuation_sum: valuationSum,
             commission_amount: commissionAmount,
+            liability_rate: liabilityActive ? Number(liabilityRate) : 0,
             status: 'submitted'
         });
 
@@ -294,6 +297,7 @@ export const Production = () => {
   };
 
   const totalCommission = filteredEntries.reduce((acc, curr) => acc + (curr.commission_amount || 0), 0);
+  const totalLiability = filteredEntries.reduce((acc, curr) => acc + ((curr.commission_amount || 0) * (curr.liability_rate || 0) / 100), 0);
 
   return (
     <div className="space-y-6">
