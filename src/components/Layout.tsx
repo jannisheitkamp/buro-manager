@@ -21,6 +21,7 @@ import { useState, useEffect } from 'react';
 import { useTheme } from '@/hooks/useTheme';
 import { supabase } from '@/lib/supabase';
 import { CommandPalette } from './CommandPalette';
+import { AIAssistant } from './AIAssistant';
 import { useNotifications } from '@/hooks/useNotifications';
 
 const navigation = [
