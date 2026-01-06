@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '@/store/useStore';
-import { Building2, ArrowRight, Sparkles, ShieldCheck } from 'lucide-react';
+import { Building2, ArrowRight, Sparkles, ShieldCheck, Lock } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
 export const Login = () => {
@@ -35,17 +35,39 @@ export const Login = () => {
           },
         });
         if (error) throw error;
-        toast.success('Registrierung erfolgreich! Bitte loggen Sie sich ein.');
+        toast.success('Registrierung erfolgreich! Bitte warten Sie auf Freischaltung.');
         setMode('signin');
         setLoading(false);
       } else {
         // 1. First Factor Login
-        const { data, error } = await supabase.auth.signInWithPassword({
+        const { data: authData, error } = await supabase.auth.signInWithPassword({
           email,
           password,
         });
 
         if (error) throw error;
+
+        // --- NEW: Check Approval Status ---
+        // Fetch profile to check is_approved
+        if (authData.user) {
+            const { data: profileData, error: profileError } = await supabase
+                .from('profiles')
+                .select('is_approved, roles')
+                .eq('id', authData.user.id)
+                .single();
+            
+            // If user is NOT approved and NOT an admin (admins are always allowed to fix themselves)
+            const isApproved = profileData?.is_approved;
+            const isAdmin = profileData?.roles?.includes('admin');
+
+            if (!isApproved && !isAdmin) {
+                await supabase.auth.signOut();
+                toast.error('Ihr Account wurde noch nicht freigeschaltet. Bitte kontaktieren Sie den Administrator.', { duration: 6000, icon: '🔒' });
+                setLoading(false);
+                return;
+            }
+        }
+        // ----------------------------------
 
         // 2. Check if MFA is required
         const { data: mfaData } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
