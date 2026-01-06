@@ -580,6 +580,30 @@ export const Production = () => {
                             </div>
                         </div>
                     </div>
+
+                    <div className="flex items-center gap-4 pt-2 border-t border-indigo-100">
+                         <div className="flex items-center gap-2">
+                             <input 
+                                 type="checkbox" 
+                                 id="liabilityCheck"
+                                 checked={liabilityActive}
+                                 onChange={e => setLiabilityActive(e.target.checked)}
+                                 className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                             />
+                             <label htmlFor="liabilityCheck" className="text-sm text-gray-700 font-medium">Stornohaftung einbehalten</label>
+                         </div>
+                         {liabilityActive && (
+                             <div className="flex items-center gap-2">
+                                 <input 
+                                     type="number" 
+                                     value={liabilityRate} 
+                                     onChange={e => setLiabilityRate(Number(e.target.value))} 
+                                     className="w-16 rounded-lg border-gray-300 bg-white px-2 py-1 text-sm focus:ring-indigo-500" 
+                                 />
+                                 <span className="text-sm text-gray-500">%</span>
+                             </div>
+                         )}
+                    </div>
                 </div>
 
                 <div className="flex justify-end gap-3 pt-2">
