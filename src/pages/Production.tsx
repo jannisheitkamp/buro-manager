@@ -203,7 +203,6 @@ export const Production = () => {
             liability_rate: liabilityActive ? Number(liabilityRate) : 0,
             status: 'submitted'
         };
-        console.log('Submitting payload:', payload);
 
         if (editingId) {
             const { error } = await supabase
@@ -262,9 +261,14 @@ export const Production = () => {
       // Commission fields are auto-calculated by useEffect, 
       // BUT we need to set the inputs correctly so the useEffect triggers correctly.
       
-      setLiabilityRate(entry.liability_rate || 0);
-      setLiabilityActive((entry.liability_rate || 0) > 0);
-      if ((entry.liability_rate || 0) === 0) setLiabilityRate(10); // Default if was 0
+      const lRate = Number(entry.liability_rate);
+      if (lRate > 0) {
+          setLiabilityRate(lRate);
+          setLiabilityActive(true);
+      } else {
+          setLiabilityRate(10); // Default if user enables it again
+          setLiabilityActive(false);
+      }
 
       setIsModalOpen(true);
   };
@@ -471,6 +475,7 @@ export const Production = () => {
                                     </td>
                                     <td className="px-6 py-4 text-gray-600 dark:text-gray-300">
                                         <div className="text-xs">Satz: {entry.commission_rate} {entry.category === 'life' ? '‰' : (entry.category === 'health' && !entry.sub_category?.includes('reise') ? 'MB' : '%')}</div>
+                                        <div className="text-xs text-orange-500">Haftung: {entry.liability_rate}%</div>
                                         <div>Summe: {formatCurrency(entry.valuation_sum || 0)}</div>
                                     </td>
                                     <td className="px-6 py-4 text-right font-bold text-indigo-600 dark:text-indigo-400">
