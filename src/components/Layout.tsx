@@ -193,6 +193,9 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
       <main className="flex-1 p-4 md:p-8 lg:p-12 overflow-y-auto w-full max-w-full pb-24 lg:pb-12">
         {children}
       </main>
+
+      {/* AI Assistant */}
+      <AIAssistant />
     </div>
   );
 };
