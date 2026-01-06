@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { useStore } from '@/store/useStore';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { TrendingUp, Plus, Search, Filter, Euro, FileText, Trash2 } from 'lucide-react';
+import { TrendingUp, Plus, Search, Filter, Euro, FileText, Trash2}cide-react';
 import { cn } from '@/utils/cn';
 import { Modal } from '@/components/Modal';
 import { toast } from 'react-hot-toast';
@@ -233,6 +233,30 @@ export const Production = () => {
       );
   });
 
+  const handleExport = () => {
+      if (filteredEntries.length === 0) return;
+      
+      const headers = ['Datum', 'Kunde', 'Sparte', 'Zahlweise', 'Netto', 'Brutto', 'Provision'];
+      const csvContent = [
+          headers.join(';'),
+          ...filteredEntries.map(e => [
+              format(new Date(e.submission_date), 'dd.MM.yyyy'),
+              `"${e.customer_name}, ${e.customer_firstname || ''}"`,
+              e.category,
+              e.payment_method,
+              e.net_premium,
+              e.gross_premium,
+              e.commission_amount
+          ].join(';'))
+      ].join('\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `Produktion_Export_${new Date().toISOString().split('T')[0]}.csv`;
+      link.click();
+  };
+
   const totalCommission = filteredEntries.reduce((acc, curr) => acc + (curr.commission_amount || 0), 0);
 
   return (
@@ -254,6 +278,13 @@ export const Production = () => {
                     <p className="text-xs text-gray-500">Provision (Liste)</p>
                     <p className="text-lg font-bold text-indigo-600">{formatCurrency(totalCommission)}</p>
                 </div>
+                <button 
+                    onClick={handleExport}
+                    className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
+                    title="Exportieren"
+                >
+                    <Download className="w-5 h-5" />
+                </button>
                 <button
                     onClick={() => setIsModalOpen(true)}
                     className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"

@@ -96,17 +96,11 @@ export const Login = () => {
         navigate('/');
       }
     } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
-      console.error('Login error full object:', err);
+      console.error('Login error:', err);
       let msg = 'Ein Fehler ist aufgetreten.';
       
-      if (typeof err === 'string') {
-          msg = err;
-      } else if (err?.message) {
+      if (err.message) {
           msg = err.message;
-      } else if (err?.error_description) {
-          msg = err.error_description;
-      } else {
-          msg = JSON.stringify(err); // Last resort to see what it is
       }
 
       if (msg?.includes('Invalid login credentials')) {
