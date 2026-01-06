@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useStore } from '@/store/useStore';
-import { UserCircle, Save, LogOut, ShieldCheck, Smartphone, Copy, Check } from 'lucide-react';
+import { UserCircle, Save, LogOut, ShieldCheck, Smartphone, Copy, Check, Settings } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import QRCode from 'qrcode';
 
 export const ProfilePage = () => {
   const { user, profile, fetchProfile, signOut } = useStore();
+  const navigate = useNavigate();
   const [fullName, setFullName] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
   const [address, setAddress] = useState('');
