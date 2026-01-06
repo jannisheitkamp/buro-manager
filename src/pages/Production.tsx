@@ -475,10 +475,18 @@ export const Production = () => {
                                     <td className="px-6 py-4 text-right font-bold text-indigo-600 dark:text-indigo-400">
                                         {formatCurrency(entry.commission_amount || 0)}
                                     </td>
-                                    <td className="px-6 py-4 text-right">
+                                    <td className="px-6 py-4 text-right flex justify-end gap-2">
+                                        <button 
+                                            onClick={() => handleEdit(entry)}
+                                            className="text-gray-400 hover:text-indigo-500 transition-colors"
+                                            title="Bearbeiten"
+                                        >
+                                            <Pencil className="w-4 h-4" />
+                                        </button>
                                         <button 
                                             onClick={() => handleDelete(entry.id)}
                                             className="text-gray-400 hover:text-red-500 transition-colors"
+                                            title="Löschen"
                                         >
                                             <Trash2 className="w-4 h-4" />
                                         </button>
@@ -495,7 +503,7 @@ export const Production = () => {
         <Modal
             isOpen={isModalOpen}
             onClose={() => setIsModalOpen(false)}
-            title={editingId ? "Vertrag bearbeiten" : "Neuen Vertrag erfassen"}
+            title="Neuen Vertrag erfassen"
         >
             <form onSubmit={handleSubmit} className="space-y-6">
                 
