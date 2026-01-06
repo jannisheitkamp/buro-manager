@@ -35,6 +35,15 @@ export const MfaSetup = () => {
   const startSetup = async () => {
     setLoading(true);
     try {
+      // 1. Cleanup old unverified factors to avoid limit errors
+      const { data: factors } = await supabase.auth.mfa.listFactors();
+      const unverified = factors?.all?.filter(f => f.status === 'unverified') || [];
+      
+      for (const factor of unverified) {
+          await supabase.auth.mfa.unenroll({ factorId: factor.id });
+      }
+
+      // 2. Enroll new factor
       const { data, error } = await supabase.auth.mfa.enroll({
         factorType: 'totp',
         issuer: 'Büro Manager',
@@ -49,9 +58,12 @@ export const MfaSetup = () => {
       setQrCode(qrUrl);
       
       setStep('qr');
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      toast.error('Fehler beim Starten der Einrichtung.');
+      let msg = 'Fehler beim Starten der Einrichtung.';
+      if (err.message) msg = err.message;
+      if (err.message?.includes('not enabled')) msg = 'MFA ist im System nicht aktiviert. Bitte Admin kontaktieren.';
+      toast.error(msg);
     } finally {
         setLoading(false);
     }
