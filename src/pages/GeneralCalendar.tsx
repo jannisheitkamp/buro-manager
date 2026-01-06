@@ -531,9 +531,24 @@ export const GeneralCalendar = () => {
                     </div>
                 </div>
 
-                <div className="flex justify-end gap-3 mt-6">
-                    <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-md">Abbrechen</button>
-                    <button type="submit" disabled={submitting} className="px-4 py-2 text-sm text-white bg-indigo-600 hover:bg-indigo-700 rounded-md">Speichern</button>
+                <div className="flex justify-between mt-6">
+                    {editingEvent ? (
+                        <button 
+                            type="button" 
+                            onClick={handleDeleteEvent} 
+                            disabled={submitting}
+                            className="px-4 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md border border-red-200 transition-colors"
+                        >
+                            Löschen
+                        </button>
+                    ) : <div />}
+                    
+                    <div className="flex gap-3">
+                        <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-md transition-colors">Abbrechen</button>
+                        <button type="submit" disabled={submitting} className="px-4 py-2 text-sm text-white bg-indigo-600 hover:bg-indigo-700 rounded-md transition-colors">
+                            {editingEvent ? 'Speichern' : 'Erstellen'}
+                        </button>
+                    </div>
                 </div>
             </form>
         </Modal>
