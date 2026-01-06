@@ -5,6 +5,7 @@ export type Profile = {
   avatar_url: string | null;
   roles: string[];
   address?: string | null;
+  is_approved?: boolean;
   created_at: string;
 };
 

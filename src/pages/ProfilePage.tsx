@@ -72,6 +72,7 @@ export const ProfilePage = () => {
     try {
       const { data, error } = await supabase.auth.mfa.enroll({
         factorType: 'totp',
+        issuer: 'Trae AI',
       });
       
       if (error) throw error;

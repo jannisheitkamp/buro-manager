@@ -76,7 +76,7 @@ export const Login = () => {
             // MFA Required!
             // We need to find the factor ID
             const { data: factors } = await supabase.auth.mfa.listFactors();
-            const totpFactor = factors.all.find(f => f.factorType === 'totp' && f.status === 'verified');
+            const totpFactor = factors.all.find(f => f.factor_type === 'totp' && f.status === 'verified');
             
             if (totpFactor) {
                 setMfaFactorId(totpFactor.id);
