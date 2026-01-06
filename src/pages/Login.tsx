@@ -54,9 +54,12 @@ export const Login = () => {
                 .from('profiles')
                 .select('is_approved, roles')
                 .eq('id', authData.user.id)
-                .single();
+                .maybeSingle(); // Use maybeSingle to avoid error if no profile exists yet
             
+            if (profileError) throw profileError;
+
             // If user is NOT approved and NOT an admin (admins are always allowed to fix themselves)
+            // If no profile exists, we treat it as not approved (safe default)
             const isApproved = profileData?.is_approved;
             const isAdmin = profileData?.roles?.includes('admin');
 
@@ -95,6 +98,9 @@ export const Login = () => {
     } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
       console.error('Login error:', err);
       let msg = 'Ein Fehler ist aufgetreten.';
+      if (err.message) {
+          msg = err.message; // Show real error for debugging
+      }
       if (err.message?.includes('Invalid login credentials')) {
         msg = 'Falsche E-Mail oder Passwort.';
       }
