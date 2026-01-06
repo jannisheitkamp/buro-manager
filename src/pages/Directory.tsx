@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Profile } from '@/types';
-import { Mail, Shield, User, Edit } from 'lucide-react';
+import { Mail, Shield, User, Edit, CheckCircle, Clock } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import { Modal } from '@/components/Modal';
 import { toast } from 'react-hot-toast';
+import { cn } from '@/utils/cn';
 
 const ROLES = [
   'admin',
@@ -27,6 +28,7 @@ export const Directory = () => {
   const [loading, setLoading] = useState(true);
   const [editingProfile, setEditingProfile] = useState<Profile | null>(null);
   const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
+  const [view, setView] = useState<'all' | 'pending'>('all');
 
   const fetchProfiles = async () => {
     try {
@@ -73,6 +75,19 @@ export const Directory = () => {
     }
   };
 
+  const approveUser = async (id: string) => {
+      if(!confirm('Nutzer freischalten?')) return;
+      try {
+          const { error } = await supabase.from('profiles').update({ is_approved: true }).eq('id', id);
+          if (error) throw error;
+          toast.success('Nutzer freigeschaltet!');
+          fetchProfiles();
+      } catch (err) {
+          console.error(err);
+          toast.error('Fehler beim Freischalten.');
+      }
+  };
+
   const toggleRole = (role: string) => {
     setSelectedRoles(prev => 
       prev.includes(role) 
@@ -87,30 +102,92 @@ export const Directory = () => {
 
   if (loading) return <div className="p-8 text-center">Laden...</div>;
 
+  const pendingCount = profiles.filter(p => !p.is_approved).length;
+  
+  // Filter logic
+  const filteredProfiles = profiles.filter(p => {
+      if (view === 'pending') return !p.is_approved;
+      return true; // Show all (or maybe approved only? usually 'all' implies everyone)
+  });
+
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-        <User className="w-8 h-8" />
-        Mitarbeiter-Verzeichnis
-      </h1>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+            <User className="w-8 h-8" />
+            Mitarbeiter-Verzeichnis
+        </h1>
+        
+        {currentUserProfile?.roles?.includes('admin') && (
+            <div className="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-lg">
+                <button
+                    onClick={() => setView('all')}
+                    className={cn(
+                        "px-4 py-2 text-sm font-medium rounded-md transition-all",
+                        view === 'all' ? "bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-white" : "text-gray-500 dark:text-gray-400 hover:text-gray-900"
+                    )}
+                >
+                    Alle
+                </button>
+                <button
+                    onClick={() => setView('pending')}
+                    className={cn(
+                        "px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2",
+                        view === 'pending' ? "bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-white" : "text-gray-500 dark:text-gray-400 hover:text-gray-900"
+                    )}
+                >
+                    Warten auf Freigabe
+                    {pendingCount > 0 && (
+                        <span className="bg-red-500 text-white text-[10px] px-1.5 rounded-full">{pendingCount}</span>
+                    )}
+                </button>
+            </div>
+        )}
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {profiles.map((profile) => (
+        {filteredProfiles.length === 0 ? (
+            <div className="col-span-full text-center py-12 text-gray-400">
+                Keine Mitarbeiter gefunden.
+            </div>
+        ) : filteredProfiles.map((profile) => (
           <div key={profile.id} className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 flex flex-col items-center text-center relative group">
+             
+             {/* Status Badge */}
+             {!profile.is_approved && (
+                 <div className="absolute top-2 left-2 bg-yellow-100 text-yellow-800 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                     <Clock className="w-3 h-3" /> WARTEND
+                 </div>
+             )}
+
              {currentUserProfile?.roles?.includes('admin') && (
-                <button 
-                    onClick={() => handleEditRole(profile)}
-                    className="absolute top-2 right-2 p-2 text-gray-400 hover:text-indigo-600 transition-all"
-                    title="Rolle bearbeiten"
-                >
-                    <Edit className="w-4 h-4" />
-                </button>
+                <div className="absolute top-2 right-2 flex gap-1">
+                    {!profile.is_approved && (
+                        <button 
+                            onClick={() => approveUser(profile.id)}
+                            className="p-2 text-green-500 hover:text-green-700 hover:bg-green-50 rounded-full transition-all"
+                            title="Benutzer freischalten"
+                        >
+                            <CheckCircle className="w-4 h-4" />
+                        </button>
+                    )}
+                    <button 
+                        onClick={() => handleEditRole(profile)}
+                        className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-gray-50 rounded-full transition-all"
+                        title="Rolle bearbeiten"
+                    >
+                        <Edit className="w-4 h-4" />
+                    </button>
+                </div>
             )}
 
             <img
               src={profile.avatar_url || `https://ui-avatars.com/api/?name=${profile.full_name || 'User'}&background=random`}
               alt={profile.full_name || ''}
-              className="w-24 h-24 rounded-full mb-4 shadow-sm object-cover"
+              className={cn(
+                  "w-24 h-24 rounded-full mb-4 shadow-sm object-cover",
+                  !profile.is_approved && "grayscale opacity-70"
+              )}
             />
             
             <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1">
