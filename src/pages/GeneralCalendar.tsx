@@ -48,15 +48,17 @@ export const GeneralCalendar = () => {
 
     console.log('Fetching events for range:', { start, end });
 
-    // 1. Calendar Events: Load ALL for debugging
+    // 1. Calendar Events: Load if they overlap with the view range
     const { data: calendarData, error: calError } = await supabase
         .from('calendar_events')
-        .select('*, profiles(full_name, avatar_url)');
-        // .lte('start_time', end)
-        // .gte('end_time', start);
+        .select('*, profiles(full_name, avatar_url)')
+        .lte('start_time', end)
+        .gte('end_time', start);
 
-    if (calError) console.error('Error fetching calendar events:', calError);
-    console.log('Raw Calendar Data:', calendarData);
+    if (calError) {
+        console.error('Error fetching calendar events:', calError);
+        toast.error(`DB Error: ${calError.message}`);
+    }
 
     // 2. Absences (Leaves)
     // Note: Absences use DATE type, so we compare simply
