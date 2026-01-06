@@ -322,6 +322,11 @@ export const Production = () => {
                                 <tr key={entry.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
                                     <td className="px-6 py-4 text-gray-600 dark:text-gray-300 whitespace-nowrap">
                                         {format(new Date(entry.submission_date), 'dd.MM.yyyy')}
+                                        {/* DEBUG INFO */}
+                                        <div className="text-[10px] text-red-500 font-mono mt-1">
+                                            Owner: {entry.user_id?.slice(0, 4)}...
+                                            {user?.id === entry.user_id ? ' (ME)' : ' (OTHER)'}
+                                        </div>
                                     </td>
                                     <td className="px-6 py-4">
                                         <div className="font-medium text-gray-900 dark:text-white">{entry.customer_name}, {entry.customer_firstname}</div>
