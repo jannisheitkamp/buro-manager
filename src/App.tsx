@@ -25,6 +25,8 @@ import { GeneralCalendar } from '@/pages/GeneralCalendar';
 import { Production } from '@/pages/Production';
 import { Onboarding } from '@/pages/Onboarding';
 import { OnboardingCheck } from '@/components/OnboardingCheck';
+import { MfaSetup } from '@/pages/MfaSetup';
+import { MfaCheck } from '@/components/MfaCheck';
 
 function App() {
   const setUser = useStore((state) => state.setUser);
