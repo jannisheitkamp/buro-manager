@@ -436,9 +436,24 @@ export const GeneralCalendar = () => {
         <Modal
             isOpen={isModalOpen}
             onClose={() => setIsModalOpen(false)}
-            title={editingEvent ? 'Termin bearbeiten' : `Termin am ${format(selectedDate, 'dd.MM.yyyy')}`}
+            title={editingEvent ? 'Termin Details' : `Termin am ${format(selectedDate, 'dd.MM.yyyy')}`}
         >
             <form onSubmit={handleCreateOrUpdateEvent} className="space-y-4">
+                {editingEvent && editingEvent.profiles && (
+                    <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg mb-4">
+                        {editingEvent.profiles.avatar_url ? (
+                            <img src={editingEvent.profiles.avatar_url} alt="" className="w-8 h-8 rounded-full object-cover" />
+                        ) : (
+                            <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-xs">
+                                {editingEvent.profiles.full_name?.substring(0, 2).toUpperCase()}
+                            </div>
+                        )}
+                        <div>
+                            <p className="text-sm font-medium text-gray-900 dark:text-white">Erstellt von</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">{editingEvent.profiles.full_name || 'Unbekannt'}</p>
+                        </div>
+                    </div>
+                )}
                 <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Titel</label>
                     <input
