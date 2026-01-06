@@ -31,6 +31,7 @@ export const GeneralCalendar = () => {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
   const [submitting, setSubmitting] = useState(false);
   
   // Form State
@@ -186,7 +187,7 @@ export const GeneralCalendar = () => {
     };
   }, [currentDate]);
 
-  const handleCreateEvent = async (e: React.FormEvent) => {
+  const handleCreateOrUpdateEvent = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
     setSubmitting(true);
@@ -201,28 +202,96 @@ export const GeneralCalendar = () => {
         const [eh, em] = eventEnd.split(':').map(Number);
         endDateTime.setHours(eh, em);
 
-        const { error } = await supabase.from('calendar_events').insert({
-            title: eventTitle,
-            description: eventDesc,
-            start_time: startDateTime.toISOString(),
-            end_time: endDateTime.toISOString(),
-            location: eventLocation,
-            color: eventColor,
-            user_id: user.id
-        });
+        if (editingEvent) {
+            // UPDATE
+            const { error } = await supabase.from('calendar_events').update({
+                title: eventTitle,
+                description: eventDesc,
+                start_time: startDateTime.toISOString(),
+                end_time: endDateTime.toISOString(),
+                location: eventLocation,
+                color: eventColor,
+            }).eq('id', editingEvent.id);
 
-        if (error) throw error;
-        toast.success('Termin erstellt!');
+            if (error) throw error;
+            toast.success('Termin aktualisiert!');
+        } else {
+            // CREATE
+            const { error } = await supabase.from('calendar_events').insert({
+                title: eventTitle,
+                description: eventDesc,
+                start_time: startDateTime.toISOString(),
+                end_time: endDateTime.toISOString(),
+                location: eventLocation,
+                color: eventColor,
+                user_id: user.id
+            });
+
+            if (error) throw error;
+            toast.success('Termin erstellt!');
+        }
+
         setIsModalOpen(false);
-        setEventTitle('');
-        setEventDesc('');
+        setEditingEvent(null);
+        resetForm();
         fetchEvents();
     } catch (error) {
         console.error(error);
-        toast.error('Fehler beim Erstellen.');
+        toast.error('Fehler beim Speichern.');
     } finally {
         setSubmitting(false);
     }
+  };
+
+  const handleDeleteEvent = async () => {
+      if (!editingEvent) return;
+      if (!confirm('Termin wirklich löschen?')) return;
+      
+      setSubmitting(true);
+      try {
+          const { error } = await supabase.from('calendar_events').delete().eq('id', editingEvent.id);
+          if (error) throw error;
+          toast.success('Termin gelöscht');
+          setIsModalOpen(false);
+          setEditingEvent(null);
+          resetForm();
+          fetchEvents();
+      } catch (error) {
+          console.error(error);
+          toast.error('Fehler beim Löschen');
+      } finally {
+          setSubmitting(false);
+      }
+  };
+
+  const resetForm = () => {
+      setEventTitle('');
+      setEventDesc('');
+      setEventStart('09:00');
+      setEventEnd('10:00');
+      setEventLocation('');
+      setEventColor('blue');
+  };
+
+  const openNewEventModal = (date: Date) => {
+      setEditingEvent(null);
+      setSelectedDate(date);
+      resetForm();
+      setIsModalOpen(true);
+  };
+
+  const openEditModal = (event: CalendarEvent) => {
+      if (event.type !== 'event') return; // Only edit own calendar events
+      
+      setEditingEvent(event);
+      setSelectedDate(new Date(event.start_time));
+      setEventTitle(event.title);
+      setEventDesc(event.description || '');
+      setEventStart(format(new Date(event.start_time), 'HH:mm'));
+      setEventEnd(format(new Date(event.end_time), 'HH:mm'));
+      setEventLocation(event.location || '');
+      setEventColor(event.color || 'blue');
+      setIsModalOpen(true);
   };
 
   const debugDB = async () => {
@@ -329,6 +398,7 @@ export const GeneralCalendar = () => {
                             "bg-blue-100 text-blue-700 border-blue-500 dark:bg-blue-900/30 dark:text-blue-200"
                         )}
                         title={ev.title}
+                        onClick={(e) => { e.stopPropagation(); openEditModal(ev); }}
                     >
                         {ev.type === 'absence' && <span className="w-1.5 h-1.5 rounded-full bg-current opacity-50" />}
                         <span className="truncate">{format(new Date(ev.start_time), 'HH:mm')} {ev.title}</span>
@@ -338,7 +408,7 @@ export const GeneralCalendar = () => {
             
             {/* Quick add button on hover */}
             <button 
-                onClick={(e) => { e.stopPropagation(); setSelectedDate(cloneDay); setIsModalOpen(true); }}
+                onClick={(e) => { e.stopPropagation(); openNewEventModal(cloneDay); }}
                 className="absolute bottom-1 right-1 p-1 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 opacity-0 group-hover:opacity-100 transition-all"
             >
                 <Plus className="w-3 h-3" />
@@ -366,9 +436,9 @@ export const GeneralCalendar = () => {
         <Modal
             isOpen={isModalOpen}
             onClose={() => setIsModalOpen(false)}
-            title={`Termin am ${format(selectedDate, 'dd.MM.yyyy')}`}
+            title={editingEvent ? 'Termin bearbeiten' : `Termin am ${format(selectedDate, 'dd.MM.yyyy')}`}
         >
-            <form onSubmit={handleCreateEvent} className="space-y-4">
+            <form onSubmit={handleCreateOrUpdateEvent} className="space-y-4">
                 <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Titel</label>
                     <input
