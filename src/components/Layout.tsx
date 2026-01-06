@@ -20,6 +20,8 @@ import { cn } from '@/utils/cn';
 import { useState, useEffect } from 'react';
 import { useTheme } from '@/hooks/useTheme';
 import { supabase } from '@/lib/supabase';
+import { CommandPalette } from './CommandPalette';
+import { useNotifications } from '@/hooks/useNotifications';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
@@ -41,6 +43,9 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { theme, toggleTheme } = useTheme();
   const [pendingCount, setPendingCount] = useState(0);
+
+  // Enable global notifications
+  useNotifications();
 
   useEffect(() => {
     const checkPending = async () => {
@@ -66,6 +71,8 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col lg:flex-row transition-colors duration-200">
+      <CommandPalette />
+      
       {/* Mobile Header */}
       <div className="lg:hidden bg-white dark:bg-gray-800 border-b dark:border-gray-700 p-4 flex items-center justify-between sticky top-0 z-30">
         <h1 className="text-lg font-bold text-gray-900 dark:text-white">Büro Manager</h1>
@@ -189,4 +196,3 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
     </div>
   );
 };
- 

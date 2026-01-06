@@ -314,6 +314,10 @@ export const Production = () => {
                     <p className="text-xs text-gray-500">Provision (Liste)</p>
                     <p className="text-lg font-bold text-indigo-600">{formatCurrency(totalCommission)}</p>
                 </div>
+                <div className="px-4 border-r border-gray-100 dark:border-gray-700 hidden sm:block">
+                    <p className="text-xs text-gray-500">Haftungsreserve (10%)</p>
+                    <p className="text-lg font-bold text-orange-500">{formatCurrency(totalCommission * 0.1)}</p>
+                </div>
                 <button 
                     onClick={handleExport}
                     className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
