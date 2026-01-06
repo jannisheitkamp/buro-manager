@@ -46,12 +46,17 @@ export const GeneralCalendar = () => {
     const start = startOfWeek(startOfMonth(currentDate)).toISOString();
     const end = endOfWeek(endOfMonth(currentDate)).toISOString();
 
-    // 1. Calendar Events
-    const { data: calendarData } = await supabase
+    console.log('Fetching events for range:', { start, end });
+
+    // 1. Calendar Events: Load if they overlap with the view range
+    const { data: calendarData, error: calError } = await supabase
         .from('calendar_events')
         .select('*, profiles(full_name, avatar_url)')
-        .gte('start_time', start)
-        .lte('end_time', end);
+        .lte('start_time', end)
+        .gte('end_time', start);
+
+    if (calError) console.error('Error fetching calendar events:', calError);
+    console.log('Raw Calendar Data:', calendarData);
 
     // 2. Absences (Leaves)
     // Note: Absences use DATE type, so we compare simply
@@ -262,7 +267,11 @@ export const GeneralCalendar = () => {
         const cloneDay = day;
         
         // Filter events for this day
-        const dayEvents = events.filter(e => isSameDay(new Date(e.start_time), day));
+        const dayEvents = events.filter(e => {
+            const eventDate = format(new Date(e.start_time), 'yyyy-MM-dd');
+            const currentDay = format(day, 'yyyy-MM-dd');
+            return eventDate === currentDay;
+        });
 
         days.push(
           <div

@@ -295,14 +295,6 @@ export const Dashboard = () => {
                     <Clock className="w-5 h-5 text-gray-400" />
                     Mein Fokus heute
                 </h2>
-                <div className="flex gap-2">
-                    <button onClick={() => navigate('/calendar')} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg text-gray-400 hover:text-indigo-600 transition-colors">
-                        <CalendarIcon className="w-4 h-4" />
-                    </button>
-                    <button onClick={() => navigate('/callbacks')} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg text-gray-400 hover:text-indigo-600 transition-colors">
-                        <CheckCircle2 className="w-4 h-4" />
-                    </button>
-                </div>
             </div>
 
             <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 min-h-[500px]">
