@@ -3,10 +3,12 @@ import { supabase } from '@/lib/supabase';
 import { useStore } from '@/store/useStore';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { TrendingUp, Plus, Search, Filter, Euro, FileText, Trash2, Download, Pencil } from 'lucide-react';
+import { TrendingUp, Plus, Search, Filter, Euro, FileText, Trash2, Download, Pencil, FileDown } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { Modal } from '@/components/Modal';
 import { toast } from 'react-hot-toast';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 // Helper to format currency safely
 const formatCurrency = (amount: number | null | undefined) => {
@@ -117,11 +119,7 @@ export const Production = () => {
     let rate = 0;
 
     // Get rate from loaded user settings (or default if not loaded yet)
-    // Fallback to defaults if userRates is not yet populated (though useEffect handles that)
     rate = userRates[subCategory] || 0;
-
-    // Fallback logic if rate is 0 (maybe user set it to 0, or not loaded)
-    // We trust the rate from userRates mostly, but we need the calculation logic per type.
 
     if (subCategory === 'Leben' || subCategory === 'BU') {
         valSum = grossYearly * duration;
@@ -258,8 +256,6 @@ export const Production = () => {
       setDuration(entry.duration || 1);
       setNetPremium(entry.net_premium || '');
       setGrossPremium(entry.gross_premium || '');
-      // Commission fields are auto-calculated by useEffect, 
-      // BUT we need to set the inputs correctly so the useEffect triggers correctly.
       
       const lRate = Number(entry.liability_rate);
       if (lRate > 0) {
@@ -290,6 +286,9 @@ export const Production = () => {
           e.policy_number?.toLowerCase().includes(search)
       );
   });
+
+  const totalCommission = filteredEntries.reduce((acc, curr) => acc + (curr.commission_amount || 0), 0);
+  const totalLiability = filteredEntries.reduce((acc, curr) => acc + ((curr.commission_amount || 0) * (curr.liability_rate || 0) / 100), 0);
 
   const handleExport = () => {
       if (filteredEntries.length === 0) return;
@@ -350,8 +349,42 @@ export const Production = () => {
       link.click();
   };
 
-  const totalCommission = filteredEntries.reduce((acc, curr) => acc + (curr.commission_amount || 0), 0);
-  const totalLiability = filteredEntries.reduce((acc, curr) => acc + ((curr.commission_amount || 0) * (curr.liability_rate || 0) / 100), 0);
+  const handleExportPDF = () => {
+      if (filteredEntries.length === 0) return;
+      const doc = new jsPDF();
+      
+      doc.setFontSize(18);
+      doc.text('Produktionsnachweis', 14, 20);
+      
+      doc.setFontSize(10);
+      doc.text(`Erstellt: ${new Date().toLocaleDateString('de-DE')}`, 14, 28);
+      doc.text(`Zeitraum: ${filterCategory === 'all' ? 'Alle' : filterCategory}`, 14, 33);
+
+      const tableData = filteredEntries.map(e => [
+          format(new Date(e.submission_date), 'dd.MM.yyyy'),
+          `${e.customer_name}, ${e.customer_firstname}`,
+          e.sub_category || e.category,
+          formatCurrency(e.valuation_sum),
+          formatCurrency(e.commission_amount)
+      ]);
+
+      autoTable(doc, {
+          startY: 40,
+          head: [['Datum', 'Kunde', 'Sparte', 'Bewertung', 'Provision']],
+          body: tableData,
+          foot: [['', '', 'Summe:', '', formatCurrency(totalCommission)]],
+          theme: 'grid',
+          headStyles: { fillColor: [79, 70, 229] }, // Indigo 600
+          footStyles: { fillColor: [243, 244, 246], textColor: [0, 0, 0], fontStyle: 'bold' } // Gray 100
+      });
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const finalY = (doc as any).lastAutoTable.finalY || 40;
+      
+      doc.text(`Haftungsreserve (Total): ${formatCurrency(totalLiability)}`, 14, finalY + 10);
+      
+      doc.save(`Produktion_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
+  };
 
   return (
     <div className="space-y-6">
@@ -377,14 +410,24 @@ export const Production = () => {
                     <p className="text-lg font-bold text-orange-500">{formatCurrency(totalLiability)}</p>
                 </div>
                 <button 
+                    onClick={handleExportPDF}
+                    className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
+                    title="Als PDF Exportieren"
+                >
+                    <FileDown className="w-5 h-5" />
+                </button>
+                <button 
                     onClick={handleExport}
                     className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
-                    title="Exportieren"
+                    title="Als CSV Exportieren"
                 >
                     <Download className="w-5 h-5" />
                 </button>
                 <button
-                    onClick={() => setIsModalOpen(true)}
+                    onClick={() => {
+                        resetForm();
+                        setIsModalOpen(true);
+                    }}
                     className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
                 >
                     <Plus className="w-4 h-4" /> Neuer Vertrag
@@ -475,7 +518,6 @@ export const Production = () => {
                                     </td>
                                     <td className="px-6 py-4 text-gray-600 dark:text-gray-300">
                                         <div className="text-xs">Satz: {entry.commission_rate} {entry.category === 'life' ? '‰' : (entry.category === 'health' && !entry.sub_category?.includes('reise') ? 'MB' : '%')}</div>
-                                        <div className="text-xs text-orange-500">Haftung: {entry.liability_rate}%</div>
                                         <div>Summe: {formatCurrency(entry.valuation_sum || 0)}</div>
                                     </td>
                                     <td className="px-6 py-4 text-right font-bold text-indigo-600 dark:text-indigo-400">
@@ -509,7 +551,7 @@ export const Production = () => {
         <Modal
             isOpen={isModalOpen}
             onClose={() => setIsModalOpen(false)}
-            title="Neuen Vertrag erfassen"
+            title={editingId ? "Vertrag bearbeiten" : "Neuen Vertrag erfassen"}
         >
             <form onSubmit={handleSubmit} className="space-y-6">
                 
