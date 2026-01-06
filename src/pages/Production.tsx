@@ -203,6 +203,7 @@ export const Production = () => {
             liability_rate: liabilityActive ? Number(liabilityRate) : 0,
             status: 'submitted'
         };
+        console.log('Submitting payload:', payload);
 
         if (editingId) {
             const { error } = await supabase
