@@ -36,18 +36,18 @@ interface StatusConfig {
   value: StatusType;
   label: string;
   icon: any;
-  color: string;
-  bgColor: string;
+  // Separate classes for light/dark mode for better visibility
+  className: string; 
 }
 
 const STATUS_CONFIG: StatusConfig[] = [
-  { value: 'office', label: 'Im Büro', icon: Briefcase, color: 'text-emerald-600', bgColor: 'bg-emerald-100/50' },
-  { value: 'remote', label: 'Home Office', icon: Home, color: 'text-blue-600', bgColor: 'bg-blue-100/50' },
-  { value: 'break', label: 'Pause', icon: Coffee, color: 'text-amber-600', bgColor: 'bg-amber-100/50' },
-  { value: 'meeting', label: 'Im Termin', icon: Users, color: 'text-purple-600', bgColor: 'bg-purple-100/50' },
-  { value: 'vacation', label: 'Urlaub', icon: Palmtree, color: 'text-indigo-600', bgColor: 'bg-indigo-100/50' },
-  { value: 'sick', label: 'Krank', icon: ThermometerSun, color: 'text-red-600', bgColor: 'bg-red-100/50' },
-  { value: 'off', label: 'Feierabend', icon: LogOut, color: 'text-gray-500', bgColor: 'bg-gray-100/50' },
+  { value: 'office', label: 'Im Büro', icon: Briefcase, className: 'text-emerald-700 bg-emerald-100 dark:text-emerald-200 dark:bg-emerald-900/50' },
+  { value: 'remote', label: 'Home Office', icon: Home, className: 'text-blue-700 bg-blue-100 dark:text-blue-200 dark:bg-blue-900/50' },
+  { value: 'break', label: 'Pause', icon: Coffee, className: 'text-amber-700 bg-amber-100 dark:text-amber-200 dark:bg-amber-900/50' },
+  { value: 'meeting', label: 'Im Termin', icon: Users, className: 'text-purple-700 bg-purple-100 dark:text-purple-200 dark:bg-purple-900/50' },
+  { value: 'vacation', label: 'Urlaub', icon: Palmtree, className: 'text-indigo-700 bg-indigo-100 dark:text-indigo-200 dark:bg-indigo-900/50' },
+  { value: 'sick', label: 'Krank', icon: ThermometerSun, className: 'text-red-700 bg-red-100 dark:text-red-200 dark:bg-red-900/50' },
+  { value: 'off', label: 'Feierabend', icon: LogOut, className: 'text-gray-700 bg-gray-100 dark:text-gray-300 dark:bg-gray-700/50' },
 ];
 
 // --- Helper Components ---
@@ -56,7 +56,7 @@ const StatusBadge = ({ status }: { status: StatusType }) => {
   const config = STATUS_CONFIG.find(c => c.value === status) || STATUS_CONFIG[6];
   const Icon = config.icon;
   return (
-    <div className={cn("flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium", config.bgColor, config.color)}>
+    <div className={cn("flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border border-transparent", config.className)}>
       <Icon className="w-3.5 h-3.5" />
       {config.label}
     </div>
@@ -225,38 +225,42 @@ export const Dashboard = () => {
                 <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
                     Moin, {profile?.full_name?.split(' ')[0]}! 👋
                 </h1>
-                <div className="flex flex-col sm:flex-row gap-3 items-center bg-gray-50 dark:bg-gray-900/50 p-2 rounded-2xl border border-gray-100 dark:border-gray-700/50 max-w-2xl">
-                    <div className="flex-1 w-full">
+                <div className="flex flex-col gap-4 bg-white dark:bg-gray-800 p-4 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm max-w-4xl">
+                    <div className="w-full">
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block">Deine Nachricht</label>
                         <input 
                             type="text" 
                             placeholder="Was machst du gerade? (z.B. 'Kundenmeeting')" 
-                            className="w-full bg-transparent border-none text-sm focus:ring-0 placeholder-gray-400 text-gray-900 dark:text-white dark:placeholder-gray-500"
+                            className="w-full rounded-xl border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500 dark:placeholder-gray-500"
                             value={statusMessage}
                             onChange={e => setStatusMessage(e.target.value)}
                             onKeyDown={e => e.key === 'Enter' && handleStatusUpdate(myCurrentStatus?.status || 'office')}
                         />
                     </div>
-                    <div className="grid grid-cols-4 sm:flex gap-1 w-full sm:w-auto">
-                        {STATUS_CONFIG.map(s => {
-                            const Icon = s.icon;
-                            const active = myCurrentStatus?.status === s.value;
-                            return (
-                                <button
-                                    key={s.value}
-                                    onClick={() => handleStatusUpdate(s.value)}
-                                    className={cn(
-                                        "p-2 rounded-xl transition-all flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2",
-                                        active 
-                                            ? cn("shadow-sm ring-1 ring-black/5 dark:ring-white/10 font-bold", s.bgColor, s.color) 
-                                            : "hover:bg-gray-200/50 dark:hover:bg-gray-700/50 text-gray-500 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700"
-                                    )}
-                                    title={s.label}
-                                >
-                                    <Icon className={cn("w-4 h-4", active ? "scale-110" : "")} />
-                                    <span className={cn("text-[10px] sm:text-xs", active ? "" : "hidden xl:block")}>{s.label}</span>
-                                </button>
-                            )
-                        })}
+                    <div className="w-full overflow-x-auto">
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">Dein Status</label>
+                        <div className="grid grid-cols-4 sm:flex gap-2 min-w-max pb-1">
+                            {STATUS_CONFIG.map(s => {
+                                const Icon = s.icon;
+                                const active = myCurrentStatus?.status === s.value;
+                                return (
+                                    <button
+                                        key={s.value}
+                                        onClick={() => handleStatusUpdate(s.value)}
+                                        className={cn(
+                                            "px-3 py-2 rounded-xl transition-all flex items-center gap-2",
+                                            active 
+                                                ? cn("shadow-md ring-2 ring-offset-1 ring-offset-white dark:ring-offset-gray-900 ring-indigo-500 font-bold transform scale-105", s.className) 
+                                                : "bg-gray-50 dark:bg-gray-900/50 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 border border-transparent hover:border-gray-200 dark:hover:border-gray-600"
+                                        )}
+                                        title={s.label}
+                                    >
+                                        <Icon className={cn("w-4 h-4", active ? "scale-110" : "")} />
+                                        <span className="text-xs whitespace-nowrap">{s.label}</span>
+                                    </button>
+                                )
+                            })}
+                        </div>
                     </div>
                 </div>
             </div>
