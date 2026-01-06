@@ -216,7 +216,9 @@ export const GeneralCalendar = () => {
       if (!user) return alert('No User');
       
       const { data, error } = await supabase.from('calendar_events').select('*');
-      alert(`Debug: Found ${data?.length} events. Error: ${error?.message || 'none'}. User: ${user.id}`);
+      
+      const info = data?.map(d => `${d.title}: ${d.start_time}`).join('\n');
+      alert(`Debug: Found ${data?.length} events.\n\n${info}\n\nError: ${error?.message || 'none'}`);
       console.log('DEBUG DATA:', data);
   };
 
