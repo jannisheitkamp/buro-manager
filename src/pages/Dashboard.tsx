@@ -14,7 +14,6 @@ import {
   LogOut,
   MessageSquare,
   Phone,
-  ArrowRight,
   Package,
   Plus,
   TrendingUp,
@@ -24,7 +23,6 @@ import { cn } from '@/utils/cn';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { motion } from 'framer-motion';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 type StatusOption = {
   value: UserStatus['status'];
@@ -59,6 +57,8 @@ export const Dashboard = () => {
   const [colleagues, setColleagues] = useState<UserWithStatus[]>([]);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [openCallbacks, setOpenCallbacks] = useState<any[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [pendingParcels, setPendingParcels] = useState<any[]>([]);
   const [stats, setStats] = useState({
     callbacksCount: 0,
     parcelsCount: 0,
@@ -69,16 +69,6 @@ export const Dashboard = () => {
   const [statusMessage, setStatusMessage] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const navigate = useNavigate();
-
-  const chartData = [
-    { name: 'Mo', calls: 4 },
-    { name: 'Di', calls: 7 },
-    { name: 'Mi', calls: 5 },
-    { name: 'Do', calls: 8 },
-    { name: 'Fr', calls: 6 },
-    { name: 'Sa', calls: 1 },
-    { name: 'So', calls: 0 },
-  ];
 
   const fetchData = async () => {
     if (!user) return;
@@ -94,10 +84,13 @@ export const Dashboard = () => {
     setOpenCallbacks(cbData?.slice(0, 3) || []);
 
     // 2. Fetch Parcels (pending)
-    const { count: parcelCount } = await supabase
+    const { data: parcels, count: parcelCount } = await supabase
         .from('parcels')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'pending');
+        .select('*', { count: 'exact' })
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false });
+    
+    setPendingParcels(parcels?.slice(0, 3) || []);
 
     // 3. Fetch Production Stats (Current Month)
     const start = startOfMonth(new Date()).toISOString();
@@ -367,14 +360,14 @@ export const Dashboard = () => {
         <div className="space-y-8">
             
             {/* Callbacks Widget */}
-            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden h-full flex flex-col">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden flex flex-col">
                 <div className="p-4 border-b border-gray-100 dark:border-gray-700 bg-red-50/50 dark:bg-red-900/10 flex items-center justify-between shrink-0">
                     <h3 className="font-bold text-red-700 dark:text-red-400 flex items-center gap-2">
                         <Phone className="w-4 h-4" /> Wichtig
                     </h3>
                     <Link to="/callbacks" className="text-xs font-medium text-red-600 hover:underline">Alle ansehen</Link>
                 </div>
-                <div className="divide-y divide-gray-100 dark:divide-gray-700 overflow-y-auto flex-1">
+                <div className="divide-y divide-gray-100 dark:divide-gray-700 overflow-y-auto max-h-[300px]">
                     {openCallbacks.length === 0 ? (
                         <div className="p-8 text-center text-gray-400 text-sm">Alles erledigt! ✅</div>
                     ) : (
@@ -392,11 +385,33 @@ export const Dashboard = () => {
                             </div>
                         ))
                     )}
-                    {/* Placeholder to fill space if few callbacks */}
-                    {openCallbacks.length > 0 && openCallbacks.length < 5 && (
-                        <div className="p-4 text-center text-xs text-gray-300 italic">
-                            Keine weiteren dringenden Rückrufe.
-                        </div>
+                </div>
+            </div>
+
+            {/* Parcels Widget */}
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden flex flex-col">
+                <div className="p-4 border-b border-gray-100 dark:border-gray-700 bg-blue-50/50 dark:bg-blue-900/10 flex items-center justify-between shrink-0">
+                    <h3 className="font-bold text-blue-700 dark:text-blue-400 flex items-center gap-2">
+                        <Package className="w-4 h-4" /> Pakete
+                    </h3>
+                    <Link to="/parcels" className="text-xs font-medium text-blue-600 hover:underline">Alle ansehen</Link>
+                </div>
+                <div className="divide-y divide-gray-100 dark:divide-gray-700 overflow-y-auto max-h-[300px]">
+                    {pendingParcels.length === 0 ? (
+                        <div className="p-6 text-center text-gray-400 text-sm">Keine Pakete. 📦</div>
+                    ) : (
+                        pendingParcels.map(p => (
+                            <div key={p.id} className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
+                                <div className="flex justify-between items-start">
+                                    <span className="font-medium text-gray-900 dark:text-white text-sm">{p.recipient_name}</span>
+                                    <span className="text-[10px] text-gray-400">{format(new Date(p.created_at), 'dd.MM.')}</span>
+                                </div>
+                                <div className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                                    <span className="bg-blue-100 text-blue-700 px-1.5 rounded">{p.carrier}</span>
+                                    {p.tracking_number && <span className="text-gray-400 truncate max-w-[100px]">#{p.tracking_number}</span>}
+                                </div>
+                            </div>
+                        ))
                     )}
                 </div>
             </div>
