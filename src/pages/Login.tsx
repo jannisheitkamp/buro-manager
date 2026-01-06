@@ -96,14 +96,23 @@ export const Login = () => {
         navigate('/');
       }
     } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
-      console.error('Login error:', err);
+      console.error('Login error full object:', err);
       let msg = 'Ein Fehler ist aufgetreten.';
-      if (err.message) {
-          msg = err.message; // Show real error for debugging
+      
+      if (typeof err === 'string') {
+          msg = err;
+      } else if (err?.message) {
+          msg = err.message;
+      } else if (err?.error_description) {
+          msg = err.error_description;
+      } else {
+          msg = JSON.stringify(err); // Last resort to see what it is
       }
-      if (err.message?.includes('Invalid login credentials')) {
+
+      if (msg?.includes('Invalid login credentials')) {
         msg = 'Falsche E-Mail oder Passwort.';
       }
+      
       toast.error(msg);
       setLoading(false);
     }
