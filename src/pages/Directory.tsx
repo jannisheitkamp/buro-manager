@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Profile } from '@/types';
-import { Mail, Shield, User, Edit, CheckCircle, Clock } from 'lucide-react';
+import { Mail, Shield, User, Edit, CheckCircle, Clock}de-react';
 import { useStore } from '@/store/useStore';
 import { Modal } from '@/components/Modal';
 import { toast } from 'react-hot-toast';
@@ -31,6 +31,7 @@ export const Directory = () => {
   const [view, setView] = useState<'all' | 'pending'>('all');
 
   const fetchProfiles = async () => {
+    setLoading(true); // Ensure loading state is shown on refresh
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -41,6 +42,7 @@ export const Directory = () => {
       setProfiles(data || []);
     } catch (error) {
       console.error('Error fetching directory:', error);
+      toast.error('Fehler beim Laden der Mitarbeiter.');
     } finally {
       setLoading(false);
     }
@@ -118,31 +120,41 @@ export const Directory = () => {
             Mitarbeiter-Verzeichnis
         </h1>
         
-        {currentUserProfile?.roles?.includes('admin') && (
-            <div className="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-lg">
-                <button
-                    onClick={() => setView('all')}
-                    className={cn(
-                        "px-4 py-2 text-sm font-medium rounded-md transition-all",
-                        view === 'all' ? "bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-white" : "text-gray-500 dark:text-gray-400 hover:text-gray-900"
-                    )}
-                >
-                    Alle
-                </button>
-                <button
-                    onClick={() => setView('pending')}
-                    className={cn(
-                        "px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2",
-                        view === 'pending' ? "bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-white" : "text-gray-500 dark:text-gray-400 hover:text-gray-900"
-                    )}
-                >
-                    Warten auf Freigabe
-                    {pendingCount > 0 && (
-                        <span className="bg-red-500 text-white text-[10px] px-1.5 rounded-full">{pendingCount}</span>
-                    )}
-                </button>
-            </div>
-        )}
+        <div className="flex items-center gap-2">
+            <button 
+                onClick={fetchProfiles} 
+                className="p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                title="Aktualisieren"
+            >
+                <RefreshCcw className={cn("w-5 h-5", loading && "animate-spin")} />
+            </button>
+
+            {currentUserProfile?.roles?.includes('admin') && (
+                <div className="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-lg">
+                    <button
+                        onClick={() => setView('all')}
+                        className={cn(
+                            "px-4 py-2 text-sm font-medium rounded-md transition-all",
+                            view === 'all' ? "bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-white" : "text-gray-500 dark:text-gray-400 hover:text-gray-900"
+                        )}
+                    >
+                        Alle
+                    </button>
+                    <button
+                        onClick={() => setView('pending')}
+                        className={cn(
+                            "px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2",
+                            view === 'pending' ? "bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-white" : "text-gray-500 dark:text-gray-400 hover:text-gray-900"
+                        )}
+                    >
+                        Warten auf Freigabe
+                        {pendingCount > 0 && (
+                            <span className="bg-red-500 text-white text-[10px] px-1.5 rounded-full">{pendingCount}</span>
+                        )}
+                    </button>
+                </div>
+            )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
