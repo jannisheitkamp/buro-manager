@@ -364,14 +364,14 @@ export const Dashboard = () => {
         <div className="space-y-8">
             
             {/* Callbacks Widget */}
-            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
-                <div className="p-4 border-b border-gray-100 dark:border-gray-700 bg-red-50/50 dark:bg-red-900/10 flex items-center justify-between">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden h-full flex flex-col">
+                <div className="p-4 border-b border-gray-100 dark:border-gray-700 bg-red-50/50 dark:bg-red-900/10 flex items-center justify-between shrink-0">
                     <h3 className="font-bold text-red-700 dark:text-red-400 flex items-center gap-2">
                         <Phone className="w-4 h-4" /> Wichtig
                     </h3>
                     <Link to="/callbacks" className="text-xs font-medium text-red-600 hover:underline">Alle ansehen</Link>
                 </div>
-                <div className="divide-y divide-gray-100 dark:divide-gray-700">
+                <div className="divide-y divide-gray-100 dark:divide-gray-700 overflow-y-auto flex-1">
                     {openCallbacks.length === 0 ? (
                         <div className="p-8 text-center text-gray-400 text-sm">Alles erledigt! ✅</div>
                     ) : (
@@ -388,6 +388,12 @@ export const Dashboard = () => {
                                 </div>
                             </div>
                         ))
+                    )}
+                    {/* Placeholder to fill space if few callbacks */}
+                    {openCallbacks.length > 0 && openCallbacks.length < 5 && (
+                        <div className="p-4 text-center text-xs text-gray-300 italic">
+                            Keine weiteren dringenden Rückrufe.
+                        </div>
                     )}
                 </div>
             </div>
