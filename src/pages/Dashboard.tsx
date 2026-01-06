@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useStore } from '@/store/useStore';
 import { Profile, UserStatus } from '@/types';
-import { formatDistanceToNow, format } from 'date-fns';
+import { formatDistanceToNow, format, startOfMonth, endOfMonth } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { 
   Briefcase, 
@@ -16,7 +16,9 @@ import {
   Phone,
   ArrowRight,
   Package,
-  Plus
+  Plus,
+  TrendingUp,
+  Euro
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { Link, useNavigate } from 'react-router-dom';
@@ -46,6 +48,11 @@ type UserWithStatus = Profile & {
   current_status?: UserStatus;
 };
 
+// Helper to format currency
+const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(amount);
+};
+
 export const Dashboard = () => {
   const user = useStore((state) => state.user);
   const profile = useStore((state) => state.profile);
@@ -55,7 +62,8 @@ export const Dashboard = () => {
   const [stats, setStats] = useState({
     callbacksCount: 0,
     parcelsCount: 0,
-    officeCount: 0
+    officeCount: 0,
+    monthlyCommission: 0
   });
   const [loading, setLoading] = useState(true);
   const [statusMessage, setStatusMessage] = useState('');
@@ -91,7 +99,19 @@ export const Dashboard = () => {
         .select('*', { count: 'exact', head: true })
         .eq('status', 'pending');
 
-    // 3. Fetch Colleagues & Status
+    // 3. Fetch Production Stats (Current Month)
+    const start = startOfMonth(new Date()).toISOString();
+    const end = endOfMonth(new Date()).toISOString();
+    
+    const { data: productionData } = await supabase
+        .from('production_entries')
+        .select('commission_amount')
+        .gte('submission_date', start)
+        .lte('submission_date', end);
+        
+    const monthlyCommission = productionData?.reduce((sum, entry) => sum + (entry.commission_amount || 0), 0) || 0;
+
+    // 4. Fetch Colleagues & Status
     const { data: profiles } = await supabase.from('profiles').select('*');
     const { data: statuses } = await supabase
       .from('user_status')
@@ -110,7 +130,8 @@ export const Dashboard = () => {
     setStats({
         callbacksCount: cbCount || 0,
         parcelsCount: parcelCount || 0,
-        officeCount
+        officeCount,
+        monthlyCommission
     });
 
     setLoading(false);
@@ -123,11 +144,14 @@ export const Dashboard = () => {
     const sub1 = supabase.channel('dash_status').on('postgres_changes', { event: '*', schema: 'public', table: 'user_status' }, fetchData).subscribe();
     const sub2 = supabase.channel('dash_cb').on('postgres_changes', { event: '*', schema: 'public', table: 'callbacks' }, fetchData).subscribe();
     const sub3 = supabase.channel('dash_parcels').on('postgres_changes', { event: '*', schema: 'public', table: 'parcels' }, fetchData).subscribe();
+    // Also listen to production changes to update the widget live
+    const sub4 = supabase.channel('dash_prod').on('postgres_changes', { event: '*', schema: 'public', table: 'production_entries' }, fetchData).subscribe();
 
     return () => {
       sub1.unsubscribe();
       sub2.unsubscribe();
       sub3.unsubscribe();
+      sub4.unsubscribe();
     };
   }, [user]);
 
@@ -177,17 +201,24 @@ export const Dashboard = () => {
         </div>
         <div className="flex gap-2">
             <button 
+                onClick={() => navigate('/production')}
+                className="bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-700 px-4 py-2 rounded-lg font-medium transition-colors hover:bg-gray-50 flex items-center gap-2"
+            >
+                <TrendingUp className="w-4 h-4" />
+                Umsatz
+            </button>
+            <button 
                 onClick={() => navigate('/callbacks')}
                 className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-lg shadow-indigo-200 dark:shadow-none flex items-center gap-2"
             >
                 <Plus className="w-4 h-4" />
-                Rückruf notieren
+                Rückruf
             </button>
         </div>
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
         <motion.div 
             whileHover={{ y: -5 }}
             className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center justify-between"
@@ -224,6 +255,20 @@ export const Dashboard = () => {
             </div>
             <div className="w-12 h-12 bg-green-50 dark:bg-green-900/20 rounded-full flex items-center justify-center text-green-600 dark:text-green-400">
                 <Users className="w-6 h-6" />
+            </div>
+        </motion.div>
+
+        {/* New Revenue Widget */}
+        <motion.div 
+            whileHover={{ y: -5 }}
+            className="bg-gradient-to-br from-indigo-600 to-purple-700 p-6 rounded-2xl shadow-lg shadow-indigo-200 dark:shadow-none flex items-center justify-between text-white"
+        >
+            <div>
+                <p className="text-sm font-medium text-indigo-100">Provision (Monat)</p>
+                <h3 className="text-2xl font-bold mt-1">{formatCurrency(stats.monthlyCommission)}</h3>
+            </div>
+            <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center text-white backdrop-blur-sm">
+                <Euro className="w-6 h-6" />
             </div>
         </motion.div>
       </div>
