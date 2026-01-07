@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useStore } from '@/store/useStore';
+import { useLocation } from 'react-router-dom';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { TrendingUp, Plus, Search, Filter, Euro, FileText, Trash2, Download, Pencil, FileDown, PieChart, BarChart as BarChartIcon, Medal, Trophy, LayoutGrid, List } from 'lucide-react';
@@ -53,8 +54,27 @@ export const Production = () => {
     { id: 'other', label: 'Sonstige', icon: '📂', subcategories: ['Sonstige'] },
   ];
 
+  const location = useLocation();
+
   // --- User Rates State ---
   const [userRates, setUserRates] = useState<Record<string, number>>({});
+
+  // Check for prefill data from navigation (e.g. from Leads)
+  useEffect(() => {
+    if (location.state?.prefill) {
+        const { customer_name, customer_firstname, valuation_sum } = location.state.prefill;
+        if (customer_name) setCustomerName(customer_name);
+        if (customer_firstname) setCustomerFirstname(customer_firstname);
+        // Note: valuation_sum from Lead is likely just "value", we might map it to netPremium or valuationSum depending on logic.
+        // For simplicity let's map it to Net Premium for now as a starting point, or just leave it for user to fill.
+        // Actually, let's map it to Net Premium (Monthly) if reasonable, or just set it as a hint.
+        if (valuation_sum) setNetPremium(valuation_sum); 
+        
+        setIsModalOpen(true);
+        // Clear state to prevent reopening on refresh
+        window.history.replaceState({}, document.title);
+    }
+  }, [location]);
 
   useEffect(() => {
     const loadRates = async () => {

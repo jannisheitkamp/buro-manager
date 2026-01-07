@@ -173,6 +173,7 @@ const INTENTS: IntentHandler[] = [
             return { text: "Moin! 👋 Wie kann ich dich heute unterstützen?" };
         }
     },
+
     {
         id: 'joke',
         keywords: ['witz', 'lachen', 'lustig', 'spaß', 'humor'],
@@ -181,7 +182,9 @@ const INTENTS: IntentHandler[] = [
                 "Was ist ein Keks unter einem Baum? Ein schattiges Plätzchen.",
                 "Treffen sich zwei Magneten. Sagt der eine: 'Was soll ich bloß anziehen?'",
                 "Egal wie gut du schläfst, Albert schläft wie Einstein.",
-                "Was macht ein Pirat am Computer? Er drückt die Enter-Taste!"
+                "Was macht ein Pirat am Computer? Er drückt die Enter-Taste!",
+                "Warum gehen Ameisen nicht in die Kirche? Weil sie In-Sekten sind.",
+                "Wie nennt man einen Bumerang, der nicht zurückkommt? Stock."
             ];
             return { text: jokes[Math.floor(Math.random() * jokes.length)] };
         }

@@ -85,7 +85,7 @@ export const GeneralCalendar = () => {
         .eq('status', 'approved')
         .or(`start_date.lte.${end},end_date.gte.${start}`);
 
-    // 3. Bookings
+    // 3. Bookings (Filtered to exclude duplicates if any, though ID check handles it)
     const { data: bookingData } = await supabase
         .from('bookings')
         .select('*, profiles(full_name, avatar_url)')

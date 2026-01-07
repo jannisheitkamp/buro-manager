@@ -6,6 +6,7 @@ export type Profile = {
   roles: string[];
   address?: string | null;
   is_approved?: boolean;
+  phone?: string | null;
   created_at: string;
 };
 

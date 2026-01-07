@@ -2,11 +2,12 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useStore } from '@/store/useStore';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, MoreHorizontal, ArrowRight, ArrowLeft, Trash2, DollarSign, User, FileText, CheckCircle2 } from 'lucide-react';
+import { Plus, MoreHorizontal, ArrowRight, ArrowLeft, Trash2, DollarSign, User, FileText, CheckCircle2, FileInput } from 'lucide-react';
 import { Modal } from '@/components/Modal';
 import { toast } from 'react-hot-toast';
 import { cn } from '@/utils/cn';
 import { format } from 'date-fns';
+import { useNavigate } from 'react-router-dom';
 
 type Lead = {
     id: string;
@@ -26,6 +27,7 @@ const COLUMNS = [
 
 export const Leads = () => {
     const { user } = useStore();
+    const navigate = useNavigate();
     const [leads, setLeads] = useState<Lead[]>([]);
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -221,8 +223,27 @@ export const Leads = () => {
                                                             </button>
                                                         )}
                                                         {col.id === 'closed' && (
-                                                            <div className="p-1.5 text-emerald-500">
-                                                                <CheckCircle2 className="w-4 h-4" />
+                                                            <div className="flex gap-1">
+                                                                <button 
+                                                                    onClick={() => navigate('/production', { 
+                                                                        state: { 
+                                                                            prefill: {
+                                                                                customer_name: lead.customer_name.split(' ').slice(1).join(' '), // Try to guess surname
+                                                                                customer_firstname: lead.customer_name.split(' ')[0], // Try to guess firstname
+                                                                                valuation_sum: lead.value,
+                                                                                // If customer_name is just one word, handle it gracefully
+                                                                                ...(lead.customer_name.includes(' ') ? {} : { customer_name: lead.customer_name, customer_firstname: '' })
+                                                                            } 
+                                                                        } 
+                                                                    })} 
+                                                                    className="p-1.5 text-indigo-500 hover:bg-indigo-50 rounded-lg transition-colors"
+                                                                    title="Als Vertrag erfassen"
+                                                                >
+                                                                    <FileInput className="w-4 h-4" />
+                                                                </button>
+                                                                <div className="p-1.5 text-emerald-500">
+                                                                    <CheckCircle2 className="w-4 h-4" />
+                                                                </div>
                                                             </div>
                                                         )}
                                                     </div>

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Profile, UserStatus } from '@/types';
-import { Mail, Shield, User, Edit, CheckCircle, Clock, RefreshCcw, Briefcase, Home, Coffee, Users, Palmtree, ThermometerSun, LogOut, Copy, X } from 'lucide-react';
+import { Mail, Shield, User, Edit, CheckCircle, Clock, RefreshCcw, Briefcase, Home, Coffee, Users, Palmtree, ThermometerSun, LogOut, Copy, X, Phone } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import { Modal } from '@/components/Modal';
 import { toast } from 'react-hot-toast';
@@ -393,6 +393,15 @@ export const Directory = () => {
                                   <Mail className="w-4 h-4" />
                                   E-Mail
                               </a>
+                              {selectedUser.phone && (
+                                <a 
+                                    href={`tel:${selectedUser.phone}`}
+                                    className="flex-1 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 py-3 rounded-2xl font-bold text-sm hover:bg-green-100 dark:hover:bg-green-900/40 transition-colors flex items-center justify-center gap-2"
+                                >
+                                    <Phone className="w-4 h-4" />
+                                    Anruf
+                                </a>
+                              )}
                               <button 
                                   onClick={() => {
                                       navigator.clipboard.writeText(selectedUser.email || '');

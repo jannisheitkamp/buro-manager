@@ -4,7 +4,7 @@ import { Booking } from '@/types';
 import { useStore } from '@/store/useStore';
 import { format, parseISO, addDays, startOfDay, isBefore, setHours, setMinutes } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { Plus, Trash2, Calendar as CalendarIcon, MapPin, Clock, ChevronLeft, ChevronRight, Car, Projector, Monitor } from 'lucide-react';
+import { Plus, Trash2, Calendar as CalendarIcon, MapPin, Clock, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Modal } from '@/components/Modal';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { toast } from 'react-hot-toast';
@@ -196,7 +196,7 @@ export const Bookings = () => {
         </motion.button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-6">
         {RESOURCES.map((resource, idx) => {
             const Icon = resource.icon;
             return (
