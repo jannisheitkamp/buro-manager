@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Profile } from '@/types';
-import { Mail, Shield, User, Edit, CheckCircle, Clock, RefreshCcw } from 'lucide-react';
+import { Profile, UserStatus } from '@/types';
+import { Mail, Shield, User, Edit, CheckCircle, Clock, RefreshCcw, Briefcase, Home, Coffee, Users, Palmtree, ThermometerSun, LogOut, Copy, X } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import { Modal } from '@/components/Modal';
 import { toast } from 'react-hot-toast';
 import { cn } from '@/utils/cn';
 import { motion, AnimatePresence } from 'framer-motion';
+import { format } from 'date-fns';
 
 // Roles configuration
 const ROLES = [
@@ -24,24 +25,65 @@ const ROLES = [
   'lucas',
 ];
 
+const STATUS_ICONS = {
+    'office': Briefcase,
+    'remote': Home,
+    'break': Coffee,
+    'meeting': Users,
+    'vacation': Palmtree,
+    'sick': ThermometerSun,
+    'off': LogOut
+};
+
+const STATUS_COLORS = {
+    'office': 'text-emerald-600 bg-emerald-100',
+    'remote': 'text-blue-600 bg-blue-100',
+    'break': 'text-amber-600 bg-amber-100',
+    'meeting': 'text-purple-600 bg-purple-100',
+    'vacation': 'text-indigo-600 bg-indigo-100',
+    'sick': 'text-red-600 bg-red-100',
+    'off': 'text-gray-500 bg-gray-100'
+};
+
+const STATUS_LABELS: Record<string, string> = {
+    'office': 'Im Büro',
+    'remote': 'Home Office',
+    'break': 'Pause',
+    'meeting': 'Im Termin',
+    'vacation': 'Urlaub',
+    'sick': 'Krank',
+    'off': 'Feierabend'
+};
+
 export const Directory = () => {
   const { profile: currentUserProfile } = useStore();
-  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [profiles, setProfiles] = useState<(Profile & { status?: UserStatus })[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingProfile, setEditingProfile] = useState<Profile | null>(null);
   const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
   const [view, setView] = useState<'all' | 'pending'>('all');
+  const [selectedUser, setSelectedUser] = useState<(Profile & { status?: UserStatus }) | null>(null);
 
   const fetchProfiles = async () => {
-    setLoading(true); // Ensure loading state is shown on refresh
+    setLoading(true); 
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .order('full_name', { ascending: true });
+      const [profilesRes, statusRes] = await Promise.all([
+          supabase.from('profiles').select('*').order('full_name', { ascending: true }),
+          supabase.from('user_status').select('*').order('updated_at', { ascending: false })
+      ]);
 
-      if (error) throw error;
-      setProfiles(data || []);
+      if (profilesRes.error) throw profilesRes.error;
+      
+      const profilesData = profilesRes.data || [];
+      const statusData = statusRes.data || [];
+
+      // Merge status
+      const merged = profilesData.map(p => ({
+          ...p,
+          status: statusData.find(s => s.user_id === p.id)
+      }));
+
+      setProfiles(merged);
     } catch (error) {
       console.error('Error fetching directory:', error);
       toast.error('Fehler beim Laden der Mitarbeiter.');
@@ -52,6 +94,13 @@ export const Directory = () => {
 
   useEffect(() => {
     fetchProfiles();
+    
+    // Subscribe to status changes
+    const sub = supabase.channel('directory_status')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'user_status' }, fetchProfiles)
+        .subscribe();
+
+    return () => { sub.unsubscribe(); };
   }, []);
 
   const handleEditRole = (profile: Profile) => {
@@ -106,10 +155,9 @@ export const Directory = () => {
 
   const pendingCount = profiles.filter(p => !p.is_approved).length;
   
-  // Filter logic
   const filteredProfiles = profiles.filter(p => {
       if (view === 'pending') return !p.is_approved;
-      return true; // Show all (or maybe approved only? usually 'all' implies everyone)
+      return true; 
   });
 
   return (
@@ -188,87 +236,200 @@ export const Directory = () => {
                     <p className="text-xl text-gray-500 font-medium">Keine Mitarbeiter gefunden.</p>
                 </motion.div>
             ) : (
-                filteredProfiles.map((profile, index) => (
-                <motion.div 
-                    key={profile.id} 
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.05 }}
-                    layout
-                    className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-3xl shadow-xl border border-white/20 dark:border-gray-700 p-6 flex flex-col items-center text-center relative group hover:-translate-y-1 transition-all duration-300"
-                >
-                    
-                    {/* Status Badge */}
-                    {!profile.is_approved && (
-                        <div className="absolute top-0 left-0 bg-yellow-100 text-yellow-800 text-[10px] font-black px-3 py-1 rounded-br-2xl rounded-tl-3xl flex items-center gap-1 shadow-sm z-10">
-                            <Clock className="w-3 h-3" /> WARTEND
-                        </div>
-                    )}
+                filteredProfiles.map((profile, index) => {
+                    const statusKey = profile.status?.status || 'off';
+                    const StatusIcon = STATUS_ICONS[statusKey as keyof typeof STATUS_ICONS] || LogOut;
+                    const statusColor = STATUS_COLORS[statusKey as keyof typeof STATUS_COLORS] || STATUS_COLORS['off'];
 
-                    {currentUserProfile?.roles?.includes('admin') && (
-                        <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            {!profile.is_approved && (
-                                <button 
-                                    onClick={() => approveUser(profile.id)}
-                                    className="p-2 text-green-500 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-xl transition-all"
-                                    title="Benutzer freischalten"
-                                >
-                                    <CheckCircle className="w-5 h-5" />
-                                </button>
+                    return (
+                        <motion.div 
+                            key={profile.id} 
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: index * 0.05 }}
+                            layout
+                            onClick={() => setSelectedUser(profile)}
+                            className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-3xl shadow-xl border border-white/20 dark:border-gray-700 p-6 flex flex-col items-center text-center relative group hover:-translate-y-1 transition-all duration-300 cursor-pointer"
+                        >
+                            
+                            {/* Status Dot */}
+                            <div className={cn(
+                                "absolute top-4 left-4 w-3 h-3 rounded-full ring-2 ring-white dark:ring-gray-800",
+                                statusKey === 'off' ? 'bg-gray-300' : 'bg-green-500 animate-pulse'
+                            )} title={STATUS_LABELS[statusKey]} />
+
+                            {currentUserProfile?.roles?.includes('admin') && (
+                                <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-20">
+                                    {!profile.is_approved && (
+                                        <button 
+                                            onClick={(e) => { e.stopPropagation(); approveUser(profile.id); }}
+                                            className="p-2 text-green-500 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-xl transition-all"
+                                            title="Benutzer freischalten"
+                                        >
+                                            <CheckCircle className="w-5 h-5" />
+                                        </button>
+                                    )}
+                                    <button 
+                                        onClick={(e) => { e.stopPropagation(); handleEditRole(profile); }}
+                                        className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-xl transition-all"
+                                        title="Rolle bearbeiten"
+                                    >
+                                        <Edit className="w-5 h-5" />
+                                    </button>
+                                </div>
                             )}
-                            <button 
-                                onClick={() => handleEditRole(profile)}
-                                className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-xl transition-all"
-                                title="Rolle bearbeiten"
-                            >
-                                <Edit className="w-5 h-5" />
-                            </button>
-                        </div>
-                    )}
 
-                    <div className="relative mb-4">
-                        <div className="absolute inset-0 bg-gradient-to-tr from-indigo-500 to-violet-500 rounded-full blur-lg opacity-20 group-hover:opacity-40 transition-opacity" />
-                        <img
-                            src={profile.avatar_url || `https://ui-avatars.com/api/?name=${profile.full_name || 'User'}&background=random`}
-                            alt={profile.full_name || ''}
-                            className={cn(
-                                "w-28 h-28 rounded-full shadow-lg object-cover ring-4 ring-white dark:ring-gray-700 relative z-10",
-                                !profile.is_approved && "grayscale opacity-70"
-                            )}
-                        />
-                    </div>
-                    
-                    <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-1">
-                        {profile.full_name || 'Unbekannt'}
-                    </h3>
-                    
-                    <a href={`mailto:${profile.email}`} className="flex items-center gap-1.5 text-sm font-medium text-gray-500 dark:text-gray-400 mb-6 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
-                        <Mail className="w-3.5 h-3.5" />
-                        {profile.email}
-                    </a>
+                            <div className="relative mb-4">
+                                <div className="absolute inset-0 bg-gradient-to-tr from-indigo-500 to-violet-500 rounded-full blur-lg opacity-20 group-hover:opacity-40 transition-opacity" />
+                                <img
+                                    src={profile.avatar_url || `https://ui-avatars.com/api/?name=${profile.full_name || 'User'}&background=random`}
+                                    alt={profile.full_name || ''}
+                                    className={cn(
+                                        "w-28 h-28 rounded-full shadow-lg object-cover ring-4 ring-white dark:ring-gray-700 relative z-10",
+                                        !profile.is_approved && "grayscale opacity-70"
+                                    )}
+                                />
+                                {/* Status Icon Badge */}
+                                <div className={cn(
+                                    "absolute bottom-0 right-0 z-20 p-1.5 rounded-full shadow-md border-2 border-white dark:border-gray-800",
+                                    statusColor
+                                )}>
+                                    <StatusIcon className="w-4 h-4" />
+                                </div>
+                            </div>
+                            
+                            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-1">
+                                {profile.full_name || 'Unbekannt'}
+                            </h3>
+                            
+                            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4 line-clamp-1">
+                                {profile.email}
+                            </p>
 
-                    <div className="mt-auto flex flex-wrap gap-1.5 justify-center w-full">
-                        {profile.roles?.map(role => (
-                            <span key={role} className={cn(
-                                "inline-flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-bold border shadow-sm",
-                                role === 'admin' 
-                                    ? "bg-purple-50 text-purple-700 border-purple-100 dark:bg-purple-900/20 dark:text-purple-300 dark:border-purple-800" 
-                                    : "bg-gray-50 text-gray-600 border-gray-100 dark:bg-gray-700/50 dark:text-gray-300 dark:border-gray-600"
-                            )}>
-                                {role === 'admin' && <Shield className="w-3 h-3" />}
-                                {formatRole(role)}
-                            </span>
-                        ))}
-                        {(!profile.roles || profile.roles.length === 0) && (
-                            <span className="text-xs text-gray-400 italic">Keine Rollen</span>
-                        )}
-                    </div>
-                </motion.div>
-                ))
+                            <div className="mt-auto flex flex-wrap gap-1.5 justify-center w-full">
+                                {profile.roles?.slice(0, 3).map(role => (
+                                    <span key={role} className={cn(
+                                        "inline-flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-bold border shadow-sm",
+                                        role === 'admin' 
+                                            ? "bg-purple-50 text-purple-700 border-purple-100 dark:bg-purple-900/20 dark:text-purple-300 dark:border-purple-800" 
+                                            : "bg-gray-50 text-gray-600 border-gray-100 dark:bg-gray-700/50 dark:text-gray-300 dark:border-gray-600"
+                                    )}>
+                                        {role === 'admin' && <Shield className="w-3 h-3" />}
+                                        {formatRole(role)}
+                                    </span>
+                                ))}
+                                {(profile.roles?.length || 0) > 3 && (
+                                    <span className="text-xs text-gray-400 font-medium px-1">+{profile.roles!.length - 3}</span>
+                                )}
+                            </div>
+                        </motion.div>
+                    );
+                })
             )}
         </AnimatePresence>
       </div>
 
+      {/* Detail Modal (Visitenkarte) */}
+      <AnimatePresence>
+          {selectedUser && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                  <motion.div 
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      onClick={() => setSelectedUser(null)}
+                      className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+                  />
+                  <motion.div 
+                      initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                      className="relative w-full max-w-md bg-white dark:bg-gray-800 rounded-3xl shadow-2xl overflow-hidden"
+                  >
+                      {/* Header Background */}
+                      <div className="h-32 bg-gradient-to-r from-indigo-500 to-purple-600 relative">
+                          <button 
+                              onClick={() => setSelectedUser(null)}
+                              className="absolute top-4 right-4 p-2 bg-black/20 hover:bg-black/40 text-white rounded-full transition-colors"
+                          >
+                              <X className="w-5 h-5" />
+                          </button>
+                      </div>
+
+                      {/* Avatar */}
+                      <div className="flex justify-center -mt-16 relative z-10">
+                          <img 
+                              src={selectedUser.avatar_url || `https://ui-avatars.com/api/?name=${selectedUser.full_name}&background=random`} 
+                              className="w-32 h-32 rounded-full border-4 border-white dark:border-gray-800 shadow-lg object-cover bg-white"
+                          />
+                      </div>
+
+                      <div className="p-6 text-center space-y-6">
+                          <div>
+                              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{selectedUser.full_name}</h2>
+                              <div className="flex items-center justify-center gap-2 mt-2">
+                                  {(() => {
+                                      const s = selectedUser.status?.status || 'off';
+                                      const I = STATUS_ICONS[s as keyof typeof STATUS_ICONS];
+                                      return (
+                                          <span className={cn(
+                                              "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold",
+                                              STATUS_COLORS[s as keyof typeof STATUS_COLORS]
+                                          )}>
+                                              <I className="w-3.5 h-3.5" />
+                                              {STATUS_LABELS[s]}
+                                              {selectedUser.status?.message && ` - ${selectedUser.status.message}`}
+                                          </span>
+                                      );
+                                  })()}
+                              </div>
+                          </div>
+
+                          <div className="flex justify-center gap-4">
+                              <a 
+                                  href={`mailto:${selectedUser.email}`}
+                                  className="flex-1 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 py-3 rounded-2xl font-bold text-sm hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-colors flex items-center justify-center gap-2"
+                              >
+                                  <Mail className="w-4 h-4" />
+                                  E-Mail
+                              </a>
+                              <button 
+                                  onClick={() => {
+                                      navigator.clipboard.writeText(selectedUser.email || '');
+                                      toast.success('E-Mail kopiert');
+                                  }}
+                                  className="p-3 bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-2xl hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+                              >
+                                  <Copy className="w-5 h-5" />
+                              </button>
+                          </div>
+
+                          <div className="text-left space-y-3">
+                              <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Informationen</h3>
+                              <div className="bg-gray-50 dark:bg-gray-700/30 rounded-2xl p-4 space-y-3">
+                                  <div className="flex justify-between items-center text-sm">
+                                      <span className="text-gray-500">Status-Update</span>
+                                      <span className="font-medium text-gray-900 dark:text-white">
+                                          {selectedUser.status?.updated_at 
+                                              ? format(new Date(selectedUser.status.updated_at), 'HH:mm') + ' Uhr'
+                                              : '-'}
+                                      </span>
+                                  </div>
+                                  <div className="flex justify-between items-center text-sm">
+                                      <span className="text-gray-500">Rollen</span>
+                                      <span className="font-medium text-gray-900 dark:text-white text-right max-w-[200px] truncate">
+                                          {selectedUser.roles?.map(formatRole).join(', ') || '-'}
+                                      </span>
+                                  </div>
+                              </div>
+                          </div>
+                      </div>
+                  </motion.div>
+              </div>
+          )}
+      </AnimatePresence>
+
+      {/* Edit Modal (Admin only) */}
       <Modal
         isOpen={!!editingProfile}
         onClose={() => setEditingProfile(null)}
