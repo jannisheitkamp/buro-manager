@@ -14,7 +14,7 @@ import { Polls } from '@/pages/Polls';
 import { Parcels } from '@/pages/Parcels';
 import { Callbacks } from '@/pages/Callbacks';
 import { Directory } from '@/pages/Directory';
-import { ProfilePage } from '@/pages/ProfilePage';
+import { ProfilePage } from '@/pages/Profile';
 import { Toaster } from 'react-hot-toast';
 
 import { PageTransition } from '@/components/PageTransition';
