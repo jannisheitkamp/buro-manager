@@ -154,7 +154,7 @@ export const NotificationCenter = () => {
                         leaveFrom="opacity-100 translate-y-0"
                         leaveTo="opacity-0 translate-y-1"
                     >
-                        <Popover.Panel className="absolute right-0 z-50 mt-2 w-80 sm:w-96 transform px-4 sm:px-0 lg:max-w-3xl">
+                        <Popover.Panel className="absolute right-0 top-full z-50 mt-2 w-80 sm:w-96 transform px-4 sm:px-0 lg:max-w-3xl origin-top-right">
                             <div className="overflow-hidden rounded-2xl shadow-xl ring-1 ring-black ring-opacity-5">
                                 <div className="relative bg-white dark:bg-gray-800 p-4">
                                     <div className="flex items-center justify-between mb-4">
