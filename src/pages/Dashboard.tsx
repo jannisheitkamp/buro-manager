@@ -453,25 +453,25 @@ export const Dashboard = () => {
             </div>
 
             {/* Board Teaser */}
-            <div className="bg-gradient-to-br from-gray-900 to-gray-800 text-white rounded-3xl p-6 shadow-lg">
+            <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
                 <div className="flex justify-between items-center mb-4">
-                    <h3 className="font-bold flex items-center gap-2">
-                        <MessageSquare className="w-4 h-4 text-indigo-400" /> 
+                    <h3 className="text-lg font-bold flex items-center gap-2 text-gray-900 dark:text-white">
+                        <MessageSquare className="w-5 h-5 text-gray-400" /> 
                         Pinnwand
                     </h3>
-                    <button onClick={() => navigate('/board')} className="text-xs text-gray-400 hover:text-white transition-colors">Alle</button>
+                    <button onClick={() => navigate('/board')} className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline transition-colors">Alle</button>
                 </div>
                 <div className="space-y-4">
                     {boardMessages.length === 0 ? (
                         <p className="text-sm text-gray-400 italic">Keine Nachrichten.</p>
                     ) : (
                         boardMessages.slice(0, 2).map(msg => (
-                            <div key={msg.id} className="bg-white/5 rounded-xl p-3 backdrop-blur-sm border border-white/10">
-                                <p className="text-xs text-indigo-300 mb-1 flex justify-between">
-                                    <span>{msg.profiles?.full_name}</span>
-                                    <span>{formatDistanceToNow(new Date(msg.created_at), { locale: de, addSuffix: true })}</span>
+                            <div key={msg.id} className="bg-gray-50 dark:bg-gray-900/50 rounded-xl p-3 border border-gray-100 dark:border-gray-700/50">
+                                <p className="text-xs text-indigo-600 dark:text-indigo-400 mb-1 flex justify-between">
+                                    <span className="font-medium">{msg.profiles?.full_name}</span>
+                                    <span className="text-gray-400">{formatDistanceToNow(new Date(msg.created_at), { locale: de, addSuffix: true })}</span>
                                 </p>
-                                <p className="text-sm line-clamp-2">{msg.content}</p>
+                                <p className="text-sm text-gray-600 dark:text-gray-300 line-clamp-2">{msg.content}</p>
                             </div>
                         ))
                     )}
