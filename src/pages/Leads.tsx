@@ -377,7 +377,7 @@ export const Leads = () => {
                                                     <div className="flex gap-1">
                                                         {col.id !== 'new' && (
                                                             <button 
-                                                                onClick={() => updateStatus(lead.id, COLUMNS[COLUMNS.findIndex(c => c.id === col.id) - 1].id)}
+                                                                onClick={(e) => { e.stopPropagation(); updateStatus(lead.id, COLUMNS[COLUMNS.findIndex(c => c.id === col.id) - 1].id); }}
                                                                 className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-gray-400 transition-colors"
                                                                 title="Zurück"
                                                             >
@@ -386,7 +386,7 @@ export const Leads = () => {
                                                         )}
                                                         {col.id !== 'closed' && (
                                                             <button 
-                                                                onClick={() => updateStatus(lead.id, COLUMNS[COLUMNS.findIndex(c => c.id === col.id) + 1].id)}
+                                                                onClick={(e) => { e.stopPropagation(); updateStatus(lead.id, COLUMNS[COLUMNS.findIndex(c => c.id === col.id) + 1].id); }}
                                                                 className="p-1.5 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg text-indigo-500 transition-colors"
                                                                 title="Weiter"
                                                             >
@@ -396,24 +396,26 @@ export const Leads = () => {
                                                         {col.id === 'closed' && (
                                                             <div className="flex gap-1 items-center">
                                                                 <button 
-                                                                    onClick={() => navigate('/production', { 
-                                                                        state: { 
-                                                                            prefill: {
-                                                                                customer_name: lead.customer_name.split(' ').slice(1).join(' '),
-                                                                                customer_firstname: lead.customer_name.split(' ')[0],
-                                                                                sub_category: lead.product, // Prefill product as subcategory if possible
-                                                                                // Remove value mapping since we removed it from lead
-                                                                                ...(lead.customer_name.includes(' ') ? {} : { customer_name: lead.customer_name, customer_firstname: '' })
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        navigate('/production', { 
+                                                                            state: { 
+                                                                                prefill: {
+                                                                                    customer_name: lead.customer_name.split(' ').slice(1).join(' '),
+                                                                                    customer_firstname: lead.customer_name.split(' ')[0],
+                                                                                    sub_category: lead.product,
+                                                                                    ...(lead.customer_name.includes(' ') ? {} : { customer_name: lead.customer_name, customer_firstname: '' })
+                                                                                } 
                                                                             } 
-                                                                        } 
-                                                                    })} 
+                                                                        });
+                                                                    }} 
                                                                     className="p-1.5 text-indigo-500 hover:bg-indigo-50 rounded-lg transition-colors"
                                                                     title="Als Vertrag erfassen"
                                                                 >
                                                                     <FileInput className="w-4 h-4" />
                                                                 </button>
                                                                 <button 
-                                                                    onClick={() => archiveLead(lead.id)}
+                                                                    onClick={(e) => { e.stopPropagation(); archiveLead(lead.id); }}
                                                                     className="p-1.5 text-emerald-500 flex items-center justify-center bg-emerald-50 hover:bg-emerald-100 rounded-full transition-colors" 
                                                                     title="Lead archivieren (erledigt)"
                                                                 >
@@ -440,8 +442,13 @@ export const Leads = () => {
 
             <Modal
                 isOpen={isModalOpen}
-                onClose={() => setIsModalOpen(false)}
-                title="Neuer Lead"
+                onClose={() => {
+                    setIsModalOpen(false);
+                    // Reset form when closing without saving
+                    setEditingId(null);
+                    setFormData({ customer_name: '', phone: '', email: '', availability: '', product: '', notes: '', status: 'new' });
+                }}
+                title={editingId ? "Lead bearbeiten" : "Neuer Lead"}
             >
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
@@ -476,7 +483,11 @@ export const Leads = () => {
                         <textarea value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})} className="w-full rounded-xl border-gray-200 bg-gray-50 px-4 py-2 h-24" placeholder="Details zum Gespräch..." />
                     </div>
                     <div className="flex justify-end gap-2 pt-4">
-                        <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-gray-500 hover:bg-gray-100 rounded-xl">Abbrechen</button>
+                        <button type="button" onClick={() => {
+                            setIsModalOpen(false);
+                            setEditingId(null);
+                            setFormData({ customer_name: '', phone: '', email: '', availability: '', product: '', notes: '', status: 'new' });
+                        }} className="px-4 py-2 text-gray-500 hover:bg-gray-100 rounded-xl">Abbrechen</button>
                         <button type="submit" disabled={submitting} className="px-6 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-500/30">Speichern</button>
                     </div>
                 </form>
