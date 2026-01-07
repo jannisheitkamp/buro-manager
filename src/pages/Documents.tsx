@@ -131,13 +131,16 @@ export function Documents() {
         docId = newDoc.id;
       }
 
-      // Handle Shares
-      if (selectedUsers.length > 0 && docId) {
-        // First delete existing shares if editing
-        if (editingDoc) {
-            await supabase.from('document_shares').delete().eq('document_id', editingDoc.id);
-        }
+      // Handle Shares (Only if creator)
+      // First delete existing shares if editing
+      if (editingDoc && editingDoc.created_by === user.id) {
+          await supabase.from('document_shares').delete().eq('document_id', editingDoc.id);
+      }
 
+      // Only insert shares if we are creating NEW doc OR we are the creator of existing doc
+      const canManageShares = !editingDoc || (editingDoc.created_by === user.id);
+
+      if (selectedUsers.length > 0 && docId && canManageShares) {
         const shareData = selectedUsers.map(userId => ({
           document_id: docId,
           user_id: userId
@@ -147,20 +150,18 @@ export function Documents() {
         
         if (shareError) {
             console.error('Share Error:', shareError);
-            // Don't throw, just warn
-            toast.error('Dokument gespeichert, aber Teilen fehlgeschlagen');
+            toast.error('Dokument gespeichert, aber Teilen fehlgeschlagen: ' + shareError.message);
         }
-      } else if (editingDoc) {
-          // If editing and no users selected, clear shares
-          await supabase.from('document_shares').delete().eq('document_id', editingDoc.id);
+      } else if (editingDoc && editingDoc.created_by === user.id) {
+          // If editing (as creator) and no users selected, shares were already cleared above
       }
 
       toast.success(editingDoc ? 'Dokument aktualisiert' : 'Dokument erstellt');
       handleCloseModal();
       fetchDocuments();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving document:', error);
-      toast.error('Fehler beim Speichern');
+      toast.error(`Fehler: ${error.message || 'Speichern fehlgeschlagen'}`);
     } finally {
       setUploading(false);
     }
