@@ -226,19 +226,58 @@ export function Documents() {
   };
 
   const handleDownload = async (doc: Document) => {
-    if (!doc.file_path) return;
-    try {
-      const { data, error } = await supabase.storage
-        .from('documents')
-        .createSignedUrl(doc.file_path, 60); // 60 seconds valid
+    // 1. If it's a file upload, download the file
+    if (doc.file_type === 'file' && doc.file_path) {
+      try {
+        const { data, error } = await supabase.storage
+          .from('documents')
+          .createSignedUrl(doc.file_path, 60);
 
-      if (error) throw error;
-      if (data?.signedUrl) {
-        window.open(data.signedUrl, '_blank');
+        if (error) throw error;
+        if (data?.signedUrl) {
+          window.open(data.signedUrl, '_blank');
+        }
+      } catch (error) {
+        console.error('Error downloading file:', error);
+        toast.error('Download fehlgeschlagen');
       }
-    } catch (error) {
-      console.error('Error downloading file:', error);
-      toast.error('Download fehlgeschlagen');
+      return;
+    }
+
+    // 2. If it's a text document (HTML), convert to PDF
+    if (doc.file_type === 'text' && doc.content) {
+      try {
+        // Dynamically import html2pdf to avoid SSR issues or bundle size
+        const html2pdf = (await import('html2pdf.js')).default;
+        
+        // Create a temporary container for the HTML content
+        const element = document.createElement('div');
+        element.innerHTML = `
+          <div style="padding: 40px; font-family: sans-serif; color: #000;">
+            <h1 style="margin-bottom: 20px;">${doc.title}</h1>
+            <div class="prose">
+              ${doc.content}
+            </div>
+          </div>
+        `;
+        
+        // PDF Options
+        const opt = {
+          margin:       10,
+          filename:     `${doc.title}.pdf`,
+          image:        { type: 'jpeg', quality: 0.98 },
+          html2canvas:  { scale: 2 },
+          jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        };
+
+        // Generate PDF
+        html2pdf().set(opt).from(element).save();
+        toast.success('PDF wird erstellt...');
+
+      } catch (error) {
+        console.error('Error generating PDF:', error);
+        toast.error('PDF konnte nicht erstellt werden');
+      }
     }
   };
 
@@ -284,15 +323,13 @@ export function Documents() {
                 </div>
               </div>
               <div className="flex gap-1">
-                {doc.file_type === 'file' && (
                   <button 
                     onClick={() => handleDownload(doc)}
                     className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
-                    title="Download"
+                    title="Download / PDF"
                   >
                     <Download className="w-4 h-4" />
                   </button>
-                )}
                 {(doc.created_by === user?.id || doc.shares?.some(s => s.user_id === user?.id)) && (
                    <button 
                     onClick={() => handleEdit(doc)}

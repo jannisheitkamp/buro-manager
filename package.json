@@ -28,6 +28,7 @@
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "framer-motion": "^12.23.26",
+    "html2pdf.js": "^0.13.0",
     "jspdf": "^3.0.4",
     "jspdf-autotable": "^5.0.7",
     "lucide-react": "^0.511.0",
