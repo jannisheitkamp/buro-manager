@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useStore } from '@/store/useStore';
 import { Profile, UserStatus } from '@/types';
-import { formatDistanceToNow, format, startOfMonth, endOfMonth, isToday, isFuture, parseISO } from 'date-fns';
+import { formatDistanceToNow, format, startOfMonth, endOfMonth, subMonths } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { 
   Briefcase, 
@@ -15,18 +15,22 @@ import {
   Phone,
   Package,
   TrendingUp,
-  Calendar as CalendarIcon,
   Clock,
-  CheckCircle2,
-  AlertCircle,
   MessageSquare,
-  ArrowRight,
-  MoreHorizontal
+  BarChart as BarChartIcon
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { motion } from 'framer-motion';
+import { 
+  BarChart, 
+  Bar, 
+  XAxis, 
+  Tooltip, 
+  ResponsiveContainer,
+  Cell
+} from 'recharts';
 
 // --- Types ---
 
@@ -80,6 +84,7 @@ export const Dashboard = () => {
     openCallbacks: 0,
     pendingParcels: 0
   });
+  const [revenueData, setRevenueData] = useState<{name: string, value: number}[]>([]);
 
   // UI State
   const [statusMessage, setStatusMessage] = useState('');
@@ -91,6 +96,11 @@ export const Dashboard = () => {
     const now = new Date();
     const startMonth = startOfMonth(now).toISOString();
     const endMonth = endOfMonth(now).toISOString();
+    
+    // For Chart: Last 6 months
+    const sixMonthsAgo = subMonths(now, 5);
+    const startSixMonthsAgo = startOfMonth(sixMonthsAgo).toISOString();
+
     const todayStart = new Date(now.setHours(0,0,0,0)).toISOString();
     const todayEnd = new Date(now.setHours(23,59,59,999)).toISOString();
 
@@ -108,7 +118,8 @@ export const Dashboard = () => {
       supabase.from('profiles').select('*'),
       supabase.from('callbacks').select('*').neq('status', 'done').or(`assigned_to.eq.${user.id},assigned_to.is.null`),
       supabase.from('parcels').select('*').eq('status', 'pending').order('created_at', { ascending: false }),
-      supabase.from('production_entries').select('commission_amount').gte('submission_date', startMonth).lte('submission_date', endMonth),
+      // Fetch 6 months of production data
+      supabase.from('production_entries').select('commission_amount, submission_date').gte('submission_date', startSixMonthsAgo),
       supabase.from('calendar_events').select('*').gte('start_time', todayStart).lte('start_time', todayEnd).order('start_time', { ascending: true }),
       supabase.from('board_messages').select('*, profiles(full_name)').order('created_at', { ascending: false }).limit(3)
     ]);
@@ -152,18 +163,41 @@ export const Dashboard = () => {
         priority: c.priority
       }))
     ].sort((a, b) => {
-        // Priority logic: Events by time, Callbacks by priority
-        // For simple view: just sort by time? No, callbacks don't have a time.
-        // Let's put events at their specific time, and callbacks "in between" or at top if high prio.
-        // Simple approach: Sort by time. Callbacks use "now" if created earlier, to appear urgent.
         return a.time.getTime() - b.time.getTime();
     });
     setMyTasks(timelineItems);
 
-    // 4. Stats
-    const comm = prodRes.data?.reduce((sum, e) => sum + (e.commission_amount || 0), 0) || 0;
+    // 4. Stats & Chart Data
+    const allProd = prodRes.data || [];
+    
+    // Calculate Monthly Commission (Current Month)
+    const currentMonthKey = format(now, 'yyyy-MM');
+    const monthlyComm = allProd
+        .filter(e => e.submission_date.startsWith(currentMonthKey))
+        .reduce((sum, e) => sum + (e.commission_amount || 0), 0);
+
+    // Calculate Chart Data (Last 6 Months)
+    const last6Months = Array.from({ length: 6 }, (_, i) => {
+        const d = new Date();
+        d.setMonth(d.getMonth() - (5 - i));
+        return d;
+    });
+
+    const chartData = last6Months.map(date => {
+        const monthKey = format(date, 'yyyy-MM');
+        const monthLabel = format(date, 'MMM', { locale: de });
+        
+        const total = allProd
+          .filter(e => e.submission_date.startsWith(monthKey))
+          .reduce((acc, curr) => acc + (curr.commission_amount || 0), 0);
+          
+        return { name: monthLabel, value: total };
+    });
+
+    setRevenueData(chartData);
+
     setStats({
-      monthlyCommission: comm,
+      monthlyCommission: monthlyComm,
       openCallbacks: callbacks.length,
       pendingParcels: parcelsRes.data?.length || 0
     });
@@ -447,6 +481,61 @@ export const Dashboard = () => {
 
         {/* RIGHT COLUMN: ASSETS & TOOLS (3 cols) */}
         <div className="xl:col-span-3 space-y-6">
+            
+            {/* NEW: Revenue Trend Chart Widget */}
+            <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
+                <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-lg font-bold flex items-center gap-2">
+                        <BarChartIcon className="w-5 h-5 text-gray-400" />
+                        Trend
+                    </h2>
+                    <span className="text-xs font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 px-2 py-1 rounded-lg">6 Monate</span>
+                </div>
+                
+                <div className="h-[150px] w-full">
+                     <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={revenueData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+                            <XAxis 
+                                dataKey="name" 
+                                axisLine={false} 
+                                tickLine={false} 
+                                tick={{ fill: '#9CA3AF', fontSize: 10 }} 
+                                dy={5}
+                                interval={1} // Show every 2nd label if tight
+                            />
+                            <Tooltip 
+                                cursor={{ fill: '#EEF2FF', opacity: 0.5 }}
+                                contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)', fontSize: '12px' }}
+                                formatter={(value: number) => [new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(value), '']}
+                                labelStyle={{ display: 'none' }}
+                            />
+                            <Bar 
+                                dataKey="value" 
+                                radius={[4, 4, 0, 0]} 
+                                barSize={20}
+                            >
+                                {revenueData.map((entry, index) => (
+                                    <Cell key={`cell-${index}`} fill={entry.value > 0 ? '#6366f1' : '#e5e7eb'} />
+                                ))}
+                            </Bar>
+                        </BarChart>
+                    </ResponsiveContainer>
+                </div>
+                <div className="mt-4 flex justify-between items-end">
+                    <div>
+                        <p className="text-xs text-gray-500">Ø Umsatz (6M)</p>
+                        <p className="text-lg font-bold text-gray-900 dark:text-white">
+                            {new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(
+                                revenueData.reduce((acc, curr) => acc + curr.value, 0) / (revenueData.length || 1)
+                            )}
+                        </p>
+                    </div>
+                    <button onClick={() => navigate('/production')} className="text-xs font-bold text-indigo-600 hover:text-indigo-700 transition-colors">
+                        Details &rarr;
+                    </button>
+                </div>
+            </div>
+
             <h2 className="text-lg font-bold flex items-center gap-2">
                 <Package className="w-5 h-5 text-gray-400" />
                 Logistik

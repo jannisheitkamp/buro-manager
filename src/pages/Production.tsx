@@ -3,13 +3,26 @@ import { supabase } from '@/lib/supabase';
 import { useStore } from '@/store/useStore';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { TrendingUp, Plus, Search, Filter, Euro, FileText, Trash2, Download, Pencil, FileDown } from 'lucide-react';
+import { TrendingUp, Plus, Search, Filter, Euro, FileText, Trash2, Download, Pencil, FileDown, PieChart, BarChart as BarChartIcon } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { Modal } from '@/components/Modal';
 import { toast } from 'react-hot-toast';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { motion, AnimatePresence } from 'framer-motion';
+import { 
+  BarChart, 
+  Bar, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer,
+  PieChart as RechartsPieChart,
+  Pie,
+  Cell,
+  Legend
+} from 'recharts';
 
 // Helper to format currency safely
 const formatCurrency = (amount: number | null | undefined) => {
@@ -291,6 +304,46 @@ export const Production = () => {
   const totalCommission = filteredEntries.reduce((acc, curr) => acc + (curr.commission_amount || 0), 0);
   const totalLiability = filteredEntries.reduce((acc, curr) => acc + ((curr.commission_amount || 0) * (curr.liability_rate || 0) / 100), 0);
 
+  // --- CHART DATA PREPARATION ---
+  
+  // 1. Monthly Data (Last 6 Months)
+  const getMonthlyData = () => {
+      const last6Months = Array.from({ length: 6 }, (_, i) => {
+          const d = new Date();
+          d.setMonth(d.getMonth() - (5 - i));
+          return d;
+      });
+
+      return last6Months.map(date => {
+          const monthKey = format(date, 'yyyy-MM');
+          const monthLabel = format(date, 'MMM', { locale: de });
+          
+          const total = filteredEntries
+            .filter(e => e.submission_date.startsWith(monthKey))
+            .reduce((acc, curr) => acc + (curr.commission_amount || 0), 0);
+            
+          return { name: monthLabel, value: total };
+      });
+  };
+  
+  const monthlyData = getMonthlyData();
+
+  // 2. Category Distribution
+  const getCategoryData = () => {
+      const data: Record<string, number> = {};
+      filteredEntries.forEach(e => {
+          const label = INSURANCE_TYPES.find(t => t.id === e.category)?.label || e.category;
+          data[label] = (data[label] || 0) + (e.commission_amount || 0);
+      });
+
+      return Object.entries(data)
+        .map(([name, value]) => ({ name, value }))
+        .sort((a, b) => b.value - a.value); // Sort by highest value
+  };
+
+  const categoryData = getCategoryData();
+  const COLORS = ['#4F46E5', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
+
   const handleExport = () => {
       if (filteredEntries.length === 0) return;
       
@@ -471,6 +524,115 @@ export const Production = () => {
                 <p className="text-4xl font-black text-orange-500 dark:text-orange-400 mt-2">{formatCurrency(totalLiability)}</p>
             </motion.div>
         </div>
+
+        {/* Charts Section */}
+        {filteredEntries.length > 0 && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Bar Chart: Monthly Revenue */}
+                <motion.div 
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.45 }}
+                    className="lg:col-span-2 bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-3xl p-6 border border-white/20 shadow-xl"
+                >
+                    <div className="flex items-center gap-3 mb-6">
+                        <div className="p-2 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg">
+                            <BarChartIcon className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                        </div>
+                        <h3 className="font-bold text-gray-900 dark:text-white">Umsatzentwicklung (letzte 6 Monate)</h3>
+                    </div>
+                    <div className="h-[300px] w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={monthlyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.1} />
+                                <XAxis 
+                                    dataKey="name" 
+                                    axisLine={false} 
+                                    tickLine={false} 
+                                    tick={{ fill: '#9CA3AF', fontSize: 12 }} 
+                                    dy={10}
+                                />
+                                <YAxis 
+                                    axisLine={false} 
+                                    tickLine={false} 
+                                    tick={{ fill: '#9CA3AF', fontSize: 12 }}
+                                    tickFormatter={(val) => `€${val}`}
+                                />
+                                <Tooltip 
+                                    cursor={{ fill: '#EEF2FF', opacity: 0.5 }}
+                                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
+                                    formatter={(value: number) => [formatCurrency(value), 'Umsatz']}
+                                />
+                                <Bar 
+                                    dataKey="value" 
+                                    fill="#6366f1" 
+                                    radius={[6, 6, 0, 0]} 
+                                    barSize={40}
+                                    animationDuration={1500}
+                                >
+                                    {monthlyData.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={entry.value > 0 ? '#6366f1' : '#e5e7eb'} />
+                                    ))}
+                                </Bar>
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                </motion.div>
+
+                {/* Pie Chart: Categories */}
+                <motion.div 
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.5 }}
+                    className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-3xl p-6 border border-white/20 shadow-xl"
+                >
+                    <div className="flex items-center gap-3 mb-6">
+                        <div className="p-2 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg">
+                            <PieChart className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                        </div>
+                        <h3 className="font-bold text-gray-900 dark:text-white">Verteilung nach Sparte</h3>
+                    </div>
+                    <div className="h-[300px] w-full relative">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <RechartsPieChart>
+                                <Pie
+                                    data={categoryData}
+                                    cx="50%"
+                                    cy="50%"
+                                    innerRadius={60}
+                                    outerRadius={80}
+                                    paddingAngle={5}
+                                    dataKey="value"
+                                >
+                                    {categoryData.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                    ))}
+                                </Pie>
+                                <Tooltip 
+                                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
+                                    formatter={(value: number) => formatCurrency(value)}
+                                />
+                                <Legend 
+                                    verticalAlign="bottom" 
+                                    height={36} 
+                                    iconType="circle"
+                                    formatter={(value) => <span className="text-xs font-medium text-gray-500 ml-1">{value}</span>}
+                                />
+                            </RechartsPieChart>
+                        </ResponsiveContainer>
+                        {/* Center Text */}
+                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none pb-8">
+                            <div className="text-center">
+                                <span className="text-xs text-gray-400 font-medium">Gesamt</span>
+                                <div className="text-lg font-bold text-gray-900 dark:text-white">
+                                    {formatCurrency(totalCommission)}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </motion.div>
+            </div>
+        )}
 
         {/* Filters & Table */}
         <motion.div 
