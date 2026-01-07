@@ -36,7 +36,6 @@ const navigation = [
   { name: 'Rückrufe', href: '/callbacks', icon: Phone },
   { name: 'Pakete', href: '/parcels', icon: Package },
   { name: 'Verzeichnis', href: '/directory', icon: Users },
-  { name: 'Profil', href: '/profile', icon: UserCircle },
 ];
 
 export const Layout = ({ children }: { children: React.ReactNode }) => {
@@ -144,7 +143,20 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
             })}
           </nav>
 
-          <div className="p-4 border-t border-gray-200/50 dark:border-gray-700/50">
+          <div className="p-4 border-t border-gray-200/50 dark:border-gray-700/50 space-y-2">
+            <Link
+                to="/profile"
+                className={cn(
+                    "flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-xl transition-all duration-200",
+                    location.pathname === '/profile'
+                        ? "bg-indigo-50 text-indigo-700 shadow-sm dark:bg-indigo-900/20 dark:text-indigo-300 translate-x-1" 
+                        : "text-gray-600 hover:bg-gray-50/80 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-700/50 dark:hover:text-gray-200 hover:translate-x-1"
+                )}
+                onClick={() => setIsMobileMenuOpen(false)}
+            >
+                <UserCircle className={cn("h-5 w-5 transition-transform", location.pathname === '/profile' ? "scale-110" : "")} />
+                Mein Profil
+            </Link>
             <button
               onClick={() => signOut()}
               className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-red-600 dark:text-red-400 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 w-full transition-colors"
