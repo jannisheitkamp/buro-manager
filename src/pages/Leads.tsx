@@ -146,10 +146,33 @@ export const Leads = () => {
     };
 
     const deleteLead = async (id: string) => {
-        if (!confirm('Lead wirklich löschen?')) return;
-        const { error } = await supabase.from('leads').delete().eq('id', id);
-        if (error) toast.error('Fehler beim Löschen');
-        else toast.success('Lead gelöscht');
+        toast((t) => (
+            <div className="flex flex-col gap-2">
+                <span className="font-semibold">Lead wirklich löschen?</span>
+                <div className="flex gap-2">
+                    <button 
+                        onClick={async () => {
+                            toast.dismiss(t.id);
+                            const { error } = await supabase.from('leads').delete().eq('id', id);
+                            if (error) toast.error('Fehler beim Löschen');
+                            else {
+                                setLeads(prev => prev.filter(l => l.id !== id));
+                                toast.success('Lead gelöscht');
+                            }
+                        }}
+                        className="bg-red-500 text-white px-3 py-1 rounded-lg text-sm hover:bg-red-600"
+                    >
+                        Löschen
+                    </button>
+                    <button 
+                        onClick={() => toast.dismiss(t.id)}
+                        className="bg-gray-100 text-gray-700 px-3 py-1 rounded-lg text-sm hover:bg-gray-200"
+                    >
+                        Abbrechen
+                    </button>
+                </div>
+            </div>
+        ), { duration: 5000 });
     };
 
     const archiveLead = async (id: string) => {

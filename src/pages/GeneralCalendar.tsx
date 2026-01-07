@@ -232,23 +232,43 @@ export const GeneralCalendar = () => {
 
   const handleDeleteEvent = async () => {
       if (!editingEvent) return;
-      if (!confirm('Wirklich löschen?')) return;
       
-      setSubmitting(true);
-      try {
-          const { error } = await supabase.from('calendar_events').delete().eq('id', editingEvent.id);
-          if (error) throw error;
-          toast.success('Gelöscht');
-          setIsModalOpen(false);
-          setEditingEvent(null);
-          resetForm();
-          fetchEvents();
-      } catch (error) {
-          console.error(error);
-          toast.error('Fehler');
-      } finally {
-          setSubmitting(false);
-      }
+      toast((t) => (
+          <div className="flex flex-col gap-2">
+              <span className="font-semibold">Termin wirklich löschen?</span>
+              <div className="flex gap-2">
+                  <button 
+                      onClick={async () => {
+                          toast.dismiss(t.id);
+                          setSubmitting(true);
+                          try {
+                              const { error } = await supabase.from('calendar_events').delete().eq('id', editingEvent.id);
+                              if (error) throw error;
+                              toast.success('Gelöscht');
+                              setIsModalOpen(false);
+                              setEditingEvent(null);
+                              resetForm();
+                              fetchEvents();
+                          } catch (error) {
+                              console.error(error);
+                              toast.error('Fehler');
+                          } finally {
+                              setSubmitting(false);
+                          }
+                      }}
+                      className="bg-red-500 text-white px-3 py-1 rounded-lg text-sm hover:bg-red-600"
+                  >
+                      Löschen
+                  </button>
+                  <button 
+                      onClick={() => toast.dismiss(t.id)}
+                      className="bg-gray-100 text-gray-700 px-3 py-1 rounded-lg text-sm hover:bg-gray-200"
+                  >
+                      Abbrechen
+                  </button>
+              </div>
+          </div>
+      ), { duration: 5000 });
   };
 
   const handleDrop = async (e: React.DragEvent, day: Date, hour: number) => {

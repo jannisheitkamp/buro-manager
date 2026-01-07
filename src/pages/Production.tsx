@@ -305,12 +305,34 @@ export const Production = () => {
   };
 
   const handleDelete = async (id: string) => {
-      if(!confirm('Wirklich löschen?')) return;
-      const { error } = await supabase.from('production_entries').delete().eq('id', id);
-      if(!error) {
-          toast.success('Gelöscht');
-          fetchEntries();
-      }
+      toast((t) => (
+          <div className="flex flex-col gap-2">
+              <span className="font-semibold">Wirklich löschen?</span>
+              <div className="flex gap-2">
+                  <button 
+                      onClick={async () => {
+                          toast.dismiss(t.id);
+                          const { error } = await supabase.from('production_entries').delete().eq('id', id);
+                          if(!error) {
+                              toast.success('Gelöscht');
+                              fetchEntries();
+                          } else {
+                              toast.error('Fehler beim Löschen');
+                          }
+                      }}
+                      className="bg-red-500 text-white px-3 py-1 rounded-lg text-sm hover:bg-red-600"
+                  >
+                      Löschen
+                  </button>
+                  <button 
+                      onClick={() => toast.dismiss(t.id)}
+                      className="bg-gray-100 text-gray-700 px-3 py-1 rounded-lg text-sm hover:bg-gray-200"
+                  >
+                      Abbrechen
+                  </button>
+              </div>
+          </div>
+      ), { duration: 5000 });
   };
 
   // Filter entries based on viewMode

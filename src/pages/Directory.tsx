@@ -129,16 +129,36 @@ export const Directory = () => {
   };
 
   const approveUser = async (id: string) => {
-      if(!confirm('Nutzer freischalten?')) return;
-      try {
-          const { error } = await supabase.from('profiles').update({ is_approved: true }).eq('id', id);
-          if (error) throw error;
-          toast.success('Nutzer freigeschaltet!');
-          fetchProfiles();
-      } catch (err) {
-          console.error(err);
-          toast.error('Fehler beim Freischalten.');
-      }
+      toast((t) => (
+          <div className="flex flex-col gap-3 min-w-[200px]">
+              <p className="font-bold text-gray-900 dark:text-white">Nutzer freischalten?</p>
+              <div className="flex gap-2">
+                  <button 
+                      onClick={async () => {
+                          toast.dismiss(t.id);
+                          try {
+                              const { error } = await supabase.from('profiles').update({ is_approved: true }).eq('id', id);
+                              if (error) throw error;
+                              toast.success('Nutzer freigeschaltet!');
+                              fetchProfiles();
+                          } catch (err) {
+                              console.error(err);
+                              toast.error('Fehler beim Freischalten.');
+                          }
+                      }}
+                      className="flex-1 px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white rounded-lg text-sm font-bold transition-colors"
+                  >
+                      Ja, freigeben
+                  </button>
+                  <button 
+                      onClick={() => toast.dismiss(t.id)}
+                      className="flex-1 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-bold transition-colors"
+                  >
+                      Abbrechen
+                  </button>
+              </div>
+          </div>
+      ), { duration: 5000, position: 'top-center' });
   };
 
   const toggleRole = (role: string) => {
