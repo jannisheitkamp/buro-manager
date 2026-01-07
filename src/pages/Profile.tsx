@@ -1,14 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useStore } from '@/store/useStore';
 import { motion } from 'framer-motion';
-import { User, Lock, Save, Briefcase, Mail, Key, Shield, Upload, DollarSign, Zap } from 'lucide-react';
+import { User, Lock, Save, Briefcase, Mail, Key, Shield, Upload, DollarSign } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { cn } from '@/utils/cn';
 
 export const ProfilePage = () => {
     const { user, profile } = useStore();
     const [loading, setLoading] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Profile State
     const [fullName, setFullName] = useState('');
@@ -55,6 +56,46 @@ export const ProfilePage = () => {
                 }
             });
             setRates(newRates);
+        }
+    };
+
+    const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        try {
+            if (!event.target.files || event.target.files.length === 0) {
+                return;
+            }
+            if (!user) return;
+            
+            setLoading(true);
+            const file = event.target.files[0];
+            const fileExt = file.name.split('.').pop();
+            const filePath = `${user.id}/${Math.random()}.${fileExt}`;
+
+            const { error: uploadError } = await supabase.storage
+                .from('avatars')
+                .upload(filePath, file);
+
+            if (uploadError) {
+                throw uploadError;
+            }
+
+            const { data } = supabase.storage.from('avatars').getPublicUrl(filePath);
+            setAvatarUrl(data.publicUrl);
+            
+            // Immediately save to profile
+            const { error: updateError } = await supabase
+                .from('profiles')
+                .update({ avatar_url: data.publicUrl })
+                .eq('id', user.id);
+
+            if (updateError) throw updateError;
+            
+            toast.success('Profilbild aktualisiert!');
+        } catch (error) {
+            console.error('Error uploading avatar:', error);
+            toast.error('Fehler beim Hochladen!');
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -135,28 +176,6 @@ export const ProfilePage = () => {
         }
     };
 
-    const applyPreset = (type: 'standard' | 'makler' | 'junior') => {
-        const presets = {
-            standard: {
-                'Leben': 8.0, 'BU': 8.0, 'KV Voll': 3.0, 'KV Zusatz': 3.0,
-                'Reise-KV': 10.0, 'PHV': 7.5, 'HR': 7.5, 'UNF': 7.5,
-                'Sach': 7.5, 'KFZ': 3.0, 'Rechtsschutz': 5.0, 'Sonstige': 5.0
-            },
-            makler: {
-                'Leben': 40.0, 'BU': 40.0, 'KV Voll': 6.0, 'KV Zusatz': 15.0,
-                'Reise-KV': 20.0, 'PHV': 25.0, 'HR': 25.0, 'UNF': 25.0,
-                'Sach': 25.0, 'KFZ': 10.0, 'Rechtsschutz': 25.0, 'Sonstige': 20.0
-            },
-            junior: {
-                'Leben': 4.0, 'BU': 4.0, 'KV Voll': 1.5, 'KV Zusatz': 1.5,
-                'Reise-KV': 5.0, 'PHV': 3.75, 'HR': 3.75, 'UNF': 3.75,
-                'Sach': 3.75, 'KFZ': 1.5, 'Rechtsschutz': 2.5, 'Sonstige': 2.5
-            }
-        };
-        setRates(presets[type]);
-        toast('Werte für ' + type + ' übernommen', { icon: '🪄' });
-    };
-
     const getPasswordStrength = () => {
         if (!password) return 0;
         if (password.length < 6) return 1;
@@ -201,8 +220,19 @@ export const ProfilePage = () => {
                                         alt="Avatar" 
                                         className="w-24 h-24 rounded-full object-cover ring-4 ring-white dark:ring-gray-700 relative z-10"
                                     />
-                                    {/* Mock Upload Button */}
-                                    <div className="absolute bottom-0 right-0 z-20 bg-indigo-600 text-white p-1.5 rounded-full shadow-lg cursor-pointer hover:bg-indigo-700 transition-colors" title="Bild ändern (Demo)">
+                                    {/* Upload Button */}
+                                    <input 
+                                        type="file" 
+                                        ref={fileInputRef} 
+                                        onChange={handleAvatarUpload} 
+                                        className="hidden" 
+                                        accept="image/*"
+                                    />
+                                    <div 
+                                        onClick={() => fileInputRef.current?.click()}
+                                        className="absolute bottom-0 right-0 z-20 bg-indigo-600 text-white p-1.5 rounded-full shadow-lg cursor-pointer hover:bg-indigo-700 transition-colors" 
+                                        title="Bild ändern"
+                                    >
                                         <Upload className="w-3.5 h-3.5" />
                                     </div>
                                 </div>
@@ -317,19 +347,6 @@ export const ProfilePage = () => {
                             className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl font-bold text-sm shadow-lg shadow-indigo-500/20 transition-all hover:scale-105 active:scale-95 flex items-center gap-2"
                         >
                             <Save className="w-4 h-4" /> Speichern
-                        </button>
-                    </div>
-
-                    {/* Presets */}
-                    <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
-                        <button onClick={() => applyPreset('junior')} className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 dark:bg-gray-700 rounded-lg text-xs font-bold text-gray-600 dark:text-gray-300 hover:bg-indigo-50 hover:text-indigo-600 transition-colors whitespace-nowrap">
-                            <Zap className="w-3 h-3" /> Junior (50%)
-                        </button>
-                        <button onClick={() => applyPreset('standard')} className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 dark:bg-gray-700 rounded-lg text-xs font-bold text-gray-600 dark:text-gray-300 hover:bg-indigo-50 hover:text-indigo-600 transition-colors whitespace-nowrap">
-                            <Zap className="w-3 h-3" /> Standard (100%)
-                        </button>
-                        <button onClick={() => applyPreset('makler')} className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 dark:bg-gray-700 rounded-lg text-xs font-bold text-gray-600 dark:text-gray-300 hover:bg-indigo-50 hover:text-indigo-600 transition-colors whitespace-nowrap">
-                            <Zap className="w-3 h-3" /> Makler (Max)
                         </button>
                     </div>
 
