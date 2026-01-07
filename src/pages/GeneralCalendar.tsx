@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { useStore } from '@/store/useStore';
 import { format, startOfWeek, addDays, startOfMonth, endOfMonth, endOfWeek, isSameMonth, isSameDay, addMonths, subMonths, isToday } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, Plus, Clock, MapPin, AlignLeft } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Clock, MapPin, AlignLeft, Filter } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { Modal } from '@/components/Modal';
 import { toast } from 'react-hot-toast';
@@ -351,29 +351,32 @@ export const GeneralCalendar = () => {
 
   const renderHeader = () => {
     return (
-      <div className="flex flex-col gap-4 mb-4">
-        <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white capitalize min-w-[200px]">
-                    {viewMode === 'month' 
-                        ? format(currentDate, 'MMMM yyyy', { locale: de })
-                        : `KW ${format(currentDate, 'w')} • ${format(startOfWeek(currentDate, { weekStartsOn: 1 }), 'MMM', { locale: de })}`
-                    }
-                </h2>
-                <div className="flex bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
-                    <button onClick={() => {
-                        if (viewMode === 'month') setCurrentDate(subMonths(currentDate, 1));
-                        else setCurrentDate(addDays(currentDate, -7));
-                    }} className="p-1 hover:bg-white dark:hover:bg-gray-700 rounded-md transition-colors"><ChevronLeft className="w-5 h-5" /></button>
-                    <button onClick={() => setCurrentDate(new Date())} className="px-3 text-sm font-medium hover:bg-white dark:hover:bg-gray-700 rounded-md transition-colors">Heute</button>
-                    <button onClick={() => {
-                        if (viewMode === 'month') setCurrentDate(addMonths(currentDate, 1));
-                        else setCurrentDate(addDays(currentDate, 7));
-                    }} className="p-1 hover:bg-white dark:hover:bg-gray-700 rounded-md transition-colors"><ChevronRight className="w-5 h-5" /></button>
+      <div className="flex flex-col gap-4 mb-6">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto">
+                <div className="flex items-center justify-between w-full sm:w-auto gap-4">
+                    <h2 className="text-xl font-bold text-gray-900 dark:text-white capitalize min-w-[140px] md:min-w-[200px]">
+                        {viewMode === 'month' 
+                            ? format(currentDate, 'MMMM yyyy', { locale: de })
+                            : `KW ${format(currentDate, 'w')}`
+                        }
+                    </h2>
+                    <div className="flex bg-gray-100 dark:bg-gray-800 rounded-lg p-1 shrink-0">
+                        <button onClick={() => {
+                            if (viewMode === 'month') setCurrentDate(subMonths(currentDate, 1));
+                            else setCurrentDate(addDays(currentDate, -7));
+                        }} className="p-1 hover:bg-white dark:hover:bg-gray-700 rounded-md transition-colors"><ChevronLeft className="w-5 h-5" /></button>
+                        <button onClick={() => setCurrentDate(new Date())} className="px-3 text-sm font-medium hover:bg-white dark:hover:bg-gray-700 rounded-md transition-colors">Heute</button>
+                        <button onClick={() => {
+                            if (viewMode === 'month') setCurrentDate(addMonths(currentDate, 1));
+                            else setCurrentDate(addDays(currentDate, 7));
+                        }} className="p-1 hover:bg-white dark:hover:bg-gray-700 rounded-md transition-colors"><ChevronRight className="w-5 h-5" /></button>
+                    </div>
                 </div>
             </div>
-            <div className="flex gap-2">
-                <div className="flex bg-gray-100 dark:bg-gray-800 rounded-lg p-1 mr-2">
+
+            <div className="flex items-center justify-between sm:justify-end gap-2 w-full md:w-auto">
+                <div className="flex bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
                     <button 
                         onClick={() => setViewMode('month')}
                         className={cn(
@@ -396,21 +399,22 @@ export const GeneralCalendar = () => {
 
                 <button
                     onClick={() => openNewEventModal(new Date())}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow-sm transition-colors"
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow-sm transition-colors shrink-0"
                 >
-                    <Plus className="w-4 h-4" /> Termin
+                    <Plus className="w-4 h-4" /> <span className="hidden sm:inline">Termin</span>
                 </button>
             </div>
         </div>
 
-        {/* Filter Bar */}
-        <div className="flex gap-2 flex-wrap">
+        {/* Filter Bar - Horizontal Scroll on Mobile */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0 md:flex-wrap md:pb-0 hide-scrollbar">
+            <Filter className="w-4 h-4 text-gray-400 shrink-0" />
             {CATEGORIES.map(cat => (
                 <button
                     key={cat.id}
                     onClick={() => toggleFilter(cat.id)}
                     className={cn(
-                        "px-3 py-1 rounded-full text-xs font-medium flex items-center gap-2 transition-all border",
+                        "px-3 py-1 rounded-full text-xs font-medium flex items-center gap-2 transition-all border shrink-0 whitespace-nowrap",
                         activeFilters.includes(cat.id) 
                             ? "bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-sm opacity-100"
                             : "bg-transparent border-transparent opacity-50 hover:opacity-70"
@@ -427,17 +431,17 @@ export const GeneralCalendar = () => {
 
   const renderDays = () => {
     const days = [];
-    const dateFormat = "EEEE";
+    const dateFormat = "EEE";
     const startDate = startOfWeek(currentDate, { weekStartsOn: 1 });
 
     for (let i = 0; i < 7; i++) {
       days.push(
-        <div key={i} className="text-center text-sm font-medium text-gray-500 dark:text-gray-400 py-2">
+        <div key={i} className="text-center text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-400 py-2">
           {format(addDays(startDate, i), dateFormat, { locale: de })}
         </div>
       );
     }
-    return <div className="grid grid-cols-7 mb-2">{days}</div>;
+    return <div className="grid grid-cols-7 mb-2 border-b border-gray-100 dark:border-gray-800 pb-2">{days}</div>;
   };
 
   const renderCells = () => {
@@ -467,44 +471,47 @@ export const GeneralCalendar = () => {
           <div
             key={day.toString()}
             className={cn(
-                "min-h-[100px] border border-gray-100 dark:border-gray-700/50 p-2 transition-colors relative group",
+                "min-h-[80px] sm:min-h-[100px] border-r border-b border-gray-100 dark:border-gray-700/50 p-1 sm:p-2 transition-colors relative group",
                 !isSameMonth(day, monthStart) ? "bg-gray-50/50 dark:bg-gray-800/30 text-gray-400" : "bg-white dark:bg-gray-800",
-                isSameDay(day, selectedDate) ? "ring-2 ring-indigo-500 z-10" : "",
+                isSameDay(day, selectedDate) ? "ring-2 ring-inset ring-indigo-500 z-10" : "",
                 isToday(day) ? "bg-indigo-50/30 dark:bg-indigo-900/10" : ""
             )}
             onClick={() => setSelectedDate(cloneDay)}
           >
             <span className={cn(
-                "text-sm font-medium w-7 h-7 flex items-center justify-center rounded-full mb-1",
+                "text-xs sm:text-sm font-medium w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center rounded-full mb-1",
                 isToday(day) ? "bg-indigo-600 text-white" : "text-gray-700 dark:text-gray-300"
             )}>
                 {formattedDate}
             </span>
             
             <div className="space-y-1">
-                {dayEvents.map(ev => (
+                {dayEvents.slice(0, 4).map(ev => (
                     <div 
                         key={ev.id} 
                         className={cn(
-                            "text-xs px-1.5 py-0.5 rounded truncate border-l-2 cursor-pointer hover:opacity-80 flex items-center gap-1",
+                            "text-[10px] sm:text-xs px-1 sm:px-1.5 py-0.5 rounded truncate border-l-2 cursor-pointer hover:opacity-80 flex items-center gap-1",
                             ev.color === 'red' ? "bg-red-100 text-red-700 border-red-500 dark:bg-red-900/30 dark:text-red-200" :
                             ev.color === 'green' ? "bg-green-100 text-green-700 border-green-500 dark:bg-green-900/30 dark:text-green-200" :
                             ev.color === 'yellow' ? "bg-yellow-100 text-yellow-700 border-yellow-500 dark:bg-yellow-900/30 dark:text-yellow-200" :
+                            ev.color === 'purple' ? "bg-purple-100 text-purple-700 border-purple-500 dark:bg-purple-900/30 dark:text-purple-200" :
                             "bg-blue-100 text-blue-700 border-blue-500 dark:bg-blue-900/30 dark:text-blue-200"
                         )}
                         title={ev.title}
                         onClick={(e) => { e.stopPropagation(); openEditModal(ev); }}
                     >
-                        {ev.type === 'absence' && <span className="w-1.5 h-1.5 rounded-full bg-current opacity-50" />}
-                        <span className="truncate">{format(new Date(ev.start_time), 'HH:mm')} {ev.title}</span>
+                        <span className="truncate">{ev.title}</span>
                     </div>
                 ))}
+                {dayEvents.length > 4 && (
+                    <div className="text-[10px] text-gray-400 pl-1">+ {dayEvents.length - 4} weitere</div>
+                )}
             </div>
             
-            {/* Quick add button on hover */}
+            {/* Quick add button on hover (desktop only) */}
             <button 
                 onClick={(e) => { e.stopPropagation(); openNewEventModal(cloneDay); }}
-                className="absolute bottom-1 right-1 p-1 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 opacity-0 group-hover:opacity-100 transition-all"
+                className="hidden sm:block absolute bottom-1 right-1 p-1 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 opacity-0 group-hover:opacity-100 transition-all"
             >
                 <Plus className="w-3 h-3" />
             </button>
@@ -513,13 +520,13 @@ export const GeneralCalendar = () => {
         day = addDays(day, 1);
       }
       rows.push(
-        <div key={day.toString()} className="grid grid-cols-7">
+        <div key={day.toString()} className="grid grid-cols-7 border-l border-t border-gray-100 dark:border-gray-700/50">
           {days}
         </div>
       );
       days = [];
     }
-    return <div className="rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700">{rows}</div>;
+    return <div className="rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">{rows}</div>;
   };
 
   const renderWeekView = () => {
@@ -531,7 +538,7 @@ export const GeneralCalendar = () => {
           const d = addDays(startDate, i);
           days.push(
               <div key={i} className={cn(
-                  "flex-1 text-center py-3 border-b border-r border-gray-200 dark:border-gray-700 last:border-r-0",
+                  "flex-1 text-center py-3 border-b border-r border-gray-200 dark:border-gray-700 last:border-r-0 min-w-[100px]",
                   isToday(d) ? "bg-indigo-50/50 dark:bg-indigo-900/20" : ""
               )}>
                   <div className="text-xs text-gray-500 uppercase font-semibold">{format(d, 'EEE', { locale: de })}</div>
@@ -550,103 +557,110 @@ export const GeneralCalendar = () => {
       
       return (
           <div className="flex flex-col h-[calc(100vh-250px)] overflow-hidden border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-900">
-              {/* Header Row */}
-              <div className="flex border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
-                  <div className="w-16 border-r border-gray-200 dark:border-gray-700 flex-shrink-0"></div>
-                  {days}
-              </div>
-
-              {/* Scrollable Content */}
-              <div className="flex-1 overflow-y-auto custom-scrollbar relative">
-                  <div className="flex relative min-h-[960px]"> {/* 16 hours * 60px height */}
-                      {/* Time Column */}
-                      <div className="w-16 flex-shrink-0 border-r border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 z-20 sticky left-0">
-                          {hours.map(hour => (
-                              <div key={hour} className="h-[60px] text-xs text-gray-400 text-right pr-2 pt-2 border-b border-gray-100 dark:border-gray-800">
-                                  {hour}:00
-                              </div>
-                          ))}
+              {/* Scrollable Container for both Header and Body (Mobile Horizontal Scroll) */}
+              <div className="overflow-x-auto flex-1 flex flex-col custom-scrollbar">
+                  <div className="min-w-[800px] flex flex-col flex-1">
+                      
+                      {/* Header Row */}
+                      <div className="flex border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 sticky top-0 z-30">
+                          <div className="w-16 border-r border-gray-200 dark:border-gray-700 flex-shrink-0"></div>
+                          {days}
                       </div>
 
-                      {/* Day Columns */}
-                      {Array.from({ length: 7 }).map((_, dayIdx) => {
-                          const currentDay = addDays(startDate, dayIdx);
-                          const dayEvents = events.filter(e => isSameDay(new Date(e.start_time), currentDay));
-
-                          return (
-                              <div key={dayIdx} className="flex-1 border-r border-gray-100 dark:border-gray-800 last:border-r-0 relative group">
-                                  {/* Grid Lines (Drop Zones) */}
+                      {/* Content */}
+                      <div className="flex-1 relative">
+                          <div className="flex relative min-h-[960px]"> {/* 16 hours * 60px height */}
+                              {/* Time Column */}
+                              <div className="w-16 flex-shrink-0 border-r border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 z-20 sticky left-0">
                                   {hours.map(hour => (
-                                      <div 
-                                          key={hour} 
-                                          className="h-[60px] border-b border-gray-50 dark:border-gray-800/50 transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/50"
-                                          onDragOver={(e) => e.preventDefault()}
-                                          onDrop={(e) => handleDrop(e, currentDay, hour)}
-                                      />
+                                      <div key={hour} className="h-[60px] text-xs text-gray-400 text-right pr-2 pt-2 border-b border-gray-100 dark:border-gray-800">
+                                          {hour}:00
+                                      </div>
                                   ))}
-
-                                  {/* Click to add event (overlay) - only if NOT dragging */}
-                                  {!draggingEvent && (
-                                      <div 
-                                          className="absolute inset-0 z-0"
-                                          onClick={(e) => {
-                                              const rect = e.currentTarget.getBoundingClientRect();
-                                              const y = e.clientY - rect.top + e.currentTarget.scrollTop;
-                                              const hourIndex = Math.floor(y / 60);
-                                              const hour = hours[0] + hourIndex;
-                                              
-                                              const newDate = new Date(currentDay);
-                                              newDate.setHours(hour, 0, 0, 0);
-                                              
-                                              // Update default time in form
-                                              setEventStart(`${hour.toString().padStart(2, '0')}:00`);
-                                              setEventEnd(`${(hour + 1).toString().padStart(2, '0')}:00`);
-                                              openNewEventModal(newDate);
-                                          }}
-                                      />
-                                  )}
-
-                                  {/* Events */}
-                                  {dayEvents.map(ev => {
-                                      const start = new Date(ev.start_time);
-                                      const end = new Date(ev.end_time);
-                                      const startHour = start.getHours() + start.getMinutes() / 60;
-                                      const endHour = end.getHours() + end.getMinutes() / 60;
-                                      
-                                      // Calculate position relative to start of grid (06:00)
-                                      const top = (startHour - 6) * 60;
-                                      const height = Math.max((endHour - startHour) * 60, 20); // Min height 20px
-
-                                      if (top < 0) return null; // Skip events before 6am for now
-
-                                      return (
-                                          <div
-                                              key={ev.id}
-                                              draggable={ev.type === 'event'}
-                                              onDragStart={() => setDraggingEvent(ev)}
-                                              onClick={(e) => { e.stopPropagation(); openEditModal(ev); }}
-                                              className={cn(
-                                                  "absolute left-1 right-1 rounded px-2 py-1 text-xs border-l-4 cursor-pointer hover:brightness-95 hover:scale-[1.02] transition-all shadow-sm z-10 overflow-hidden",
-                                                  draggingEvent?.id === ev.id ? "opacity-50" : "",
-                                                  ev.color === 'red' ? "bg-red-100 text-red-700 border-red-500 dark:bg-red-900/40 dark:text-red-100" :
-                                                  ev.color === 'green' ? "bg-green-100 text-green-700 border-green-500 dark:bg-green-900/40 dark:text-green-100" :
-                                                  ev.color === 'yellow' ? "bg-yellow-100 text-yellow-700 border-yellow-500 dark:bg-yellow-900/40 dark:text-yellow-100" :
-                                                  "bg-blue-100 text-blue-700 border-blue-500 dark:bg-blue-900/40 dark:text-blue-100"
-                                              )}
-                                              style={{ top: `${top}px`, height: `${height}px` }}
-                                              title={`${ev.title} (${format(start, 'HH:mm')} - ${format(end, 'HH:mm')})`}
-                                          >
-                                              <div className="font-semibold truncate">{ev.title}</div>
-                                              <div className="opacity-80 truncate text-[10px]">
-                                                  {format(start, 'HH:mm')} - {format(end, 'HH:mm')}
-                                              </div>
-                                              {ev.location && <div className="truncate opacity-70 text-[10px] mt-0.5">{ev.location}</div>}
-                                          </div>
-                                      );
-                                  })}
                               </div>
-                          );
-                      })}
+
+                              {/* Day Columns */}
+                              {Array.from({ length: 7 }).map((_, dayIdx) => {
+                                  const currentDay = addDays(startDate, dayIdx);
+                                  const dayEvents = events.filter(e => isSameDay(new Date(e.start_time), currentDay));
+
+                                  return (
+                                      <div key={dayIdx} className="flex-1 border-r border-gray-100 dark:border-gray-800 last:border-r-0 relative group min-w-[100px]">
+                                          {/* Grid Lines (Drop Zones) */}
+                                          {hours.map(hour => (
+                                              <div 
+                                                  key={hour} 
+                                                  className="h-[60px] border-b border-gray-50 dark:border-gray-800/50 transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/50"
+                                                  onDragOver={(e) => e.preventDefault()}
+                                                  onDrop={(e) => handleDrop(e, currentDay, hour)}
+                                              />
+                                          ))}
+
+                                          {/* Click to add event (overlay) - only if NOT dragging */}
+                                          {!draggingEvent && (
+                                              <div 
+                                                  className="absolute inset-0 z-0"
+                                                  onClick={(e) => {
+                                                      const rect = e.currentTarget.getBoundingClientRect();
+                                                      const y = e.clientY - rect.top + e.currentTarget.scrollTop;
+                                                      const hourIndex = Math.floor(y / 60);
+                                                      const hour = hours[0] + hourIndex;
+                                                      
+                                                      const newDate = new Date(currentDay);
+                                                      newDate.setHours(hour, 0, 0, 0);
+                                                      
+                                                      // Update default time in form
+                                                      setEventStart(`${hour.toString().padStart(2, '0')}:00`);
+                                                      setEventEnd(`${(hour + 1).toString().padStart(2, '0')}:00`);
+                                                      openNewEventModal(newDate);
+                                                  }}
+                                              />
+                                          )}
+
+                                          {/* Events */}
+                                          {dayEvents.map(ev => {
+                                              const start = new Date(ev.start_time);
+                                              const end = new Date(ev.end_time);
+                                              const startHour = start.getHours() + start.getMinutes() / 60;
+                                              const endHour = end.getHours() + end.getMinutes() / 60;
+                                              
+                                              // Calculate position relative to start of grid (06:00)
+                                              const top = (startHour - 6) * 60;
+                                              const height = Math.max((endHour - startHour) * 60, 20); // Min height 20px
+
+                                              if (top < 0) return null; // Skip events before 6am for now
+
+                                              return (
+                                                  <div
+                                                      key={ev.id}
+                                                      draggable={ev.type === 'event'}
+                                                      onDragStart={() => setDraggingEvent(ev)}
+                                                      onClick={(e) => { e.stopPropagation(); openEditModal(ev); }}
+                                                      className={cn(
+                                                          "absolute left-1 right-1 rounded px-2 py-1 text-xs border-l-4 cursor-pointer hover:brightness-95 hover:scale-[1.02] transition-all shadow-sm z-10 overflow-hidden",
+                                                          draggingEvent?.id === ev.id ? "opacity-50" : "",
+                                                          ev.color === 'red' ? "bg-red-100 text-red-700 border-red-500 dark:bg-red-900/40 dark:text-red-100" :
+                                                          ev.color === 'green' ? "bg-green-100 text-green-700 border-green-500 dark:bg-green-900/40 dark:text-green-100" :
+                                                          ev.color === 'yellow' ? "bg-yellow-100 text-yellow-700 border-yellow-500 dark:bg-yellow-900/40 dark:text-yellow-100" :
+                                                          ev.color === 'purple' ? "bg-purple-100 text-purple-700 border-purple-500 dark:bg-purple-900/40 dark:text-purple-100" :
+                                                          "bg-blue-100 text-blue-700 border-blue-500 dark:bg-blue-900/40 dark:text-blue-100"
+                                                      )}
+                                                      style={{ top: `${top}px`, height: `${height}px` }}
+                                                      title={`${ev.title} (${format(start, 'HH:mm')} - ${format(end, 'HH:mm')})`}
+                                                  >
+                                                      <div className="font-semibold truncate">{ev.title}</div>
+                                                      <div className="opacity-80 truncate text-[10px]">
+                                                          {format(start, 'HH:mm')} - {format(end, 'HH:mm')}
+                                                      </div>
+                                                      {ev.location && <div className="truncate opacity-70 text-[10px] mt-0.5 hidden sm:block">{ev.location}</div>}
+                                                  </div>
+                                              );
+                                          })}
+                                      </div>
+                                  );
+                              })}
+                          </div>
+                      </div>
                   </div>
               </div>
           </div>
@@ -654,7 +668,7 @@ export const GeneralCalendar = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
         {renderHeader()}
         {viewMode === 'month' ? (
             <>
