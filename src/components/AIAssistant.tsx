@@ -212,7 +212,7 @@ export const AIAssistant = () => {
                         animate={{ scale: 1, opacity: 1 }}
                         exit={{ scale: 0, opacity: 0 }}
                         onClick={() => setIsOpen(true)}
-                        className="fixed bottom-6 right-6 z-50 p-4 bg-gradient-to-br from-indigo-600 to-purple-600 text-white rounded-full shadow-2xl hover:shadow-indigo-500/50 transition-all hover:scale-110 group"
+                        className="fixed bottom-32 sm:bottom-6 right-6 z-[60] p-4 bg-gradient-to-br from-indigo-600 to-purple-600 text-white rounded-full shadow-2xl hover:shadow-indigo-500/50 transition-all hover:scale-110 group"
                     >
                         <Bot className="w-7 h-7" />
                         <span className="absolute -top-1 -right-1 flex h-3 w-3">
