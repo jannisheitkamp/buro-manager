@@ -223,7 +223,7 @@ export const Leads = () => {
                                                             </button>
                                                         )}
                                                         {col.id === 'closed' && (
-                                                            <div className="flex gap-1">
+                                                            <div className="flex gap-1 items-center">
                                                                 <button 
                                                                     onClick={() => navigate('/production', { 
                                                                         state: { 
@@ -241,7 +241,7 @@ export const Leads = () => {
                                                                 >
                                                                     <FileInput className="w-4 h-4" />
                                                                 </button>
-                                                                <div className="p-1.5 text-emerald-500">
+                                                                <div className="p-1.5 text-emerald-500 flex items-center justify-center bg-emerald-50 rounded-full" title="Abgeschlossen">
                                                                     <CheckCircle2 className="w-4 h-4" />
                                                                 </div>
                                                             </div>
