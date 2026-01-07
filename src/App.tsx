@@ -22,6 +22,7 @@ import { PageTransition } from '@/components/PageTransition';
 import { GeneralCalendar } from '@/pages/GeneralCalendar';
 
 import { Production } from '@/pages/Production';
+import { Admin } from '@/pages/Admin';
 import { Onboarding } from '@/pages/Onboarding';
 import { OnboardingCheck } from '@/components/OnboardingCheck';
 import { MfaSetup } from '@/pages/MfaSetup';
@@ -80,6 +81,7 @@ function App() {
               <Route path="/callbacks" element={<Layout><PageTransition><Callbacks /></PageTransition></Layout>} />
               <Route path="/parcels" element={<Layout><PageTransition><Parcels /></PageTransition></Layout>} />
               <Route path="/directory" element={<Layout><PageTransition><Directory /></PageTransition></Layout>} />
+              <Route path="/admin" element={<Layout><PageTransition><Admin /></PageTransition></Layout>} />
               <Route path="/profile" element={<Layout><PageTransition><ProfilePage /></PageTransition></Layout>} />
             </Route>
           </Route>

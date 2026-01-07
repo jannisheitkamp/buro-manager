@@ -14,7 +14,8 @@ import {
   Sun,
   Package,
   Phone,
-  TrendingUp
+  TrendingUp,
+  Shield
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { useState, useEffect } from 'react';
@@ -141,6 +142,23 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
                 </Link>
               );
             })}
+
+            {/* Admin Link */}
+            {profile?.roles?.includes('admin') && (
+                <Link
+                  to="/admin"
+                  className={cn(
+                    "flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-xl transition-all duration-200",
+                    location.pathname === '/admin'
+                      ? "bg-indigo-50 text-indigo-700 shadow-sm dark:bg-indigo-900/20 dark:text-indigo-300 translate-x-1" 
+                      : "text-gray-600 hover:bg-gray-50/80 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-700/50 dark:hover:text-gray-200 hover:translate-x-1"
+                  )}
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  <Shield className={cn("h-5 w-5 transition-transform", location.pathname === '/admin' ? "scale-110" : "")} />
+                  Admin Bereich
+                </Link>
+            )}
           </nav>
 
           <div className="p-4 border-t border-gray-200/50 dark:border-gray-700/50 space-y-2">
