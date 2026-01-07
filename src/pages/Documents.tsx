@@ -132,18 +132,27 @@ export function Documents() {
       }
 
       // Handle Shares
-      // First delete existing shares if editing (simplest approach, though crude)
-      if (editingDoc) {
-        await supabase.from('document_shares').delete().eq('document_id', editingDoc.id);
-      }
-
       if (selectedUsers.length > 0 && docId) {
+        // First delete existing shares if editing
+        if (editingDoc) {
+            await supabase.from('document_shares').delete().eq('document_id', editingDoc.id);
+        }
+
         const shareData = selectedUsers.map(userId => ({
           document_id: docId,
           user_id: userId
         }));
+        
         const { error: shareError } = await supabase.from('document_shares').insert(shareData);
-        if (shareError) throw shareError;
+        
+        if (shareError) {
+            console.error('Share Error:', shareError);
+            // Don't throw, just warn
+            toast.error('Dokument gespeichert, aber Teilen fehlgeschlagen');
+        }
+      } else if (editingDoc) {
+          // If editing and no users selected, clear shares
+          await supabase.from('document_shares').delete().eq('document_id', editingDoc.id);
       }
 
       toast.success(editingDoc ? 'Dokument aktualisiert' : 'Dokument erstellt');
