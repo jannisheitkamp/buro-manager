@@ -119,7 +119,7 @@ export const Dashboard = () => {
       supabase.from('callbacks').select('*').neq('status', 'done').or(`assigned_to.eq.${user.id},assigned_to.is.null`),
       supabase.from('parcels').select('*').eq('status', 'pending').order('created_at', { ascending: false }),
       // Fetch 6 months of production data
-      supabase.from('production_entries').select('commission_amount, submission_date').gte('submission_date', startSixMonthsAgo),
+      supabase.from('production_entries').select('commission_amount, submission_date').eq('user_id', user.id).gte('submission_date', startSixMonthsAgo),
       supabase.from('calendar_events').select('*').gte('start_time', todayStart).lte('start_time', todayEnd).order('start_time', { ascending: true }),
       supabase.from('board_messages').select('*, profiles(full_name)').order('created_at', { ascending: false }).limit(3)
     ]);
