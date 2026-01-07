@@ -860,6 +860,7 @@ export const Production = () => {
             isOpen={isModalOpen}
             onClose={() => setIsModalOpen(false)}
             title={editingId ? "Vertrag bearbeiten" : "Neuen Vertrag erfassen"}
+            size="2xl"
         >
             <form onSubmit={handleSubmit} className="space-y-8">
                 
