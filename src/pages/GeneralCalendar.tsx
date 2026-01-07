@@ -287,10 +287,21 @@ export const GeneralCalendar = () => {
       setEventColor('blue');
   };
 
-  const openNewEventModal = (date: Date) => {
+  const openNewEventModal = (date: Date, startTime?: string, endTime?: string) => {
       setEditingEvent(null);
       setSelectedDate(date);
-      resetForm();
+      setEventTitle('');
+      setEventDesc('');
+      setEventLocation('');
+      setEventColor('blue');
+      
+      if (startTime && endTime) {
+          setEventStart(startTime);
+          setEventEnd(endTime);
+      } else {
+          setEventStart('09:00');
+          setEventEnd('10:00');
+      }
       setIsModalOpen(true);
   };
 
@@ -568,14 +579,24 @@ export const GeneralCalendar = () => {
                                                   className="absolute inset-0 z-0"
                                                   onClick={(e) => {
                                                       const rect = e.currentTarget.getBoundingClientRect();
-                                                      const y = e.clientY - rect.top + e.currentTarget.scrollTop;
-                                                      const hourIndex = Math.floor(y / 60);
-                                                      const hour = hours[0] + hourIndex;
-                                                      const newDate = new Date(currentDay);
-                                                      newDate.setHours(hour, 0, 0, 0);
-                                                      setEventStart(`${hour.toString().padStart(2, '0')}:00`);
-                                                      setEventEnd(`${(hour + 1).toString().padStart(2, '0')}:00`);
-                                                      openNewEventModal(newDate);
+                                                      const y = e.clientY - rect.top;
+                                                      
+                                                      const startHour = 6;
+                                                      const totalMinutes = y; // 1px = 1min logic
+                                                      
+                                                      const clickedHour = startHour + Math.floor(totalMinutes / 60);
+                                                      const clickedMinutes = Math.floor(totalMinutes % 60);
+                                                      
+                                                      // Round to nearest 15 minutes
+                                                      const roundedMinutes = Math.floor(clickedMinutes / 15) * 15;
+                                                      
+                                                      const date = new Date(currentDay);
+                                                      date.setHours(clickedHour, roundedMinutes, 0, 0);
+                                                      
+                                                      const startStr = format(date, 'HH:mm');
+                                                      const endStr = format(new Date(date.getTime() + 60 * 60 * 1000), 'HH:mm'); // +1 hour default duration
+                                                      
+                                                      openNewEventModal(date, startStr, endStr);
                                                   }}
                                               />
                                           )}
