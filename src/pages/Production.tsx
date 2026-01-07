@@ -584,13 +584,8 @@ export const Production = () => {
                                 #{index + 1}
                             </div>
                         </div>
-                        <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-1">{data.name}</h3>
-                        <p className="text-gray-500 text-sm mb-4">{data.count} Verträge eingereicht</p>
-                        
-                        <div className="mt-auto w-full bg-white/50 dark:bg-black/20 rounded-xl p-3 backdrop-blur-sm">
-                            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Gesamtumsatz</p>
-                            <p className="text-2xl font-black text-indigo-600 dark:text-indigo-400">{formatCurrency(data.amount)}</p>
-                        </div>
+                        <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">{data.name}</h3>
+
                     </motion.div>
                 ))}
             </div>
