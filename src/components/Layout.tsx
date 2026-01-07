@@ -22,6 +22,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { supabase } from '@/lib/supabase';
 import { CommandPalette } from './CommandPalette';
 import { AIAssistant } from './AIAssistant';
+import { NotificationCenter } from './NotificationCenter';
 import { useNotifications } from '@/hooks/useNotifications';
 
 const navigation = [
@@ -84,6 +85,9 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
             >
               {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
             </button>
+            
+            <NotificationCenter />
+            
             <button
               className="p-2 text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700 rounded-md"
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
@@ -101,12 +105,15 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
         <div className="h-full flex flex-col">
           <div className="p-6 border-b border-gray-200/50 dark:border-gray-700/50 flex items-center justify-between hidden lg:flex">
             <h1 className="text-xl font-bold bg-gradient-to-r from-indigo-600 to-blue-500 bg-clip-text text-transparent">Büro Manager</h1>
-            <button
-              onClick={toggleTheme}
-              className="p-2 text-gray-500 hover:bg-gray-100/50 dark:text-gray-400 dark:hover:bg-gray-700/50 rounded-full transition-colors"
-            >
-              {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-            </button>
+            <div className="flex items-center gap-1">
+                <NotificationCenter />
+                <button
+                onClick={toggleTheme}
+                className="p-2 text-gray-500 hover:bg-gray-100/50 dark:text-gray-400 dark:hover:bg-gray-700/50 rounded-full transition-colors"
+                >
+                {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+                </button>
+            </div>
           </div>
           
           <nav className="flex-1 p-4 space-y-2 overflow-y-auto">

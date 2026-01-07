@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Fragment } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Search, 
@@ -8,15 +8,28 @@ import {
   TrendingUp, 
   UserCircle,
   Calendar,
-  Users
+  Users,
+  Building2,
+  ClipboardList,
+  BarChart2
 } from 'lucide-react';
 import { Dialog, Combobox, Transition } from '@headlessui/react';
-import { Fragment } from 'react';
 import { cn } from '@/utils/cn';
+import { supabase } from '@/lib/supabase';
+
+type Item = {
+    id: string;
+    name: string;
+    href: string;
+    icon: any;
+    type: 'page' | 'colleague';
+    meta?: string;
+};
 
 export const CommandPalette = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
+  const [colleagues, setColleagues] = useState<Item[]>([]);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -30,21 +43,44 @@ export const CommandPalette = () => {
     return () => window.removeEventListener('keydown', onKeydown);
   }, [isOpen]);
 
-  const pages = [
-    { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-    { name: 'Produktion & Umsatz', href: '/production', icon: TrendingUp },
-    { name: 'Rückrufe', href: '/callbacks', icon: Phone },
-    { name: 'Pakete', href: '/parcels', icon: Package },
-    { name: 'Kalender', href: '/general-calendar', icon: Calendar },
-    { name: 'Verzeichnis', href: '/directory', icon: Users },
-    { name: 'Profil', href: '/profile', icon: UserCircle },
+  // Fetch colleagues once when opened or mounted
+  useEffect(() => {
+      const fetchColleagues = async () => {
+          const { data } = await supabase.from('profiles').select('id, full_name, email');
+          if (data) {
+              setColleagues(data.map(p => ({
+                  id: p.id,
+                  name: p.full_name || 'Unbekannt',
+                  href: `/directory`, // In future: /profile/${p.id}
+                  icon: Users,
+                  type: 'colleague',
+                  meta: p.email
+              })));
+          }
+      };
+      fetchColleagues();
+  }, []);
+
+  const pages: Item[] = [
+    { id: 'dash', name: 'Dashboard', href: '/', icon: LayoutDashboard, type: 'page' },
+    { id: 'prod', name: 'Produktion & Umsatz', href: '/production', icon: TrendingUp, type: 'page' },
+    { id: 'cb', name: 'Rückrufe', href: '/callbacks', icon: Phone, type: 'page' },
+    { id: 'parcels', name: 'Pakete', href: '/parcels', icon: Package, type: 'page' },
+    { id: 'cal', name: 'Kalender', href: '/general-calendar', icon: Calendar, type: 'page' },
+    { id: 'abs', name: 'Abwesenheiten', href: '/calendar', icon: Calendar, type: 'page' },
+    { id: 'dir', name: 'Verzeichnis', href: '/directory', icon: Users, type: 'page' },
+    { id: 'prof', name: 'Profil', href: '/profile', icon: UserCircle, type: 'page' },
+    { id: 'book', name: 'Buchungen', href: '/bookings', icon: Building2, type: 'page' },
+    { id: 'board', name: 'Schwarzes Brett', href: '/board', icon: ClipboardList, type: 'page' },
+    { id: 'polls', name: 'Umfragen', href: '/polls', icon: BarChart2, type: 'page' },
   ];
 
-  const filteredPages = query === ''
-    ? pages
-    : pages.filter((page) =>
-        page.name.toLowerCase().includes(query.toLowerCase())
-      );
+  const filteredItems = query === ''
+    ? [...pages, ...colleagues.slice(0, 3)]
+    : [
+        ...pages.filter((page) => page.name.toLowerCase().includes(query.toLowerCase())),
+        ...colleagues.filter((col) => col.name.toLowerCase().includes(query.toLowerCase()))
+      ];
 
   return (
     <Transition.Root show={isOpen} as={Fragment} afterLeave={() => setQuery('')}>
@@ -72,9 +108,9 @@ export const CommandPalette = () => {
             leaveTo="opacity-0 scale-95"
           >
             <Dialog.Panel className="mx-auto max-w-xl transform divide-y divide-gray-100 dark:divide-gray-700 overflow-hidden rounded-xl bg-white dark:bg-gray-800 shadow-2xl ring-1 ring-black ring-opacity-5 transition-all">
-              <Combobox onChange={(page: any) => {
-                if (page) {
-                    navigate(page.href);
+              <Combobox onChange={(item: Item) => {
+                if (item) {
+                    navigate(item.href);
                     setIsOpen(false);
                 }
               }}>
@@ -85,17 +121,17 @@ export const CommandPalette = () => {
                   />
                   <Combobox.Input
                     className="h-12 w-full border-0 bg-transparent pl-11 pr-4 text-gray-900 dark:text-white placeholder:text-gray-400 focus:ring-0 sm:text-sm"
-                    placeholder="Suche nach Seiten... (Cmd+K)"
+                    placeholder="Suche nach Seiten oder Kollegen... (Cmd+K)"
                     onChange={(event) => setQuery(event.target.value)}
                   />
                 </div>
 
-                {filteredPages.length > 0 && (
-                  <Combobox.Options static className="max-h-72 scroll-py-2 overflow-y-auto py-2 text-sm text-gray-800 dark:text-gray-200">
-                    {filteredPages.map((page) => (
+                {filteredItems.length > 0 && (
+                  <Combobox.Options static className="max-h-96 scroll-py-2 overflow-y-auto py-2 text-sm text-gray-800 dark:text-gray-200">
+                    {filteredItems.map((item) => (
                       <Combobox.Option
-                        key={page.href}
-                        value={page}
+                        key={`${item.type}-${item.id}`}
+                        value={item}
                         className={({ active }) =>
                           cn(
                             'cursor-default select-none px-4 py-2 flex items-center gap-3',
@@ -105,9 +141,23 @@ export const CommandPalette = () => {
                       >
                         {({ active }) => (
                           <>
-                            <page.icon className={cn("h-5 w-5", active ? "text-white" : "text-gray-400")} />
-                            <span className={cn("flex-1", active ? "font-semibold" : "")}>{page.name}</span>
-                            {active && <span className="text-xs text-indigo-200">Enter</span>}
+                            <div className={cn(
+                                "p-1.5 rounded-lg",
+                                active ? "bg-white/20" : "bg-gray-100 dark:bg-gray-700"
+                            )}>
+                                <item.icon className={cn("h-4 w-4", active ? "text-white" : "text-gray-500 dark:text-gray-400")} />
+                            </div>
+                            <div className="flex-1">
+                                <span className={cn("block truncate font-medium", active ? "text-white" : "text-gray-900 dark:text-white")}>
+                                    {item.name}
+                                </span>
+                                {item.type === 'colleague' && (
+                                    <span className={cn("block truncate text-xs", active ? "text-indigo-200" : "text-gray-500")}>
+                                        Kollege • {item.meta}
+                                    </span>
+                                )}
+                            </div>
+                            {active && <span className="text-xs text-indigo-200">Öffnen</span>}
                           </>
                         )}
                       </Combobox.Option>
@@ -115,7 +165,7 @@ export const CommandPalette = () => {
                   </Combobox.Options>
                 )}
 
-                {query !== '' && filteredPages.length === 0 && (
+                {query !== '' && filteredItems.length === 0 && (
                   <p className="p-4 text-sm text-gray-500">Keine Ergebnisse gefunden.</p>
                 )}
               </Combobox>
