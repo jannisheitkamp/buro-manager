@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useStore } from '@/store/useStore';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, ArrowRight, ArrowLeft, Trash2, User, Phone, Mail, Clock, Box, FileInput, CheckCircle2 } from 'lucide-react';
+import { Plus, ArrowRight, ArrowLeft, Trash2, User, Phone, Mail, Clock, Box, FileInput, CheckCircle2, Archive } from 'lucide-react';
 import { Modal } from '@/components/Modal';
 import { toast } from 'react-hot-toast';
 import { cn } from '@/utils/cn';
@@ -46,6 +46,8 @@ export const Leads = () => {
         status: 'new'
     });
 
+    const [showArchived, setShowArchived] = useState(false);
+
     const fetchLeads = async () => {
         const { data, error } = await supabase
             .from('leads')
@@ -72,13 +74,29 @@ export const Leads = () => {
         return () => { sub.unsubscribe(); };
     }, []);
 
+    const [editingId, setEditingId] = useState<string | null>(null);
+
+    const handleEdit = (lead: Lead) => {
+        setEditingId(lead.id);
+        setFormData({
+            customer_name: lead.customer_name,
+            phone: lead.phone || '',
+            email: lead.email || '',
+            availability: lead.availability || '',
+            product: lead.product || '',
+            notes: lead.notes || '',
+            status: lead.status
+        });
+        setIsModalOpen(true);
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!user) return;
         setSubmitting(true);
 
         try {
-            const { error } = await supabase.from('leads').insert({
+            const payload = {
                 user_id: user.id,
                 customer_name: formData.customer_name,
                 phone: formData.phone,
@@ -87,12 +105,22 @@ export const Leads = () => {
                 product: formData.product,
                 notes: formData.notes,
                 status: formData.status
-            });
+            };
 
-            if (error) throw error;
-            toast.success('Lead erstellt');
+            if (editingId) {
+                const { error } = await supabase.from('leads').update(payload).eq('id', editingId);
+                if (error) throw error;
+                toast.success('Lead aktualisiert');
+            } else {
+                const { error } = await supabase.from('leads').insert(payload);
+                if (error) throw error;
+                toast.success('Lead erstellt');
+            }
+
             setIsModalOpen(false);
+            setEditingId(null);
             setFormData({ customer_name: '', phone: '', email: '', availability: '', product: '', notes: '', status: 'new' });
+            fetchLeads(); // Refresh list to be sure
         } catch (error) {
             console.error(error);
             toast.error('Fehler beim Speichern');
@@ -129,7 +157,85 @@ export const Leads = () => {
         }
     };
 
+    const unarchiveLead = async (id: string) => {
+        const { error } = await supabase.from('leads').update({ status: 'new' }).eq('id', id);
+        if (error) {
+            toast.error('Fehler beim Wiederherstellen');
+        } else {
+            setLeads(leads.map(l => l.id === id ? { ...l, status: 'new' } : l));
+            toast.success('Lead wiederhergestellt');
+        }
+    };
+
     const getColumnLeads = (status: string) => leads.filter(l => l.status === status);
+
+    const archivedLeads = leads.filter(l => l.status === 'archived');
+
+    if (showArchived) {
+        return (
+            <div className="max-w-[1600px] mx-auto space-y-8 h-[calc(100vh-100px)] flex flex-col pb-4">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 flex-shrink-0">
+                    <div>
+                        <h1 className="text-3xl font-black text-gray-900 dark:text-white flex items-center gap-3">
+                            <div className="p-2 bg-gray-100 dark:bg-gray-800 rounded-xl">
+                                <Archive className="w-8 h-8 text-gray-600 dark:text-gray-400" />
+                            </div>
+                            Archivierte Leads
+                        </h1>
+                        <p className="text-gray-500 dark:text-gray-400 mt-2 ml-1">Historie deiner abgeschlossenen Leads.</p>
+                    </div>
+                    <button
+                        onClick={() => setShowArchived(false)}
+                        className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white px-6 py-3 rounded-2xl flex items-center gap-2 shadow-sm border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                    >
+                        <ArrowLeft className="w-5 h-5" /> Zurück zur Pipeline
+                    </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 overflow-y-auto pb-4 custom-scrollbar">
+                    {archivedLeads.length === 0 ? (
+                        <div className="col-span-full flex flex-col items-center justify-center h-64 text-gray-400">
+                            <Archive className="w-12 h-12 mb-4 opacity-50" />
+                            <p>Keine archivierten Leads.</p>
+                        </div>
+                    ) : (
+                        archivedLeads.map(lead => (
+                            <div key={lead.id} className="bg-white dark:bg-gray-800 p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700 opacity-75 hover:opacity-100 transition-opacity">
+                                <div className="flex justify-between items-start mb-4">
+                                    <h3 className="font-bold text-lg text-gray-900 dark:text-white">{lead.customer_name}</h3>
+                                    <div className="flex gap-2">
+                                        <button 
+                                            onClick={() => unarchiveLead(lead.id)}
+                                            className="p-2 text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-xl transition-colors"
+                                            title="Wiederherstellen"
+                                        >
+                                            <ArrowLeft className="w-4 h-4" />
+                                        </button>
+                                        <button 
+                                            onClick={() => deleteLead(lead.id)}
+                                            className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-xl transition-colors"
+                                            title="Endgültig löschen"
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                </div>
+                                <div className="space-y-2 text-sm text-gray-500 dark:text-gray-400">
+                                    {lead.product && <div className="flex items-center gap-2"><Box className="w-4 h-4" /> {lead.product}</div>}
+                                    {lead.created_at && <div className="flex items-center gap-2"><Clock className="w-4 h-4" /> Erstellt: {format(new Date(lead.created_at), 'dd.MM.yyyy')}</div>}
+                                </div>
+                                {lead.notes && (
+                                    <div className="mt-4 p-3 bg-gray-50 dark:bg-gray-900/50 rounded-xl text-xs italic text-gray-500">
+                                        "{lead.notes}"
+                                    </div>
+                                )}
+                            </div>
+                        ))
+                    )}
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="max-w-[1600px] mx-auto space-y-8 h-[calc(100vh-100px)] flex flex-col pb-4">
@@ -149,6 +255,12 @@ export const Leads = () => {
                 </div>
 
                 <div className="flex items-center gap-4">
+                    <button
+                        onClick={() => setShowArchived(true)}
+                        className="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white px-4 py-2 rounded-xl flex items-center gap-2 transition-colors"
+                    >
+                        <Archive className="w-5 h-5" /> Archiv
+                    </button>
                     <motion.button
                         initial={{ opacity: 0, scale: 0.9 }}
                         animate={{ opacity: 1, scale: 1 }}
@@ -167,7 +279,16 @@ export const Leads = () => {
                         const colLeads = getColumnLeads(col.id);
 
                         return (
-                            <div key={col.id} className="flex-1 flex flex-col min-w-[280px] bg-gray-50/50 dark:bg-gray-800/20 rounded-3xl border border-gray-100 dark:border-gray-700/50 flex-shrink-0">
+                            <div 
+                                key={col.id} 
+                                className="flex-1 flex flex-col min-w-[280px] bg-gray-50/50 dark:bg-gray-800/20 rounded-3xl border border-gray-100 dark:border-gray-700/50 flex-shrink-0"
+                                onDragOver={(e) => e.preventDefault()}
+                                onDrop={(e) => {
+                                    e.preventDefault();
+                                    const leadId = e.dataTransfer.getData('leadId');
+                                    if (leadId) updateStatus(leadId, col.id);
+                                }}
+                            >
                                 {/* Column Header */}
                                 <div className={`p-4 rounded-t-3xl border-b border-gray-100 dark:border-gray-700/50 flex items-center justify-between ${col.color.split(' ')[0]} bg-opacity-50`}>
                                     <div>
@@ -187,11 +308,20 @@ export const Leads = () => {
                                                 initial={{ opacity: 0, y: 20 }}
                                                 animate={{ opacity: 1, y: 0 }}
                                                 exit={{ opacity: 0, scale: 0.9 }}
-                                                className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 group hover:shadow-md transition-all cursor-grab active:cursor-grabbing"
+                                                draggable
+                                                onDragStart={(e) => {
+                                                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                                    (e as any).dataTransfer.setData('leadId', lead.id);
+                                                }}
+                                                onClick={() => handleEdit(lead)}
+                                                className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 group hover:shadow-md transition-all cursor-grab active:cursor-grabbing hover:ring-2 hover:ring-indigo-500/20 relative"
                                             >
                                                 <div className="flex justify-between items-start mb-3">
                                                     <h4 className="font-bold text-gray-900 dark:text-white line-clamp-1 text-base">{lead.customer_name}</h4>
-                                                    <button onClick={() => deleteLead(lead.id)} className="text-gray-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100">
+                                                    <button 
+                                                        onClick={(e) => { e.stopPropagation(); deleteLead(lead.id); }} 
+                                                        className="text-gray-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100 p-1"
+                                                    >
                                                         <Trash2 className="w-4 h-4" />
                                                     </button>
                                                 </div>
