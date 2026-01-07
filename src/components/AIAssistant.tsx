@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Sparkles, Send, X, Bot, ArrowRight, Minimize2, Maximize2, Terminal } from 'lucide-react';
+import { Send, X, Bot, ArrowRight, Minimize2, Maximize2 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
@@ -68,6 +68,16 @@ const INTENTS: IntentHandler[] = [
             return {
                 text: "Ich öffne deinen Kalender für dich.",
                 actions: [{ label: 'Zum Kalender', action: () => navigate('/calendar') }]
+            };
+        }
+    },
+    {
+        id: 'bookings',
+        keywords: ['raum', 'buchung', 'auto', 'wagen', 'beamer', 'reservieren', 'meeting'],
+        handler: async (navigate) => {
+            return {
+                text: "Du kannst Räume, Autos und Equipment direkt hier buchen.",
+                actions: [{ label: 'Zur Buchung', action: () => navigate('/bookings') }]
             };
         }
     },

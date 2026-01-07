@@ -4,13 +4,18 @@ import { Booking } from '@/types';
 import { useStore } from '@/store/useStore';
 import { format, parseISO, addDays, startOfDay, isBefore, setHours, setMinutes } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { Plus, Trash2, Calendar as CalendarIcon, MapPin, Clock, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Trash2, Calendar as CalendarIcon, MapPin, Clock, ChevronLeft, ChevronRight, Car, Projector, Monitor } from 'lucide-react';
 import { Modal } from '@/components/Modal';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { toast } from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const RESOURCES = ['Besprechungsraum'];
+const RESOURCES = [
+    { id: 'Besprechungsraum', label: 'Besprechungsraum', icon: MapPin, color: 'text-indigo-600', bg: 'bg-indigo-100' },
+    { id: 'Firmenwagen', label: 'Firmenwagen (BMW)', icon: Car, color: 'text-blue-600', bg: 'bg-blue-100' },
+    { id: 'Beamer', label: 'Beamer / Projektor', icon: Projector, color: 'text-orange-600', bg: 'bg-orange-100' },
+    { id: 'Zoom', label: 'Zoom Account (Pro)', icon: Monitor, color: 'text-cyan-600', bg: 'bg-cyan-100' }
+];
 
 export const Bookings = () => {
   const { user } = useStore();
@@ -22,7 +27,7 @@ export const Bookings = () => {
 
   // Form state
   const [formData, setFormData] = useState({
-    resource_name: RESOURCES[0],
+    resource_name: RESOURCES[0].id,
     title: '',
     start_time: '09:00',
     end_time: '10:00',
@@ -124,7 +129,7 @@ export const Bookings = () => {
       setIsModalOpen(false);
       setFormData(prev => ({ ...prev, title: '' }));
       fetchBookings();
-      toast.success('Raum erfolgreich gebucht!');
+      toast.success('Erfolgreich gebucht!');
     } catch (error: any) {
       console.error('Error creating booking:', error);
       if (error.message?.includes('Zeitraum überschneidet')) {
@@ -138,7 +143,7 @@ export const Bookings = () => {
   };
 
   const bookingsByResource = RESOURCES.reduce((acc, resource) => {
-    acc[resource] = bookings.filter(b => b.resource_name === resource);
+    acc[resource.id] = bookings.filter(b => b.resource_name === resource.id);
     return acc;
   }, {} as Record<string, Booking[]>);
 
@@ -153,9 +158,9 @@ export const Bookings = () => {
                 <div className="p-2 bg-indigo-100 dark:bg-indigo-900/30 rounded-xl">
                     <CalendarIcon className="w-8 h-8 text-indigo-600 dark:text-indigo-400" />
                 </div>
-                Raumbuchung
+                Ressourcen & Räume
             </h1>
-            <p className="text-gray-500 dark:text-gray-400 mt-2 ml-1">Reserviere Besprechungsräume für dein Team.</p>
+            <p className="text-gray-500 dark:text-gray-400 mt-2 ml-1">Reserviere Besprechungsräume, Autos oder Equipment.</p>
         </motion.div>
         
         <motion.div 
@@ -194,115 +199,112 @@ export const Bookings = () => {
         </motion.button>
       </div>
 
-      <div className="grid grid-cols-1 gap-8">
-        {RESOURCES.map((resource, idx) => (
-          <motion.div 
-            key={resource}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: idx * 0.1 }}
-            className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-3xl shadow-xl border border-white/20 dark:border-gray-700/50 overflow-hidden"
-          >
-            <div className="p-6 border-b border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50 flex items-center gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shadow-inner">
-                    <MapPin className="w-6 h-6" />
-                </div>
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white">{resource}</h2>
-            </div>
-            <div className="p-6 min-h-[300px]">
-                {bookingsByResource[resource].length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-64 text-center">
-                        <motion.div 
-                            initial={{ scale: 0 }}
-                            animate={{ scale: 1 }}
-                            transition={{ type: "spring", stiffness: 200, delay: 0.2 }}
-                            className="w-20 h-20 bg-gray-50 dark:bg-gray-700/30 rounded-full flex items-center justify-center mb-4"
-                        >
-                            <Clock className="w-10 h-10 text-gray-300" />
-                        </motion.div>
-                        <p className="text-gray-500 dark:text-gray-400 font-medium text-lg">Der Raum ist frei!</p>
-                        <p className="text-sm text-gray-400">Keine Buchungen für diesen Tag.</p>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {RESOURCES.map((resource, idx) => {
+            const Icon = resource.icon;
+            return (
+                <motion.div 
+                    key={resource.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: idx * 0.1 }}
+                    className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-3xl shadow-xl border border-white/20 dark:border-gray-700/50 overflow-hidden flex flex-col h-full"
+                >
+                    <div className="p-5 border-b border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50 flex items-center gap-4">
+                        <div className={`w-10 h-10 rounded-xl ${resource.bg} dark:bg-opacity-20 flex items-center justify-center ${resource.color} dark:text-opacity-80 shadow-inner`}>
+                            <Icon className="w-5 h-5" />
+                        </div>
+                        <h2 className="text-lg font-bold text-gray-900 dark:text-white">{resource.label}</h2>
                     </div>
-                ) : (
-                    <div className="space-y-4">
-                        <AnimatePresence>
-                            {bookingsByResource[resource].map((booking, i) => {
-                                const isOwn = booking.user_id === user?.id;
-                                return (
-                                    <motion.div 
-                                        key={booking.id}
-                                        initial={{ opacity: 0, x: -20 }}
-                                        animate={{ opacity: 1, x: 0 }}
-                                        transition={{ delay: i * 0.1 }}
-                                        className="relative group flex items-center gap-6 bg-white dark:bg-gray-700/40 hover:bg-indigo-50/50 dark:hover:bg-gray-700 p-5 rounded-2xl border border-gray-100 dark:border-gray-700 transition-all shadow-sm hover:shadow-md"
-                                    >
-                                        {/* Time Column */}
-                                        <div className="flex flex-col items-center justify-center min-w-[100px] border-r border-gray-100 dark:border-gray-600 pr-6">
-                                            <span className="text-2xl font-bold text-gray-900 dark:text-white">
-                                                {format(parseISO(booking.start_time), 'HH:mm')}
-                                            </span>
-                                            <span className="text-xs font-medium text-gray-400 uppercase tracking-wide mt-1">
-                                                bis {format(parseISO(booking.end_time), 'HH:mm')}
-                                            </span>
-                                        </div>
-
-                                        {/* Content */}
-                                        <div className="flex-1 min-w-0">
-                                            <h3 className="font-bold text-gray-900 dark:text-white text-xl truncate mb-2">{booking.title}</h3>
-                                            <div className="flex items-center gap-3">
-                                                <img
-                                                    src={booking.profiles?.avatar_url || `https://ui-avatars.com/api/?name=${booking.profiles?.full_name || 'User'}&background=random`}
-                                                    alt={booking.profiles?.full_name || ''}
-                                                    className="w-6 h-6 rounded-full ring-2 ring-white dark:ring-gray-800"
-                                                />
-                                                <span className="text-sm text-gray-500 dark:text-gray-400 truncate">
-                                                    Gebucht von <span className="font-semibold text-gray-700 dark:text-gray-300">{booking.profiles?.full_name}</span>
-                                                </span>
-                                            </div>
-                                        </div>
-
-                                        {/* Actions */}
-                                        {isOwn && (
-                                            <motion.button 
-                                                whileHover={{ scale: 1.1 }}
-                                                whileTap={{ scale: 0.9 }}
-                                                onClick={() => setDeleteId(booking.id)}
-                                                className="p-3 bg-white dark:bg-gray-800 rounded-xl text-gray-400 hover:text-red-500 shadow-sm border border-gray-100 dark:border-gray-600 opacity-0 group-hover:opacity-100 transition-all"
-                                                title="Stornieren"
+                    <div className="p-5 flex-1 overflow-y-auto max-h-[400px]">
+                        {bookingsByResource[resource.id]?.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center h-40 text-center opacity-60">
+                                <Clock className="w-8 h-8 text-gray-300 mb-2" />
+                                <p className="text-gray-500 dark:text-gray-400 font-medium text-sm">Verfügbar</p>
+                            </div>
+                        ) : (
+                            <div className="space-y-3">
+                                <AnimatePresence>
+                                    {bookingsByResource[resource.id]?.map((booking, i) => {
+                                        const isOwn = booking.user_id === user?.id;
+                                        return (
+                                            <motion.div 
+                                                key={booking.id}
+                                                initial={{ opacity: 0, x: -20 }}
+                                                animate={{ opacity: 1, x: 0 }}
+                                                transition={{ delay: i * 0.1 }}
+                                                className="relative group flex items-start gap-3 bg-white dark:bg-gray-700/40 hover:bg-indigo-50/50 dark:hover:bg-gray-700 p-3 rounded-xl border border-gray-100 dark:border-gray-700 transition-all shadow-sm"
                                             >
-                                                <Trash2 className="w-5 h-5" />
-                                            </motion.button>
-                                        )}
-                                    </motion.div>
-                                );
-                            })}
-                        </AnimatePresence>
+                                                {/* Time */}
+                                                <div className="flex flex-col items-center justify-center min-w-[60px] border-r border-gray-100 dark:border-gray-600 pr-3 py-1">
+                                                    <span className="text-sm font-bold text-gray-900 dark:text-white">
+                                                        {format(parseISO(booking.start_time), 'HH:mm')}
+                                                    </span>
+                                                    <span className="text-[10px] font-medium text-gray-400">
+                                                        {format(parseISO(booking.end_time), 'HH:mm')}
+                                                    </span>
+                                                </div>
+
+                                                {/* Content */}
+                                                <div className="flex-1 min-w-0">
+                                                    <h3 className="font-bold text-gray-800 dark:text-gray-200 text-sm truncate">{booking.title}</h3>
+                                                    <div className="flex items-center gap-2 mt-1">
+                                                        <img
+                                                            src={booking.profiles?.avatar_url || `https://ui-avatars.com/api/?name=${booking.profiles?.full_name || 'User'}&background=random`}
+                                                            alt={booking.profiles?.full_name || ''}
+                                                            className="w-4 h-4 rounded-full ring-1 ring-white dark:ring-gray-800"
+                                                        />
+                                                        <span className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                                                            {booking.profiles?.full_name}
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                {/* Actions */}
+                                                {isOwn && (
+                                                    <button 
+                                                        onClick={() => setDeleteId(booking.id)}
+                                                        className="p-1.5 bg-white dark:bg-gray-800 rounded-lg text-gray-400 hover:text-red-500 shadow-sm border border-gray-100 dark:border-gray-600 opacity-0 group-hover:opacity-100 transition-all absolute right-2 top-2"
+                                                        title="Stornieren"
+                                                    >
+                                                        <Trash2 className="w-3.5 h-3.5" />
+                                                    </button>
+                                                )}
+                                            </motion.div>
+                                        );
+                                    })}
+                                </AnimatePresence>
+                            </div>
+                        )}
                     </div>
-                )}
-            </div>
-          </motion.div>
-        ))}
+                </motion.div>
+            );
+        })}
       </div>
 
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title="Raum buchen"
+        title="Ressource buchen"
       >
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
             <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
-              Raum
+              Was möchtest du buchen?
             </label>
-            <select
-              value={formData.resource_name}
-              onChange={(e) => setFormData({ ...formData, resource_name: e.target.value })}
-              className="w-full rounded-xl border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all appearance-none"
-            >
-              {RESOURCES.map(r => (
-                  <option key={r} value={r}>{r}</option>
-              ))}
-            </select>
+            <div className="grid grid-cols-2 gap-3">
+                {RESOURCES.map(r => (
+                    <button
+                        key={r.id}
+                        type="button"
+                        onClick={() => setFormData({ ...formData, resource_name: r.id })}
+                        className={`p-3 rounded-xl border flex flex-col items-center gap-2 transition-all ${formData.resource_name === r.id ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300' : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+                    >
+                        <r.icon className="w-5 h-5" />
+                        <span className="text-xs font-semibold">{r.label}</span>
+                    </button>
+                ))}
+            </div>
           </div>
 
           <div>
@@ -312,7 +314,7 @@ export const Bookings = () => {
             <input
               type="text"
               required
-              placeholder="z.B. Daily Standup"
+              placeholder="z.B. Kundentermin Müller"
               value={formData.title}
               onChange={(e) => setFormData({ ...formData, title: e.target.value })}
               className="w-full rounded-xl border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all"

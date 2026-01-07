@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { useStore } from '@/store/useStore';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { TrendingUp, Plus, Search, Filter, Euro, FileText, Trash2, Download, Pencil, FileDown, PieChart, BarChart as BarChartIcon } from 'lucide-react';
+import { TrendingUp, Plus, Search, Filter, Euro, FileText, Trash2, Download, Pencil, FileDown, PieChart, BarChart as BarChartIcon, Medal, Trophy, LayoutGrid, List } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { Modal } from '@/components/Modal';
 import { toast } from 'react-hot-toast';
@@ -40,6 +40,7 @@ export const Production = () => {
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'personal' | 'leaderboard'>('personal');
 
   // --- Config ---
   // Define insurance types and subcategories
@@ -172,7 +173,7 @@ export const Production = () => {
     setLoading(true);
     const { data, error } = await supabase
         .from('production_entries')
-        .select('*')
+        .select('*, profiles(full_name, avatar_url)')
         .order('created_at', { ascending: false });
     
     if (error) {
@@ -292,7 +293,9 @@ export const Production = () => {
       }
   };
 
+  // Filter entries based on viewMode
   const filteredEntries = entries.filter(e => {
+      if (viewMode === 'personal' && e.user_id !== user?.id) return false;
       if (filterCategory !== 'all' && e.category !== filterCategory) return false;
       const search = searchQuery.toLowerCase();
       return (
@@ -303,6 +306,31 @@ export const Production = () => {
 
   const totalCommission = filteredEntries.reduce((acc, curr) => acc + (curr.commission_amount || 0), 0);
   const totalLiability = filteredEntries.reduce((acc, curr) => acc + ((curr.commission_amount || 0) * (curr.liability_rate || 0) / 100), 0);
+
+  // --- LEADERBOARD CALCULATION ---
+  const getLeaderboardData = () => {
+      const userTotals: Record<string, { name: string; avatar: string; amount: number; count: number }> = {};
+      
+      entries.forEach(e => {
+          const userId = e.user_id;
+          if (!userTotals[userId]) {
+              userTotals[userId] = {
+                  name: e.profiles?.full_name || 'Unbekannt',
+                  avatar: e.profiles?.avatar_url,
+                  amount: 0,
+                  count: 0
+              };
+          }
+          userTotals[userId].amount += (e.commission_amount || 0);
+          userTotals[userId].count += 1;
+      });
+
+      return Object.entries(userTotals)
+        .map(([id, data]) => ({ id, ...data }))
+        .sort((a, b) => b.amount - a.amount);
+  };
+
+  const leaderboardData = getLeaderboardData();
 
   // --- CHART DATA PREPARATION ---
   
@@ -468,19 +496,37 @@ export const Production = () => {
               transition={{ delay: 0.2 }}
               className="flex items-center gap-3"
             >
+                <div className="bg-gray-100 dark:bg-gray-800 p-1 rounded-2xl flex items-center mr-2">
+                    <button
+                        onClick={() => setViewMode('personal')}
+                        className={cn(
+                            "px-4 py-2 rounded-xl text-sm font-medium transition-all flex items-center gap-2",
+                            viewMode === 'personal' 
+                                ? "bg-white dark:bg-gray-700 shadow-sm text-indigo-600 dark:text-indigo-400" 
+                                : "text-gray-500 dark:text-gray-400 hover:text-gray-700"
+                        )}
+                    >
+                        <LayoutGrid className="w-4 h-4" /> Meine
+                    </button>
+                    <button
+                        onClick={() => setViewMode('leaderboard')}
+                        className={cn(
+                            "px-4 py-2 rounded-xl text-sm font-medium transition-all flex items-center gap-2",
+                            viewMode === 'leaderboard' 
+                                ? "bg-white dark:bg-gray-700 shadow-sm text-indigo-600 dark:text-indigo-400" 
+                                : "text-gray-500 dark:text-gray-400 hover:text-gray-700"
+                        )}
+                    >
+                        <Trophy className="w-4 h-4" /> Rangliste
+                    </button>
+                </div>
+
                 <button 
                     onClick={handleExportPDF}
                     className="p-3 bg-white dark:bg-gray-800 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 transition-all"
                     title="Als PDF Exportieren"
                 >
                     <FileDown className="w-5 h-5" />
-                </button>
-                <button 
-                    onClick={handleExport}
-                    className="p-3 bg-white dark:bg-gray-800 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 transition-all"
-                    title="Als CSV Exportieren"
-                >
-                    <Download className="w-5 h-5" />
                 </button>
                 <button
                     onClick={() => {
@@ -496,262 +542,318 @@ export const Production = () => {
             </motion.div>
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
-              className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-3xl p-6 border border-white/20 shadow-xl relative overflow-hidden group"
-            >
-                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                    <Euro className="w-24 h-24 text-indigo-600" />
-                </div>
-                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Gesamtprovision (Liste)</p>
-                <p className="text-4xl font-black text-indigo-600 dark:text-indigo-400 mt-2">{formatCurrency(totalCommission)}</p>
-            </motion.div>
-
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4 }}
-              className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-3xl p-6 border border-white/20 shadow-xl relative overflow-hidden group"
-            >
-                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                    <TrendingUp className="w-24 h-24 text-orange-500" />
-                </div>
-                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Haftungsreserve (Total)</p>
-                <p className="text-4xl font-black text-orange-500 dark:text-orange-400 mt-2">{formatCurrency(totalLiability)}</p>
-            </motion.div>
-        </div>
-
-        {/* Charts Section */}
-        {filteredEntries.length > 0 && (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Bar Chart: Monthly Revenue */}
-                <motion.div 
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: 0.45 }}
-                    className="lg:col-span-2 bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-3xl p-6 border border-white/20 shadow-xl"
-                >
-                    <div className="flex items-center gap-3 mb-6">
-                        <div className="p-2 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg">
-                            <BarChartIcon className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-                        </div>
-                        <h3 className="font-bold text-gray-900 dark:text-white">Umsatzentwicklung (letzte 6 Monate)</h3>
-                    </div>
-                    <div className="h-[300px] w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={monthlyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.1} />
-                                <XAxis 
-                                    dataKey="name" 
-                                    axisLine={false} 
-                                    tickLine={false} 
-                                    tick={{ fill: '#9CA3AF', fontSize: 12 }} 
-                                    dy={10}
-                                />
-                                <YAxis 
-                                    axisLine={false} 
-                                    tickLine={false} 
-                                    tick={{ fill: '#9CA3AF', fontSize: 12 }}
-                                    tickFormatter={(val) => `€${val}`}
-                                />
-                                <Tooltip 
-                                    cursor={{ fill: '#EEF2FF', opacity: 0.5 }}
-                                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
-                                    formatter={(value: number) => [formatCurrency(value), 'Umsatz']}
-                                />
-                                <Bar 
-                                    dataKey="value" 
-                                    fill="#6366f1" 
-                                    radius={[6, 6, 0, 0]} 
-                                    barSize={40}
-                                    animationDuration={1500}
-                                >
-                                    {monthlyData.map((entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={entry.value > 0 ? '#6366f1' : '#e5e7eb'} />
-                                    ))}
-                                </Bar>
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </div>
-                </motion.div>
-
-                {/* Pie Chart: Categories */}
-                <motion.div 
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: 0.5 }}
-                    className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-3xl p-6 border border-white/20 shadow-xl"
-                >
-                    <div className="flex items-center gap-3 mb-6">
-                        <div className="p-2 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg">
-                            <PieChart className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-                        </div>
-                        <h3 className="font-bold text-gray-900 dark:text-white">Verteilung nach Sparte</h3>
-                    </div>
-                    <div className="h-[300px] w-full relative">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <RechartsPieChart>
-                                <Pie
-                                    data={categoryData}
-                                    cx="50%"
-                                    cy="50%"
-                                    innerRadius={60}
-                                    outerRadius={80}
-                                    paddingAngle={5}
-                                    dataKey="value"
-                                >
-                                    {categoryData.map((entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                    ))}
-                                </Pie>
-                                <Tooltip 
-                                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
-                                    formatter={(value: number) => formatCurrency(value)}
-                                />
-                                <Legend 
-                                    verticalAlign="bottom" 
-                                    height={36} 
-                                    iconType="circle"
-                                    formatter={(value) => <span className="text-xs font-medium text-gray-500 ml-1">{value}</span>}
-                                />
-                            </RechartsPieChart>
-                        </ResponsiveContainer>
-                        {/* Center Text */}
-                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none pb-8">
-                            <div className="text-center">
-                                <span className="text-xs text-gray-400 font-medium">Gesamt</span>
-                                <div className="text-lg font-bold text-gray-900 dark:text-white">
-                                    {formatCurrency(totalCommission)}
-                                </div>
+        {viewMode === 'leaderboard' ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {leaderboardData.map((data, index) => (
+                    <motion.div
+                        key={data.id}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.1 }}
+                        className={cn(
+                            "relative overflow-hidden rounded-3xl p-6 border shadow-xl flex flex-col items-center text-center",
+                            index === 0 ? "bg-gradient-to-br from-yellow-50 to-amber-100 border-amber-200 dark:from-yellow-900/20 dark:to-amber-900/20 dark:border-amber-700/50" :
+                            index === 1 ? "bg-gradient-to-br from-gray-50 to-slate-100 border-slate-200 dark:from-gray-800 dark:to-slate-800 dark:border-gray-700" :
+                            index === 2 ? "bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200 dark:from-orange-900/20 dark:to-orange-900/20 dark:border-orange-700/50" :
+                            "bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700"
+                        )}
+                    >
+                        {index < 3 && (
+                            <div className="absolute top-0 right-0 p-4">
+                                <Medal className={cn(
+                                    "w-8 h-8",
+                                    index === 0 ? "text-yellow-500" :
+                                    index === 1 ? "text-slate-400" :
+                                    "text-orange-500"
+                                )} />
+                            </div>
+                        )}
+                        <div className="relative mb-4">
+                            <img 
+                                src={data.avatar || `https://ui-avatars.com/api/?name=${data.name}&background=random`} 
+                                alt={data.name}
+                                className={cn(
+                                    "w-20 h-20 rounded-full object-cover shadow-lg ring-4",
+                                    index === 0 ? "ring-yellow-400" :
+                                    index === 1 ? "ring-slate-300" :
+                                    index === 2 ? "ring-orange-300" :
+                                    "ring-gray-100 dark:ring-gray-700"
+                                )} 
+                            />
+                            <div className="absolute -bottom-2 -right-2 bg-gray-900 text-white w-8 h-8 flex items-center justify-center rounded-full font-bold text-sm shadow-md">
+                                #{index + 1}
                             </div>
                         </div>
+                        <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-1">{data.name}</h3>
+                        <p className="text-gray-500 text-sm mb-4">{data.count} Verträge eingereicht</p>
+                        
+                        <div className="mt-auto w-full bg-white/50 dark:bg-black/20 rounded-xl p-3 backdrop-blur-sm">
+                            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Gesamtumsatz</p>
+                            <p className="text-2xl font-black text-indigo-600 dark:text-indigo-400">{formatCurrency(data.amount)}</p>
+                        </div>
+                    </motion.div>
+                ))}
+            </div>
+        ) : (
+            <>
+                {/* Stats Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <motion.div 
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.3 }}
+                    className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-3xl p-6 border border-white/20 shadow-xl relative overflow-hidden group"
+                    >
+                        <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                            <Euro className="w-24 h-24 text-indigo-600" />
+                        </div>
+                        <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Gesamtprovision (Liste)</p>
+                        <p className="text-4xl font-black text-indigo-600 dark:text-indigo-400 mt-2">{formatCurrency(totalCommission)}</p>
+                    </motion.div>
+
+                    <motion.div 
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.4 }}
+                    className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-3xl p-6 border border-white/20 shadow-xl relative overflow-hidden group"
+                    >
+                        <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                            <TrendingUp className="w-24 h-24 text-orange-500" />
+                        </div>
+                        <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Haftungsreserve (Total)</p>
+                        <p className="text-4xl font-black text-orange-500 dark:text-orange-400 mt-2">{formatCurrency(totalLiability)}</p>
+                    </motion.div>
+                </div>
+
+                {/* Charts Section */}
+                {filteredEntries.length > 0 && (
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        {/* Bar Chart: Monthly Revenue */}
+                        <motion.div 
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            transition={{ delay: 0.45 }}
+                            className="lg:col-span-2 bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-3xl p-6 border border-white/20 shadow-xl"
+                        >
+                            <div className="flex items-center gap-3 mb-6">
+                                <div className="p-2 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg">
+                                    <BarChartIcon className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                                </div>
+                                <h3 className="font-bold text-gray-900 dark:text-white">Umsatzentwicklung (letzte 6 Monate)</h3>
+                            </div>
+                            <div className="h-[300px] w-full">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={monthlyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.1} />
+                                        <XAxis 
+                                            dataKey="name" 
+                                            axisLine={false} 
+                                            tickLine={false} 
+                                            tick={{ fill: '#9CA3AF', fontSize: 12 }} 
+                                            dy={10}
+                                        />
+                                        <YAxis 
+                                            axisLine={false} 
+                                            tickLine={false} 
+                                            tick={{ fill: '#9CA3AF', fontSize: 12 }}
+                                            tickFormatter={(val) => `€${val}`}
+                                        />
+                                        <Tooltip 
+                                            cursor={{ fill: '#EEF2FF', opacity: 0.5 }}
+                                            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
+                                            formatter={(value: number) => [formatCurrency(value), 'Umsatz']}
+                                        />
+                                        <Bar 
+                                            dataKey="value" 
+                                            fill="#6366f1" 
+                                            radius={[6, 6, 0, 0]} 
+                                            barSize={40}
+                                            animationDuration={1500}
+                                        >
+                                            {monthlyData.map((entry, index) => (
+                                                <Cell key={`cell-${index}`} fill={entry.value > 0 ? '#6366f1' : '#e5e7eb'} />
+                                            ))}
+                                        </Bar>
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </div>
+                        </motion.div>
+
+                        {/* Pie Chart: Categories */}
+                        <motion.div 
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            transition={{ delay: 0.5 }}
+                            className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-3xl p-6 border border-white/20 shadow-xl"
+                        >
+                            <div className="flex items-center gap-3 mb-6">
+                                <div className="p-2 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg">
+                                    <PieChart className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                                </div>
+                                <h3 className="font-bold text-gray-900 dark:text-white">Verteilung nach Sparte</h3>
+                            </div>
+                            <div className="h-[300px] w-full relative">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <RechartsPieChart>
+                                        <Pie
+                                            data={categoryData}
+                                            cx="50%"
+                                            cy="50%"
+                                            innerRadius={60}
+                                            outerRadius={80}
+                                            paddingAngle={5}
+                                            dataKey="value"
+                                        >
+                                            {categoryData.map((entry, index) => (
+                                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                            ))}
+                                        </Pie>
+                                        <Tooltip 
+                                            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
+                                            formatter={(value: number) => formatCurrency(value)}
+                                        />
+                                        <Legend 
+                                            verticalAlign="bottom" 
+                                            height={36} 
+                                            iconType="circle"
+                                            formatter={(value) => <span className="text-xs font-medium text-gray-500 ml-1">{value}</span>}
+                                        />
+                                    </RechartsPieChart>
+                                </ResponsiveContainer>
+                                {/* Center Text */}
+                                <div className="absolute inset-0 flex items-center justify-center pointer-events-none pb-8">
+                                    <div className="text-center">
+                                        <span className="text-xs text-gray-400 font-medium">Gesamt</span>
+                                        <div className="text-lg font-bold text-gray-900 dark:text-white">
+                                            {formatCurrency(totalCommission)}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+
+                {/* Filters & Table */}
+                <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.5 }}
+                className="bg-white/60 dark:bg-gray-800/60 backdrop-blur-xl rounded-3xl border border-white/20 shadow-xl overflow-hidden"
+                >
+                    <div className="p-6 border-b border-gray-100 dark:border-gray-700/50 flex flex-col sm:flex-row gap-4 justify-between items-center bg-white/40 dark:bg-gray-900/40">
+                        <div className="flex gap-2 overflow-x-auto pb-2 sm:pb-0 w-full sm:w-auto scrollbar-hide">
+                            {['all', 'life', 'property', 'health', 'legal', 'car'].map(cat => (
+                                <button
+                                    key={cat}
+                                    onClick={() => setFilterCategory(cat)}
+                                    className={cn(
+                                        "px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all",
+                                        filterCategory === cat 
+                                            ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/30 scale-105" 
+                                            : "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700"
+                                    )}
+                                >
+                                    {cat === 'all' ? 'Alle' : 
+                                    cat === 'life' ? 'Leben' :
+                                    cat === 'property' ? 'Sach' :
+                                    cat === 'health' ? 'Kranken' :
+                                    cat === 'legal' ? 'Recht' : 'KFZ'}
+                                </button>
+                            ))}
+                        </div>
+                        <div className="relative w-full sm:w-64">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                            <input 
+                                type="text" 
+                                placeholder="Suchen..." 
+                                value={searchQuery}
+                                onChange={e => setSearchQuery(e.target.value)}
+                                className="w-full pl-10 pr-4 py-2 rounded-xl border-none bg-white/50 dark:bg-gray-800/50 focus:bg-white dark:focus:bg-gray-800 focus:ring-2 focus:ring-indigo-500/20 transition-all text-sm"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left text-sm">
+                            <thead className="bg-gray-50/50 dark:bg-gray-900/20">
+                                <tr>
+                                    <th className="px-6 py-4 font-semibold text-gray-900 dark:text-white">Datum</th>
+                                    <th className="px-6 py-4 font-semibold text-gray-900 dark:text-white">Kunde</th>
+                                    <th className="px-6 py-4 font-semibold text-gray-900 dark:text-white">Sparte</th>
+                                    <th className="px-6 py-4 font-semibold text-gray-900 dark:text-white">Beitrag</th>
+                                    <th className="px-6 py-4 font-semibold text-gray-900 dark:text-white">Bewertung</th>
+                                    <th className="px-6 py-4 font-semibold text-gray-900 dark:text-white text-right">Provision</th>
+                                    <th className="px-6 py-4 font-semibold text-gray-900 dark:text-white text-right">Aktion</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
+                                {loading ? (
+                                    <tr><td colSpan={7} className="px-6 py-12 text-center text-gray-500">Lade Daten...</td></tr>
+                                ) : filteredEntries.length === 0 ? (
+                                    <tr><td colSpan={7} className="px-6 py-12 text-center text-gray-500">Keine Verträge gefunden.</td></tr>
+                                ) : (
+                                    filteredEntries.map(entry => (
+                                        <tr key={entry.id} className="hover:bg-indigo-50/30 dark:hover:bg-indigo-900/10 transition-colors group">
+                                            <td className="px-6 py-4 text-gray-600 dark:text-gray-300 whitespace-nowrap">
+                                                {format(new Date(entry.submission_date), 'dd.MM.yyyy')}
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="font-bold text-gray-900 dark:text-white">{entry.customer_name}, {entry.customer_firstname}</div>
+                                                <div className="text-xs text-gray-500 font-mono mt-0.5">{entry.policy_number || '-'}</div>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <span className={cn(
+                                                    "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border",
+                                                    entry.category === 'life' ? "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-800" :
+                                                    entry.category === 'property' ? "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-900/20 dark:text-orange-300 dark:border-orange-800" :
+                                                    entry.category === 'health' ? "bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-300 dark:border-red-800" :
+                                                    "bg-gray-50 text-gray-700 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700"
+                                                )}>
+                                                    {entry.category === 'life' ? 'Leben' : 
+                                                    entry.category === 'property' ? 'Sach' : 
+                                                    entry.category === 'health' ? 'Kranken' : entry.category}
+                                                </span>
+                                                {entry.sub_category && <div className="text-xs text-gray-500 mt-1 pl-1">{entry.sub_category}</div>}
+                                            </td>
+                                            <td className="px-6 py-4 text-gray-600 dark:text-gray-300">
+                                                <div className="font-medium">{formatCurrency(entry.gross_premium || 0)}</div>
+                                                <div className="text-xs text-gray-400">{entry.payment_method}</div>
+                                            </td>
+                                            <td className="px-6 py-4 text-gray-600 dark:text-gray-300">
+                                                <div className="text-xs text-gray-400 mb-0.5">Satz: {entry.commission_rate} {entry.category === 'life' ? '‰' : (entry.category === 'health' && !entry.sub_category?.includes('reise') ? 'MB' : '%')}</div>
+                                                <div className="font-medium">{formatCurrency(entry.valuation_sum || 0)}</div>
+                                            </td>
+                                            <td className="px-6 py-4 text-right font-black text-indigo-600 dark:text-indigo-400">
+                                                {formatCurrency(entry.commission_amount || 0)}
+                                            </td>
+                                            <td className="px-6 py-4 text-right">
+                                                <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <button 
+                                                        onClick={() => handleEdit(entry)}
+                                                        className="p-2 text-gray-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition-all"
+                                                        title="Bearbeiten"
+                                                    >
+                                                        <Pencil className="w-4 h-4" />
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => handleDelete(entry.id)}
+                                                        className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
+                                                        title="Löschen"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
                     </div>
                 </motion.div>
-            </div>
+            </>
         )}
-
-        {/* Filters & Table */}
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5 }}
-          className="bg-white/60 dark:bg-gray-800/60 backdrop-blur-xl rounded-3xl border border-white/20 shadow-xl overflow-hidden"
-        >
-            <div className="p-6 border-b border-gray-100 dark:border-gray-700/50 flex flex-col sm:flex-row gap-4 justify-between items-center bg-white/40 dark:bg-gray-900/40">
-                <div className="flex gap-2 overflow-x-auto pb-2 sm:pb-0 w-full sm:w-auto scrollbar-hide">
-                    {['all', 'life', 'property', 'health', 'legal', 'car'].map(cat => (
-                        <button
-                            key={cat}
-                            onClick={() => setFilterCategory(cat)}
-                            className={cn(
-                                "px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all",
-                                filterCategory === cat 
-                                    ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/30 scale-105" 
-                                    : "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700"
-                            )}
-                        >
-                            {cat === 'all' ? 'Alle' : 
-                             cat === 'life' ? 'Leben' :
-                             cat === 'property' ? 'Sach' :
-                             cat === 'health' ? 'Kranken' :
-                             cat === 'legal' ? 'Recht' : 'KFZ'}
-                        </button>
-                    ))}
-                </div>
-                <div className="relative w-full sm:w-64">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <input 
-                        type="text" 
-                        placeholder="Suchen..." 
-                        value={searchQuery}
-                        onChange={e => setSearchQuery(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2 rounded-xl border-none bg-white/50 dark:bg-gray-800/50 focus:bg-white dark:focus:bg-gray-800 focus:ring-2 focus:ring-indigo-500/20 transition-all text-sm"
-                    />
-                </div>
-            </div>
-
-            <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                    <thead className="bg-gray-50/50 dark:bg-gray-900/20">
-                        <tr>
-                            <th className="px-6 py-4 font-semibold text-gray-900 dark:text-white">Datum</th>
-                            <th className="px-6 py-4 font-semibold text-gray-900 dark:text-white">Kunde</th>
-                            <th className="px-6 py-4 font-semibold text-gray-900 dark:text-white">Sparte</th>
-                            <th className="px-6 py-4 font-semibold text-gray-900 dark:text-white">Beitrag</th>
-                            <th className="px-6 py-4 font-semibold text-gray-900 dark:text-white">Bewertung</th>
-                            <th className="px-6 py-4 font-semibold text-gray-900 dark:text-white text-right">Provision</th>
-                            <th className="px-6 py-4 font-semibold text-gray-900 dark:text-white text-right">Aktion</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
-                        {loading ? (
-                            <tr><td colSpan={7} className="px-6 py-12 text-center text-gray-500">Lade Daten...</td></tr>
-                        ) : filteredEntries.length === 0 ? (
-                            <tr><td colSpan={7} className="px-6 py-12 text-center text-gray-500">Keine Verträge gefunden.</td></tr>
-                        ) : (
-                            filteredEntries.map(entry => (
-                                <tr key={entry.id} className="hover:bg-indigo-50/30 dark:hover:bg-indigo-900/10 transition-colors group">
-                                    <td className="px-6 py-4 text-gray-600 dark:text-gray-300 whitespace-nowrap">
-                                        {format(new Date(entry.submission_date), 'dd.MM.yyyy')}
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <div className="font-bold text-gray-900 dark:text-white">{entry.customer_name}, {entry.customer_firstname}</div>
-                                        <div className="text-xs text-gray-500 font-mono mt-0.5">{entry.policy_number || '-'}</div>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <span className={cn(
-                                            "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border",
-                                            entry.category === 'life' ? "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-800" :
-                                            entry.category === 'property' ? "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-900/20 dark:text-orange-300 dark:border-orange-800" :
-                                            entry.category === 'health' ? "bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-300 dark:border-red-800" :
-                                            "bg-gray-50 text-gray-700 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700"
-                                        )}>
-                                            {entry.category === 'life' ? 'Leben' : 
-                                             entry.category === 'property' ? 'Sach' : 
-                                             entry.category === 'health' ? 'Kranken' : entry.category}
-                                        </span>
-                                        {entry.sub_category && <div className="text-xs text-gray-500 mt-1 pl-1">{entry.sub_category}</div>}
-                                    </td>
-                                    <td className="px-6 py-4 text-gray-600 dark:text-gray-300">
-                                        <div className="font-medium">{formatCurrency(entry.gross_premium || 0)}</div>
-                                        <div className="text-xs text-gray-400">{entry.payment_method}</div>
-                                    </td>
-                                    <td className="px-6 py-4 text-gray-600 dark:text-gray-300">
-                                        <div className="text-xs text-gray-400 mb-0.5">Satz: {entry.commission_rate} {entry.category === 'life' ? '‰' : (entry.category === 'health' && !entry.sub_category?.includes('reise') ? 'MB' : '%')}</div>
-                                        <div className="font-medium">{formatCurrency(entry.valuation_sum || 0)}</div>
-                                    </td>
-                                    <td className="px-6 py-4 text-right font-black text-indigo-600 dark:text-indigo-400">
-                                        {formatCurrency(entry.commission_amount || 0)}
-                                    </td>
-                                    <td className="px-6 py-4 text-right">
-                                        <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <button 
-                                                onClick={() => handleEdit(entry)}
-                                                className="p-2 text-gray-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition-all"
-                                                title="Bearbeiten"
-                                            >
-                                                <Pencil className="w-4 h-4" />
-                                            </button>
-                                            <button 
-                                                onClick={() => handleDelete(entry.id)}
-                                                className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
-                                                title="Löschen"
-                                            >
-                                                <Trash2 className="w-4 h-4" />
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))
-                        )}
-                    </tbody>
-                </table>
-            </div>
-        </motion.div>
 
         {/* New Entry Modal */}
         <Modal
