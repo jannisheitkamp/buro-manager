@@ -1,66 +1,75 @@
-# Büro Manager
+# Büro Manager 🏢
 
-Eine moderne Office-Management-Anwendung für Teams, entwickelt mit React, TypeScript, Vite, Tailwind CSS und Supabase.
+Ein modernes, webbasiertes Büro-Management-System für Versicherungsmakler und Agenturen. Entwickelt mit React, Tailwind CSS, Supabase und TypeScript.
 
-## 🚀 Schnellstart: Veröffentlichung & Installation
+![Status](https://img.shields.io/badge/Status-Production%20Ready-green)
+![Tech](https://img.shields.io/badge/Tech-React%20%7C%20Supabase%20%7C%20Tailwind-blue)
 
-Wie du die App online bringst und auf dein Handy lädst, findest du detailliert in der Datei [DEPLOYMENT.md](./DEPLOYMENT.md).
+## 🚀 Features
 
-## Funktionen
+*   **Dashboard:** Echtzeit-Überblick über Aufgaben, Team-Status und Umsatz-Trends.
+*   **Produktion & Umsatz:** Erfassung von Anträgen, automatische Berechnung von Provisionseinheiten (EH) und interaktive Diagramme.
+*   **Kalender:** Team-Kalender mit Drag & Drop, Wochenansicht und Kategorien.
+*   **Rückruf-Manager:** Aufgabenverwaltung für Telefonate mit Priorisierung.
+*   **Logistik:** Tracking von Paketen im Büro.
+*   **Verzeichnis:** Mitarbeiter-Liste mit Live-Status (Im Büro, Home Office, Krank...) und Visitenkarten.
+*   **Schwarzes Brett:** Interne News und Ankündigungen.
+*   **Notification Center:** Benachrichtigungen über neue Pakete, Aufgaben oder News.
+*   **Command Palette (`Cmd+K`):** Blitzschnelle Navigation und Suche nach Kollegen.
+*   **Mobile Optimized:** Vollständig responsive Design mit Glassmorphism-Look.
 
-### 🏠 Dashboard
-- **Echtzeit-Statusübersicht**: Sehen Sie auf einen Blick, wer im Büro, im Homeoffice, im Meeting oder abwesend ist.
-- **Benutzerdefinierte Status**: Setzen Sie Ihren eigenen Status mit optionalen Nachrichten.
-- **Automatische Updates**: Alle Änderungen werden dank Supabase Realtime sofort bei allen Kollegen angezeigt.
+## � Tech Stack
 
-### 📅 Kalender & Abwesenheiten
-- **Urlaubsanträge**: Beantragen Sie Urlaub, Krankheitstage oder Sonderurlaub.
-- **PDF-Export**: Generieren Sie automatisch ausgefüllte Urlaubsanträge als PDF (inkl. Unterschriftsfelder) mit einem Klick.
-- **Genehmigungsworkflow**: Admins und berechtigte Personen können Anträge genehmigen oder ablehnen.
-- **Übersicht**: Sehen Sie alle genehmigten und ausstehenden Abwesenheiten.
+*   **Frontend:** React (Vite), TypeScript
+*   **Styling:** Tailwind CSS, Framer Motion (Animationen)
+*   **Icons:** Lucide React
+*   **Charts:** Recharts
+*   **Backend:** Supabase (PostgreSQL, Auth, Realtime, RLS)
+*   **Deployment:** Vercel (empfohlen)
 
-### 📍 Raumbuchung
-- **Ressourcenverwaltung**: Buchen Sie Besprechungsräume und andere Ressourcen.
-- **Konfliktprüfung**: Das System verhindert automatisch Doppelbuchungen (Server-seitig abgesichert).
-- **Kalenderansicht**: Übersichtliche Darstellung aller Buchungen pro Tag.
+## 📦 Installation & Setup
 
-### 📌 Schwarzes Brett
-- **Ankündigungen & Aufgaben**: Posten Sie Neuigkeiten oder Aufgaben für das Team.
-- **Typisierung**: Unterscheidung zwischen wichtigen Ankündigungen (blau) und Aufgaben (grün).
+### 1. Repository klonen
+```bash
+git clone https://github.com/jannisheitkamp/buro-manager.git
+cd buro-manager
+npm install
+```
 
-### 👥 Mitarbeiter-Verzeichnis
-- **Kontaktliste**: Alle Kollegen mit E-Mail und Status auf einen Blick.
-- **Rollenverwaltung**: Admins können Benutzerrollen (z.B. Mitarbeiter, Admin, Gruppenleiter) verwalten.
+### 2. Environment Variables
+Erstelle eine `.env` Datei im Hauptverzeichnis:
 
-### 👤 Profil
-- **Personalisierung**: Ändern Sie Ihren Namen und Ihr Avatar-Bild.
-- **Adressdaten**: Hinterlegen Sie Ihre Adresse für die automatische Befüllung von Formularen.
+```env
+VITE_SUPABASE_URL=deine_supabase_url
+VITE_SUPABASE_ANON_KEY=dein_supabase_anon_key
+```
 
-### 📱 Technik & Design
-- **Responsive Design**: Optimiert für Desktop, Tablet und Smartphone.
-- **Dark Mode**: Vollständige Unterstützung für helles und dunkles Design.
-- **Modern UI**: Gebaut mit Tailwind CSS für ein sauberes und konsistentes Aussehen.
-- **Sicherheit**: Row Level Security (RLS) in der Datenbank sorgt dafür, dass Daten geschützt sind.
-- **PWA Support**: Installierbar als App auf iOS, Android und Desktop.
+### 3. Datenbank Setup (Supabase)
+Gehe in dein Supabase Dashboard -> SQL Editor und führe das Skript unter `supabase/migrations/20240107_init_full_schema.sql` aus.
+Dies erstellt:
+*   Alle Tabellen (`profiles`, `production_entries`, etc.)
+*   Row Level Security (RLS) Policies für Datenschutz
+*   Trigger und Relationen
 
-## Installation & Setup (für Entwickler)
+### 4. Starten
+```bash
+npm run dev
+```
+Die App läuft unter `http://localhost:5173`.
 
-1. **Repository klonen**
-2. **Abhängigkeiten installieren**:
-   ```bash
-   npm install
-   ```
-3. **Umgebungsvariablen setzen**:
-   Erstellen Sie eine `.env` Datei basierend auf Ihren Supabase-Credentials:
-   ```env
-   VITE_SUPABASE_URL=your_supabase_url
-   VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
-   ```
-4. **Entwicklungsserver starten**:
-   ```bash
-   npm run dev
-   ```
+## 🔒 Sicherheit & Datenschutz
 
-## Datenbank-Migrationen
+*   **RLS (Row Level Security):** Alle Daten sind auf Datenbank-Ebene geschützt. Nutzer sehen nur Daten, für die sie berechtigt sind.
+*   **Auth:** Authentifizierung läuft über Supabase Auth.
+*   **Provisionen:** Provisionssätze sind privat und nur vom jeweiligen Nutzer einsehbar.
 
-Die Datenbankstruktur wird über Supabase Migrations verwaltet. Alle SQL-Dateien befinden sich im Ordner `supabase/migrations`.
+## 📱 Deployment
+
+Das Projekt ist optimiert für **Vercel**:
+1.  Repo mit Vercel verbinden.
+2.  Environment Variables (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`) in Vercel eintragen.
+3.  Deploy klicken.
+
+---
+
+Built with ❤️ by Jannis & Trae AI.
