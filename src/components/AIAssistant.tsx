@@ -4,6 +4,7 @@ import { cn } from '@/utils/cn';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
+import { startOfMonth, endOfMonth, subMonths, startOfDay, isWithinInterval, parseISO, endOfDay } from 'date-fns';
 
 type Message = {
     id: string;
@@ -13,12 +14,10 @@ type Message = {
     actions?: { label: string; action: () => void }[];
 };
 
-// --- BRAIN CONFIGURATION ---
-
 type IntentHandler = {
     id: string;
-    keywords: string[]; // Wörter, auf die der Bot reagiert
-    handler: (navigate: any) => Promise<{ text: string; actions?: Message['actions'] }>;
+    keywords: string[]; 
+    handler: (navigate: any, userInput: string) => Promise<{ text: string; actions?: Message['actions'] }>;
 };
 
 // Helper to format currency
@@ -27,13 +26,88 @@ const fmt = (n: number) => new Intl.NumberFormat('de-DE', { style: 'currency', c
 const INTENTS: IntentHandler[] = [
     {
         id: 'revenue',
-        keywords: ['umsatz', 'geld', 'verdient', 'provision', 'einnahmen', 'finanzen', 'läuft', 'geschäft', 'cash', 'betrag', 'summe'],
-        handler: async (navigate) => {
-            const { data } = await supabase.from('production_entries').select('commission_amount');
+        keywords: ['umsatz', 'geld', 'verdient', 'provision', 'einnahmen', 'finanzen', 'cash', 'betrag', 'summe'],
+        handler: async (navigate, userInput) => {
+            const now = new Date();
+            const lowerInput = userInput.toLowerCase();
+            let start = new Date(0).toISOString(); // Default: All time
+            let end = new Date(2100, 0, 1).toISOString();
+            let label = "Gesamtumsatz";
+
+            if (lowerInput.includes('letzten monat') || lowerInput.includes('vergangenen monat')) {
+                const lastMonth = subMonths(now, 1);
+                start = startOfMonth(lastMonth).toISOString();
+                end = endOfMonth(lastMonth).toISOString();
+                label = "Umsatz im letzten Monat";
+            } else if (lowerInput.includes('diesen monat') || lowerInput.includes('aktuellen monat')) {
+                start = startOfMonth(now).toISOString();
+                end = endOfMonth(now).toISOString();
+                label = "Umsatz diesen Monat";
+            }
+
+            // Fetch data
+            const { data } = await supabase
+                .from('production_entries')
+                .select('commission_amount, created_at')
+                .gte('created_at', start)
+                .lte('created_at', end);
+            
             const total = data?.reduce((acc, curr) => acc + (curr.commission_amount || 0), 0) || 0;
+            
             return {
-                text: `Aktuell liegst du bei einem Gesamtumsatz von **${fmt(total)}**. Nicht schlecht! 💸`,
+                text: `${label}: **${fmt(total)}**. ${total > 0 ? 'Weiter so! 🚀' : 'Da geht noch was! 💪'}`,
                 actions: [{ label: 'Details ansehen', action: () => navigate('/production') }]
+            };
+        }
+    },
+    {
+        id: 'sick_leave',
+        keywords: ['krank', 'krankheit', 'fehlt', 'abwesend', 'wer ist nicht da'],
+        handler: async (navigate) => {
+            const today = new Date();
+            
+            // Fetch active absences
+            const { data } = await supabase
+                .from('absences')
+                .select('*, profiles(full_name)')
+                .eq('status', 'approved')
+                .gte('end_date', startOfDay(today).toISOString());
+
+            if (!data || data.length === 0) {
+                return { text: "Aktuell ist niemand krank gemeldet. Alle an Deck! ⚓️" };
+            }
+
+            // Filter for actually active today
+            const activeAbsences = data.filter(a => {
+                const start = parseISO(a.start_date);
+                const end = endOfDay(parseISO(a.end_date));
+                return isWithinInterval(today, { start, end });
+            });
+
+            if (activeAbsences.length === 0) {
+                 return { text: "Heute ist niemand abwesend." };
+            }
+
+            const sickPeople = activeAbsences.filter(a => a.type === 'sick_leave');
+            const vacationPeople = activeAbsences.filter(a => a.type === 'vacation');
+
+            let responseText = "";
+
+            if (sickPeople.length > 0) {
+                const names = sickPeople.map(p => p.profiles?.full_name).join(', ');
+                responseText += `Krank gemeldet: **${names}**. 🤒\n`;
+            }
+            
+            if (vacationPeople.length > 0) {
+                const names = vacationPeople.map(p => p.profiles?.full_name).join(', ');
+                responseText += `Im Urlaub: **${names}**. 🌴`;
+            }
+
+            if (!responseText) responseText = "Einige Kollegen sind heute abwesend.";
+
+            return {
+                text: responseText,
+                actions: [{ label: 'Kalender öffnen', action: () => navigate('/calendar') }]
             };
         }
     },
@@ -58,6 +132,17 @@ const INTENTS: IntentHandler[] = [
             return {
                 text: `Es liegen **${count} Pakete** zur Abholung bereit. 📦`,
                 actions: [{ label: 'Pakete ansehen', action: () => navigate('/parcels') }]
+            };
+        }
+    },
+    {
+        id: 'leads',
+        keywords: ['lead', 'pipeline', 'verkaufschance', 'potenzial', 'neuer kunde'],
+        handler: async (navigate) => {
+            const { count } = await supabase.from('leads').select('*', { count: 'exact', head: true }).eq('status', 'new');
+            return {
+                text: `Du hast **${count || 0} neue Leads** in der Pipeline.`,
+                actions: [{ label: 'Pipeline öffnen', action: () => navigate('/leads') }]
             };
         }
     },
@@ -106,7 +191,7 @@ const INTENTS: IntentHandler[] = [
         keywords: ['hilfe', 'help', 'kannst', 'funktionen', 'befehle', 'was geht'],
         handler: async () => {
             return { 
-                text: "Ich kann dir Infos zu **Umsatz**, **Rückrufen** und **Paketen** geben oder dich navigieren. Frag einfach frei heraus! z.B. 'Was hab ich verdient?'" 
+                text: "Ich kann dir Infos zu **Umsatz** (auch 'letzten Monat'), **Krankmeldungen**, **Leads** und **Paketen** geben. Frag einfach frei heraus!" 
             };
         }
     }
@@ -121,7 +206,7 @@ export const AIAssistant = () => {
         {
             id: '1',
             role: 'bot',
-            content: 'Hi! Ich bin dein Büro-Assistent. Frag mich einfach was, z.B. "Wie viel habe ich verdient?"',
+            content: 'Hi! Ich bin dein Büro-Assistent. Frag mich z.B. "Wer ist heute krank?" oder "Wie war mein Umsatz letzten Monat?"',
             timestamp: new Date()
         }
     ]);
@@ -157,7 +242,7 @@ export const AIAssistant = () => {
 
         // Execute Match or Fallback
         if (bestMatch) {
-            return await bestMatch.intent.handler(navigate);
+            return await bestMatch.intent.handler(navigate, userInput);
         } else {
             // Generic Fallback
             return {

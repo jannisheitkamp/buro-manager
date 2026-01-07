@@ -7,6 +7,7 @@ import { Login } from '@/pages/Login';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 
 import { Dashboard } from '@/pages/Dashboard';
+import { Leads } from '@/pages/Leads';
 import { Calendar } from '@/pages/Calendar';
 import { Bookings } from '@/pages/Bookings';
 import { Board } from '@/pages/Board';
@@ -72,6 +73,7 @@ function App() {
             <Route path="/onboarding" element={<Onboarding />} />
             <Route element={<OnboardingCheck />}>
               <Route path="/" element={<Layout><PageTransition><Dashboard /></PageTransition></Layout>} />
+              <Route path="/leads" element={<Layout><PageTransition><Leads /></PageTransition></Layout>} />
               <Route path="/general-calendar" element={<Layout><PageTransition><GeneralCalendar /></PageTransition></Layout>} />
               <Route path="/calendar" element={<Layout><PageTransition><Calendar /></PageTransition></Layout>} />
               <Route path="/bookings" element={<Layout><PageTransition><Bookings /></PageTransition></Layout>} />

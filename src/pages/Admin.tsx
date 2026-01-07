@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useStore } from '@/store/useStore';
 import { motion } from 'framer-motion';
-import { Shield, Users, DollarSign, Activity, CheckCircle, XCircle, Search, MoreHorizontal, Trash2, UserCheck, UserX, BadgeCheck } from 'lucide-react';
+import { Shield, Users, DollarSign, Activity, CheckCircle, XCircle, Search, MoreHorizontal, Trash2, UserCheck, UserX, BadgeCheck, Clock } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'react-hot-toast';
 import { cn } from '@/utils/cn';

@@ -15,7 +15,8 @@ import {
   Package,
   Phone,
   TrendingUp,
-  Shield
+  Shield,
+  Kanban
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { useState, useEffect } from 'react';
@@ -28,6 +29,7 @@ import { useNotifications } from '@/hooks/useNotifications';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+  { name: 'Leads', href: '/leads', icon: Kanban },
   { name: 'Kalender', href: '/general-calendar', icon: CalendarDays },
   { name: 'Abwesenheiten', href: '/calendar', icon: CalendarDays },
   { name: 'Buchungen', href: '/bookings', icon: Building2 },
