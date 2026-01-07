@@ -232,7 +232,7 @@ export const AIAssistant = () => {
                         exit={{ y: 20, opacity: 0, scale: 0.95 }}
                         className={cn(
                             "fixed right-4 sm:right-6 z-50 bg-white dark:bg-gray-900 shadow-2xl rounded-3xl border border-gray-200 dark:border-gray-800 flex flex-col overflow-hidden transition-all duration-300",
-                            isMinimized ? "bottom-6 w-72 h-16" : "bottom-6 w-[90vw] sm:w-96 h-[600px] max-h-[80vh]"
+                            isMinimized ? "bottom-24 sm:bottom-6 w-72 h-16" : "bottom-24 sm:bottom-6 w-[90vw] sm:w-96 h-[600px] max-h-[80vh]"
                         )}
                     >
                         {/* Header */}
