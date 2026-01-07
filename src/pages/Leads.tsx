@@ -90,6 +90,12 @@ export const Leads = () => {
         setIsModalOpen(true);
     };
 
+    const handleNewLead = () => {
+        setEditingId(null);
+        setFormData({ customer_name: '', phone: '', email: '', availability: '', product: '', notes: '', status: 'new' });
+        setIsModalOpen(true);
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!user) return;
@@ -264,7 +270,7 @@ export const Leads = () => {
                     <motion.button
                         initial={{ opacity: 0, scale: 0.9 }}
                         animate={{ opacity: 1, scale: 1 }}
-                        onClick={() => setIsModalOpen(true)}
+                        onClick={handleNewLead}
                         className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-2xl flex items-center gap-2 shadow-lg shadow-blue-500/30 transition-all hover:scale-105"
                     >
                         <Plus className="w-5 h-5" /> Neuer Lead
