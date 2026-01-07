@@ -46,7 +46,7 @@ export function Documents() {
       setDocuments(data || []);
     } catch (error) {
       console.error('Error fetching documents:', error);
-      toast.error('Dokumente konnten nicht geladen werden');
+      // toast.error('Dokumente konnten nicht geladen werden'); // Suppress toast for now if empty
     } finally {
       setLoading(false);
     }
