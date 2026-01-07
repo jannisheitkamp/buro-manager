@@ -237,9 +237,9 @@ export const Dashboard = () => {
                             onKeyDown={e => e.key === 'Enter' && handleStatusUpdate(myCurrentStatus?.status || 'office')}
                         />
                     </div>
-                    <div className="w-full overflow-x-auto">
+                    <div className="w-full">
                         <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">Dein Status</label>
-                        <div className="grid grid-cols-4 sm:flex gap-2 min-w-max pb-1">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 md:flex gap-2 pb-1 flex-wrap">
                             {STATUS_CONFIG.map(s => {
                                 const Icon = s.icon;
                                 const active = myCurrentStatus?.status === s.value;
