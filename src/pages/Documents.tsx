@@ -2,9 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { useStore } from '../store/useStore';
 import { supabase } from '../lib/supabase';
 import { Document, Profile } from '../types';
-import { Plus, FileText, File, Download, Trash2, Edit2, Users, X, Check } from 'lucide-react';
+import { Plus, FileText, File, Download, Trash2, Edit2, Users, Check } from 'lucide-react';
 import { Modal } from '../components/Modal';
 import toast from 'react-hot-toast';
+import RichTextEditor from '../components/RichTextEditor';
 
 export function Documents() {
   const { user } = useStore();
@@ -315,7 +316,7 @@ export function Documents() {
 
             {doc.file_type === 'text' && (
               <p className="text-sm text-gray-600 dark:text-gray-300 line-clamp-3 mb-4 h-12">
-                {doc.content}
+                {doc.content?.replace(/<[^>]*>?/gm, '') || 'Kein Inhalt'}
               </p>
             )}
              {doc.file_type === 'file' && (
@@ -370,7 +371,7 @@ export function Documents() {
         isOpen={isModalOpen}
         onClose={handleCloseModal}
         title={editingDoc ? 'Dokument bearbeiten' : 'Neues Dokument'}
-        size="lg"
+        size="full"
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -417,13 +418,12 @@ export function Documents() {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Inhalt
               </label>
-              <textarea
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                rows={6}
-                className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-gray-900 dark:text-white focus:ring-2 focus:ring-black dark:focus:ring-white outline-none transition-all resize-none"
-                placeholder="Schreiben Sie hier..."
-              />
+              <div className="h-[500px]">
+                <RichTextEditor
+                  content={content}
+                  onChange={setContent}
+                />
+              </div>
             </div>
           ) : (
             <div>
