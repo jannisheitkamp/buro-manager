@@ -1,0 +1,8 @@
+ALTER TABLE leads
+ADD COLUMN IF NOT EXISTS phone text,
+ADD COLUMN IF NOT EXISTS email text,
+ADD COLUMN IF NOT EXISTS availability text,
+ADD COLUMN IF NOT EXISTS product text;
+
+ALTER TABLE leads
+DROP COLUMN IF EXISTS value;
