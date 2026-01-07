@@ -6,6 +6,7 @@ import { useStore } from '@/store/useStore';
 import { Modal } from '@/components/Modal';
 import { toast } from 'react-hot-toast';
 import { cn } from '@/utils/cn';
+import { motion, AnimatePresence } from 'framer-motion';
 
 // Roles configuration
 const ROLES = [
@@ -103,8 +104,6 @@ export const Directory = () => {
     return role.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
   };
 
-  if (loading) return <div className="p-8 text-center">Laden...</div>;
-
   const pendingCount = profiles.filter(p => !p.is_approved).length;
   
   // Filter logic
@@ -114,29 +113,42 @@ export const Directory = () => {
   });
 
   return (
-    <div className="space-y-6">
+    <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-8">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-            <User className="w-8 h-8" />
-            Mitarbeiter-Verzeichnis
-        </h1>
+        <motion.h1 
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-400 flex items-center gap-3"
+        >
+            <User className="w-8 h-8 text-indigo-600" />
+            Mitarbeiter
+        </motion.h1>
         
-        <div className="flex items-center gap-2">
-            <button 
+        <div className="flex items-center gap-3">
+            <motion.button 
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
                 onClick={fetchProfiles} 
-                className="p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                className="p-3 bg-white dark:bg-gray-800 text-gray-500 hover:text-indigo-600 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 transition-all"
                 title="Aktualisieren"
             >
                 <RefreshCcw className={cn("w-5 h-5", loading && "animate-spin")} />
-            </button>
+            </motion.button>
 
             {currentUserProfile?.roles?.includes('admin') && (
-                <div className="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-lg">
+                <motion.div 
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.1 }}
+                    className="flex bg-white/50 dark:bg-gray-800/50 backdrop-blur-md p-1.5 rounded-2xl border border-gray-100 dark:border-gray-700"
+                >
                     <button
                         onClick={() => setView('all')}
                         className={cn(
-                            "px-4 py-2 text-sm font-medium rounded-md transition-all",
-                            view === 'all' ? "bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-white" : "text-gray-500 dark:text-gray-400 hover:text-gray-900"
+                            "px-4 py-2 text-sm font-bold rounded-xl transition-all",
+                            view === 'all' 
+                                ? "bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-lg shadow-gray-200/50 dark:shadow-none" 
+                                : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
                         )}
                     >
                         Alle
@@ -144,90 +156,117 @@ export const Directory = () => {
                     <button
                         onClick={() => setView('pending')}
                         className={cn(
-                            "px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2",
-                            view === 'pending' ? "bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-white" : "text-gray-500 dark:text-gray-400 hover:text-gray-900"
+                            "px-4 py-2 text-sm font-bold rounded-xl transition-all flex items-center gap-2",
+                            view === 'pending' 
+                                ? "bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-lg shadow-gray-200/50 dark:shadow-none" 
+                                : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
                         )}
                     >
-                        Warten auf Freigabe
+                        Freigabe
                         {pendingCount > 0 && (
-                            <span className="bg-red-500 text-white text-[10px] px-1.5 rounded-full">{pendingCount}</span>
+                            <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">{pendingCount}</span>
                         )}
                     </button>
-                </div>
+                </motion.div>
             )}
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {filteredProfiles.length === 0 ? (
-            <div className="col-span-full text-center py-12 text-gray-400">
-                Keine Mitarbeiter gefunden.
-            </div>
-        ) : filteredProfiles.map((profile) => (
-          <div key={profile.id} className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 flex flex-col items-center text-center relative group">
-             
-             {/* Status Badge */}
-             {!profile.is_approved && (
-                 <div className="absolute top-2 left-2 bg-yellow-100 text-yellow-800 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
-                     <Clock className="w-3 h-3" /> WARTEND
-                 </div>
-             )}
-
-             {currentUserProfile?.roles?.includes('admin') && (
-                <div className="absolute top-2 right-2 flex gap-1">
+        <AnimatePresence>
+            {loading ? (
+                <div className="col-span-full py-20 text-center text-gray-400">Lade Mitarbeiter...</div>
+            ) : filteredProfiles.length === 0 ? (
+                <motion.div 
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="col-span-full text-center py-20"
+                >
+                    <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gray-100 dark:bg-gray-800 mb-4">
+                        <User className="w-10 h-10 text-gray-400" />
+                    </div>
+                    <p className="text-xl text-gray-500 font-medium">Keine Mitarbeiter gefunden.</p>
+                </motion.div>
+            ) : (
+                filteredProfiles.map((profile, index) => (
+                <motion.div 
+                    key={profile.id} 
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                    layout
+                    className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-3xl shadow-xl border border-white/20 dark:border-gray-700 p-6 flex flex-col items-center text-center relative group hover:-translate-y-1 transition-all duration-300"
+                >
+                    
+                    {/* Status Badge */}
                     {!profile.is_approved && (
-                        <button 
-                            onClick={() => approveUser(profile.id)}
-                            className="p-2 text-green-500 hover:text-green-700 hover:bg-green-50 rounded-full transition-all"
-                            title="Benutzer freischalten"
-                        >
-                            <CheckCircle className="w-4 h-4" />
-                        </button>
+                        <div className="absolute top-0 left-0 bg-yellow-100 text-yellow-800 text-[10px] font-black px-3 py-1 rounded-br-2xl rounded-tl-3xl flex items-center gap-1 shadow-sm z-10">
+                            <Clock className="w-3 h-3" /> WARTEND
+                        </div>
                     )}
-                    <button 
-                        onClick={() => handleEditRole(profile)}
-                        className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-gray-50 rounded-full transition-all"
-                        title="Rolle bearbeiten"
-                    >
-                        <Edit className="w-4 h-4" />
-                    </button>
-                </div>
+
+                    {currentUserProfile?.roles?.includes('admin') && (
+                        <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            {!profile.is_approved && (
+                                <button 
+                                    onClick={() => approveUser(profile.id)}
+                                    className="p-2 text-green-500 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-xl transition-all"
+                                    title="Benutzer freischalten"
+                                >
+                                    <CheckCircle className="w-5 h-5" />
+                                </button>
+                            )}
+                            <button 
+                                onClick={() => handleEditRole(profile)}
+                                className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-xl transition-all"
+                                title="Rolle bearbeiten"
+                            >
+                                <Edit className="w-5 h-5" />
+                            </button>
+                        </div>
+                    )}
+
+                    <div className="relative mb-4">
+                        <div className="absolute inset-0 bg-gradient-to-tr from-indigo-500 to-violet-500 rounded-full blur-lg opacity-20 group-hover:opacity-40 transition-opacity" />
+                        <img
+                            src={profile.avatar_url || `https://ui-avatars.com/api/?name=${profile.full_name || 'User'}&background=random`}
+                            alt={profile.full_name || ''}
+                            className={cn(
+                                "w-28 h-28 rounded-full shadow-lg object-cover ring-4 ring-white dark:ring-gray-700 relative z-10",
+                                !profile.is_approved && "grayscale opacity-70"
+                            )}
+                        />
+                    </div>
+                    
+                    <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-1">
+                        {profile.full_name || 'Unbekannt'}
+                    </h3>
+                    
+                    <a href={`mailto:${profile.email}`} className="flex items-center gap-1.5 text-sm font-medium text-gray-500 dark:text-gray-400 mb-6 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
+                        <Mail className="w-3.5 h-3.5" />
+                        {profile.email}
+                    </a>
+
+                    <div className="mt-auto flex flex-wrap gap-1.5 justify-center w-full">
+                        {profile.roles?.map(role => (
+                            <span key={role} className={cn(
+                                "inline-flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-bold border shadow-sm",
+                                role === 'admin' 
+                                    ? "bg-purple-50 text-purple-700 border-purple-100 dark:bg-purple-900/20 dark:text-purple-300 dark:border-purple-800" 
+                                    : "bg-gray-50 text-gray-600 border-gray-100 dark:bg-gray-700/50 dark:text-gray-300 dark:border-gray-600"
+                            )}>
+                                {role === 'admin' && <Shield className="w-3 h-3" />}
+                                {formatRole(role)}
+                            </span>
+                        ))}
+                        {(!profile.roles || profile.roles.length === 0) && (
+                            <span className="text-xs text-gray-400 italic">Keine Rollen</span>
+                        )}
+                    </div>
+                </motion.div>
+                ))
             )}
-
-            <img
-              src={profile.avatar_url || `https://ui-avatars.com/api/?name=${profile.full_name || 'User'}&background=random`}
-              alt={profile.full_name || ''}
-              className={cn(
-                  "w-24 h-24 rounded-full mb-4 shadow-sm object-cover",
-                  !profile.is_approved && "grayscale opacity-70"
-              )}
-            />
-            
-            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1">
-              {profile.full_name || 'Unbekannt'}
-            </h3>
-            
-            <div className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 mb-4">
-              <Mail className="w-3 h-3" />
-              <a href={`mailto:${profile.email}`} className="hover:text-indigo-600 transition-colors">
-                {profile.email}
-              </a>
-            </div>
-
-            <div className="mt-auto flex flex-wrap gap-1 justify-center">
-                {profile.roles?.map(role => (
-                    <span key={role} className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        role === 'admin' 
-                            ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300' 
-                            : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
-                    }`}>
-                        {role === 'admin' && <Shield className="w-3 h-3" />}
-                        {formatRole(role)}
-                    </span>
-                ))}
-            </div>
-          </div>
-        ))}
+        </AnimatePresence>
       </div>
 
       <Modal
@@ -235,35 +274,66 @@ export const Directory = () => {
         onClose={() => setEditingProfile(null)}
         title="Rollen bearbeiten"
       >
-        <div className="space-y-4">
-            <p className="text-sm text-gray-500">
-                Rollen für <strong>{editingProfile?.full_name}</strong> ändern:
-            </p>
-            <div className="space-y-2 max-h-60 overflow-y-auto p-2 border rounded-md dark:border-gray-700">
+        <div className="space-y-6">
+            <div className="flex items-center gap-3 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-2xl border border-gray-100 dark:border-gray-700">
+                <img 
+                    src={editingProfile?.avatar_url || `https://ui-avatars.com/api/?name=${editingProfile?.full_name}`} 
+                    className="w-12 h-12 rounded-full"
+                />
+                <div>
+                    <p className="font-bold text-gray-900 dark:text-white">{editingProfile?.full_name}</p>
+                    <p className="text-xs text-gray-500">{editingProfile?.email}</p>
+                </div>
+            </div>
+
+            <div className="space-y-2 max-h-[400px] overflow-y-auto p-1">
                 {ROLES.map(role => (
-                    <label key={role} className="flex items-center gap-2 cursor-pointer p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded">
-                        <input 
-                            type="checkbox" 
-                            checked={selectedRoles.includes(role)}
-                            onChange={() => toggleRole(role)}
-                            className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                        />
-                        <span className="text-sm text-gray-700 dark:text-gray-300">
+                    <label 
+                        key={role} 
+                        className={cn(
+                            "flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer",
+                            selectedRoles.includes(role) 
+                                ? "bg-indigo-50 border-indigo-200 dark:bg-indigo-900/20 dark:border-indigo-800" 
+                                : "border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
+                        )}
+                    >
+                        <span className={cn(
+                            "text-sm font-medium flex items-center gap-2",
+                            selectedRoles.includes(role) ? "text-indigo-700 dark:text-indigo-300" : "text-gray-700 dark:text-gray-300"
+                        )}>
+                            {role === 'admin' && <Shield className="w-4 h-4" />}
                             {formatRole(role)}
                         </span>
+                        
+                        <div className={cn(
+                            "w-5 h-5 rounded-full border flex items-center justify-center transition-colors",
+                            selectedRoles.includes(role)
+                                ? "bg-indigo-600 border-indigo-600"
+                                : "border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700"
+                        )}>
+                            {selectedRoles.includes(role) && <CheckCircle className="w-3.5 h-3.5 text-white" />}
+                        </div>
+
+                        <input 
+                            type="checkbox" 
+                            className="hidden"
+                            checked={selectedRoles.includes(role)}
+                            onChange={() => toggleRole(role)}
+                        />
                     </label>
                 ))}
             </div>
-            <div className="flex justify-end gap-3 mt-6">
+
+            <div className="flex justify-end gap-3 pt-2">
                 <button
                     onClick={() => setEditingProfile(null)}
-                    className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
+                    className="px-6 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
                 >
                     Abbrechen
                 </button>
                 <button
                     onClick={saveRoles}
-                    className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md transition-colors"
+                    className="px-6 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-lg shadow-indigo-500/30 transition-all hover:scale-[1.02]"
                 >
                     Speichern
                 </button>

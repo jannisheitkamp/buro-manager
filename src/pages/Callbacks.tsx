@@ -2,13 +2,14 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useStore } from '@/store/useStore';
 import { Callback, Profile } from '@/types';
-import { Phone, Plus, Check, User as UserIcon, AlertCircle, Search, ArrowRight, PenTool, Trash2 } from 'lucide-react';
+import { Phone, Plus, Check, User as UserIcon, AlertCircle, Search, ArrowRight, PenTool, Trash2, Clock } from 'lucide-react';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { Modal } from '@/components/Modal';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { toast } from 'react-hot-toast';
 import { cn } from '@/utils/cn';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export const Callbacks = () => {
   const { user, profile } = useStore();
@@ -139,29 +140,41 @@ export const Callbacks = () => {
 
   const isAdmin = profile?.roles?.includes('admin');
 
-  if (loading) return <div className="p-8 text-center">Lade...</div>;
-
   return (
-    <div className="space-y-6">
+    <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-8">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+          <motion.h1 
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-400 flex items-center gap-3"
+          >
             <Phone className="w-8 h-8 text-indigo-600" />
             Telefon-Notizen
-          </h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+          </motion.h1>
+          <motion.p 
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.1 }}
+            className="text-lg text-gray-500 dark:text-gray-400 mt-2 font-medium"
+          >
             Wer hat angerufen? Wer soll zurückrufen?
-          </p>
+          </motion.p>
         </div>
         
-        <div className="flex gap-2 w-full sm:w-auto">
-             <div className="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-xl">
+        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+             <motion.div 
+               initial={{ opacity: 0, scale: 0.9 }}
+               animate={{ opacity: 1, scale: 1 }}
+               transition={{ delay: 0.2 }}
+               className="flex bg-white/50 dark:bg-gray-800/50 backdrop-blur-md p-1.5 rounded-2xl border border-gray-100 dark:border-gray-700"
+             >
                 <button
                     onClick={() => setFilter('open')}
                     className={cn(
-                        "px-3 py-1.5 text-sm font-medium rounded-lg transition-all",
+                        "px-4 py-2 text-sm font-bold rounded-xl transition-all",
                         filter === 'open' 
-                            ? "bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm" 
+                            ? "bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-lg shadow-gray-200/50 dark:shadow-none" 
                             : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
                     )}
                 >
@@ -170,130 +183,153 @@ export const Callbacks = () => {
                 <button
                     onClick={() => setFilter('done')}
                     className={cn(
-                        "px-3 py-1.5 text-sm font-medium rounded-lg transition-all",
+                        "px-4 py-2 text-sm font-bold rounded-xl transition-all",
                         filter === 'done' 
-                            ? "bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm" 
+                            ? "bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-lg shadow-gray-200/50 dark:shadow-none" 
                             : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
                     )}
                 >
                     Erledigt
                 </button>
-             </div>
+             </motion.div>
 
-            <button
+            <motion.button
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.3 }}
               onClick={() => setIsModalOpen(true)}
-              className="flex-1 sm:flex-none bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-lg shadow-indigo-200 dark:shadow-none"
+              className="flex-1 sm:flex-none group relative px-6 py-3 bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-semibold rounded-2xl shadow-lg shadow-indigo-500/30 hover:shadow-indigo-500/50 hover:scale-[1.02] transition-all flex items-center justify-center gap-2 overflow-hidden"
             >
-              <Plus className="w-4 h-4" />
-              <span className="hidden sm:inline">Notiz erfassen</span>
-              <span className="sm:hidden">Neu</span>
-            </button>
+              <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
+              <Plus className="w-5 h-5 relative z-10" />
+              <span className="relative z-10">Notiz erfassen</span>
+            </motion.button>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-        {filteredCallbacks.map((cb) => {
-            const isHighPrio = cb.priority === 'high';
-            const isDone = cb.status === 'done';
-            const isForMe = cb.assigned_to === user?.id;
-            const isCreator = cb.created_by === user?.id;
-
-            return (
-                <div 
-                    key={cb.id} 
-                    className={cn(
-                        "bg-white dark:bg-gray-800 rounded-2xl p-6 border shadow-sm transition-all relative overflow-hidden group hover:shadow-md hover:-translate-y-1",
-                        isForMe && !isDone ? "ring-2 ring-indigo-500/20 border-indigo-200 dark:border-indigo-900" : "border-gray-100 dark:border-gray-700",
-                        isHighPrio && !isDone ? "bg-red-50/30 dark:bg-red-900/10" : "",
-                        isDone && "opacity-60 grayscale-[0.5] hover:opacity-80"
-                    )}
+        <AnimatePresence>
+            {loading ? (
+                <div className="col-span-full py-20 text-center text-gray-400">Lade Notizen...</div>
+            ) : filteredCallbacks.length === 0 ? (
+                <motion.div 
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="col-span-full text-center py-20"
                 >
-                    {isHighPrio && !isDone && (
-                        <div className="absolute top-0 right-0 bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-300 text-[10px] font-bold px-2 py-1 rounded-bl-lg flex items-center gap-1">
-                            <AlertCircle className="w-3 h-3" /> WICHTIG
-                        </div>
-                    )}
-                    
-                    {isForMe && !isDone && (
-                        <div className="absolute top-0 left-0 bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 text-[10px] font-bold px-2 py-1 rounded-br-lg">
-                            FÜR DICH
-                        </div>
-                    )}
+                    <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gray-100 dark:bg-gray-800 mb-4">
+                        <Phone className="w-10 h-10 text-gray-400" />
+                    </div>
+                    <p className="text-xl text-gray-500 font-medium">Keine Notizen vorhanden.</p>
+                </motion.div>
+            ) : (
+                filteredCallbacks.map((cb, index) => {
+                    const isHighPrio = cb.priority === 'high';
+                    const isDone = cb.status === 'done';
+                    const isForMe = cb.assigned_to === user?.id;
+                    const isCreator = cb.created_by === user?.id;
 
-                    <div className="mb-4 mt-2">
-                        <div className="flex items-start justify-between">
-                            <div className="flex items-start gap-3">
-                                <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center flex-shrink-0">
-                                    <Phone className="w-5 h-5 text-gray-500 dark:text-gray-400" />
-                                </div>
-                                <div>
-                                    <h3 className="font-bold text-gray-900 dark:text-white leading-tight">
-                                        {cb.customer_name}
-                                    </h3>
-                                    <a href={`tel:${cb.phone}`} className="text-indigo-600 hover:underline text-sm font-medium block mt-0.5">
-                                        {cb.phone || 'Keine Nummer'}
-                                    </a>
-                                </div>
-                            </div>
-
-                            {(isCreator || isAdmin || isDone) && (
-                                <button 
-                                    onClick={() => setDeleteId(cb.id)}
-                                    className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1"
-                                    title="Notiz löschen"
-                                >
-                                    <Trash2 className="w-4 h-4" />
-                                </button>
+                    return (
+                        <motion.div 
+                            key={cb.id} 
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: index * 0.05 }}
+                            layout
+                            className={cn(
+                                "bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-3xl p-6 border shadow-xl flex flex-col relative overflow-hidden group hover:-translate-y-1 transition-all duration-300",
+                                isForMe && !isDone ? "ring-2 ring-indigo-500/50 border-indigo-200 dark:border-indigo-900 shadow-indigo-500/10" : "border-white/20 dark:border-gray-700",
+                                isHighPrio && !isDone ? "bg-red-50/80 dark:bg-red-900/10 border-red-200 dark:border-red-900/30" : "",
+                                isDone && "opacity-60 grayscale-[0.5] hover:opacity-80 hover:grayscale-0"
                             )}
-                        </div>
-                    </div>
-
-                    <div className="bg-gray-50 dark:bg-gray-700/30 rounded-lg p-3 mb-4">
-                        <p className="text-gray-700 dark:text-gray-300 text-sm">
-                            {cb.topic || 'Keine Notiz hinterlassen.'}
-                        </p>
-                    </div>
-
-                    <div className="flex items-center justify-between pt-2 border-t border-gray-100 dark:border-gray-700">
-                        <div className="flex flex-col gap-0.5">
-                            <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
-                                <PenTool className="w-3 h-3" />
-                                <span>Notiert von {cb.creator?.full_name?.split(' ')[0]}</span>
-                            </div>
-                            <div className="text-[10px] text-gray-400">
-                                {format(new Date(cb.created_at), 'dd.MM. HH:mm', { locale: de })} Uhr
-                            </div>
-                        </div>
-
-                        {!isDone && (
-                            <div className="flex items-center gap-2">
-                                <div className="flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
-                                    <ArrowRight className="w-3 h-3" />
-                                    {cb.assignee?.full_name?.split(' ')[0] || 'Alle'}
+                        >
+                            {isHighPrio && !isDone && (
+                                <div className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-black tracking-wider px-3 py-1 rounded-bl-2xl flex items-center gap-1 shadow-sm z-10">
+                                    <AlertCircle className="w-3 h-3" /> WICHTIG
                                 </div>
-                                
-                                <button 
-                                    onClick={() => handleComplete(cb.id)}
-                                    className="p-2 bg-green-600 hover:bg-green-700 text-white rounded-full shadow-sm transition-colors"
-                                    title="Erledigt"
-                                >
-                                    <Check className="w-4 h-4" />
-                                </button>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            );
-        })}
+                            )}
+                            
+                            {isForMe && !isDone && (
+                                <div className="absolute top-0 left-0 bg-indigo-600 text-white text-[10px] font-black tracking-wider px-3 py-1 rounded-br-2xl shadow-sm z-10">
+                                    FÜR DICH
+                                </div>
+                            )}
 
-        {filteredCallbacks.length === 0 && (
-            <div className="col-span-full py-12 text-center text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-800 rounded-xl border border-dashed border-gray-200 dark:border-gray-700">
-                <div className="bg-gray-50 dark:bg-gray-700/50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <Phone className="w-8 h-8 opacity-50" />
-                </div>
-                <p>Keine Notizen vorhanden.</p>
-            </div>
-        )}
+                            <div className="mb-4 mt-2">
+                                <div className="flex items-start justify-between">
+                                    <div className="flex items-start gap-4">
+                                        <div className={cn(
+                                            "w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-inner",
+                                            isHighPrio && !isDone ? "bg-red-100 text-red-600" : "bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400"
+                                        )}>
+                                            <Phone className="w-6 h-6" />
+                                        </div>
+                                        <div>
+                                            <h3 className="font-bold text-lg text-gray-900 dark:text-white leading-tight">
+                                                {cb.customer_name}
+                                            </h3>
+                                            <a href={`tel:${cb.phone}`} className="text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 font-semibold text-sm block mt-1 hover:underline">
+                                                {cb.phone || 'Keine Nummer'}
+                                            </a>
+                                        </div>
+                                    </div>
+
+                                    {(isCreator || isAdmin || isDone) && (
+                                        <button 
+                                            onClick={() => setDeleteId(cb.id)}
+                                            className="text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 p-2 rounded-xl transition-all opacity-0 group-hover:opacity-100"
+                                            title="Notiz löschen"
+                                        >
+                                            <Trash2 className="w-5 h-5" />
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="bg-gray-50/80 dark:bg-gray-700/30 rounded-2xl p-4 mb-6 flex-grow border border-gray-100 dark:border-gray-600/30">
+                                <p className="text-gray-700 dark:text-gray-300 text-sm leading-relaxed whitespace-pre-wrap">
+                                    {cb.topic || 'Keine Notiz hinterlassen.'}
+                                </p>
+                            </div>
+
+                            <div className="flex items-center justify-between pt-4 border-t border-gray-100 dark:border-gray-700/50 mt-auto">
+                                <div className="flex flex-col gap-1">
+                                    <div className="flex items-center gap-1.5 text-xs font-medium text-gray-500 dark:text-gray-400">
+                                        <PenTool className="w-3 h-3" />
+                                        <span>{cb.creator?.full_name?.split(' ')[0]}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 text-[10px] text-gray-400">
+                                        <Clock className="w-3 h-3" />
+                                        {format(new Date(cb.created_at), 'dd.MM. HH:mm', { locale: de })}
+                                    </div>
+                                </div>
+
+                                {!isDone ? (
+                                    <div className="flex items-center gap-3">
+                                        <div className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
+                                            <ArrowRight className="w-3 h-3" />
+                                            {cb.assignee?.full_name?.split(' ')[0] || 'Alle'}
+                                        </div>
+                                        
+                                        <button 
+                                            onClick={() => handleComplete(cb.id)}
+                                            className="p-2.5 bg-green-500 hover:bg-green-600 text-white rounded-xl shadow-lg shadow-green-500/30 hover:shadow-green-500/50 hover:scale-105 transition-all"
+                                            title="Als erledigt markieren"
+                                        >
+                                            <Check className="w-5 h-5" />
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">
+                                        <Check className="w-3 h-3" /> Erledigt
+                                    </div>
+                                )}
+                            </div>
+                        </motion.div>
+                    );
+                })
+            )}
+        </AnimatePresence>
       </div>
 
       <Modal
@@ -301,9 +337,9 @@ export const Callbacks = () => {
         onClose={() => setIsModalOpen(false)}
         title="Rückruf notieren"
       >
-        <form onSubmit={handleCreateCallback} className="space-y-4">
+        <form onSubmit={handleCreateCallback} className="space-y-6">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
               Wer hat angerufen? *
             </label>
             <input
@@ -312,12 +348,12 @@ export const Callbacks = () => {
               value={customerName}
               onChange={(e) => setCustomerName(e.target.value)}
               placeholder="Name / Firma"
-              className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full rounded-xl border-transparent bg-gray-50/50 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 px-4 py-3 text-sm transition-all"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
               Rückruf-Nummer *
             </label>
             <input
@@ -326,33 +362,33 @@ export const Callbacks = () => {
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               placeholder="0171..."
-              className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full rounded-xl border-transparent bg-gray-50/50 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 px-4 py-3 text-sm transition-all"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
               Worum geht es? (Notiz)
             </label>
             <textarea
-              rows={3}
+              rows={4}
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
               placeholder="Hat Fragen zu Vertrag XYZ..."
-              className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full rounded-xl border-transparent bg-gray-50/50 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 px-4 py-3 text-sm transition-all resize-none"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
                 Für wen? *
                 </label>
                 <select
                 required
                 value={assignedTo}
                 onChange={(e) => setAssignedTo(e.target.value)}
-                className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full rounded-xl border-transparent bg-gray-50/50 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 px-4 py-3 text-sm transition-all"
                 >
                 <option value="">-- Bitte wählen --</option>
                 {profiles.map(p => (
@@ -361,13 +397,13 @@ export const Callbacks = () => {
                 </select>
             </div>
              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
                 Dringlichkeit
                 </label>
                 <select
                 value={priority}
                 onChange={(e) => setPriority(e.target.value as 'normal' | 'high')}
-                className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full rounded-xl border-transparent bg-gray-50/50 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 px-4 py-3 text-sm transition-all"
                 >
                 <option value="normal">Normal</option>
                 <option value="high">🔥 Wichtig</option>
@@ -375,18 +411,18 @@ export const Callbacks = () => {
             </div>
           </div>
 
-          <div className="flex justify-end gap-3 mt-6">
+          <div className="flex justify-end gap-3 pt-2">
             <button
               type="button"
               onClick={() => setIsModalOpen(false)}
-              className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
+              className="px-6 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
             >
               Abbrechen
             </button>
             <button
               type="submit"
               disabled={submitting}
-              className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md transition-colors disabled:opacity-50"
+              className="px-6 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-lg shadow-indigo-500/30 transition-all hover:scale-[1.02] disabled:opacity-50 disabled:hover:scale-100"
             >
               {submitting ? 'Speichere...' : 'Notieren'}
             </button>

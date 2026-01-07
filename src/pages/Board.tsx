@@ -8,8 +8,8 @@ import { Plus, Trash2, Pin, CheckSquare, MessageSquare } from 'lucide-react';
 import { Modal } from '@/components/Modal';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { cn } from '@/utils/cn';
-
 import { toast } from 'react-hot-toast';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export const Board = () => {
   const { user, profile } = useStore();
@@ -115,80 +115,123 @@ export const Board = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-8">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-          <MessageSquare className="w-8 h-8" />
-          Schwarzes Brett
-        </h1>
-        <button
+        <div>
+            <motion.h1 
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-400 flex items-center gap-3"
+            >
+              <MessageSquare className="w-8 h-8 text-gray-800 dark:text-gray-200" />
+              Schwarzes Brett
+            </motion.h1>
+            <motion.p 
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.1 }}
+                className="text-lg text-gray-500 dark:text-gray-400 mt-2 font-medium"
+            >
+                Neuigkeiten und Aufgaben für das Team.
+            </motion.p>
+        </div>
+        <motion.button
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.2 }}
           onClick={() => setIsModalOpen(true)}
-          className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
+          className="group relative px-6 py-3 bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-semibold rounded-2xl shadow-lg shadow-indigo-500/30 hover:shadow-indigo-500/50 hover:scale-[1.02] transition-all flex items-center gap-2 overflow-hidden"
         >
-          <Plus className="w-4 h-4" />
-          Eintrag erstellen
-        </button>
+          <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
+          <Plus className="w-5 h-5 relative z-10" />
+          <span className="relative z-10">Eintrag erstellen</span>
+        </motion.button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {posts.length === 0 ? (
-           <div className="col-span-full text-center py-12 text-gray-500">
-             Noch keine Einträge auf dem schwarzen Brett.
-           </div>
-        ) : (
-          posts.map((post) => {
-            const isOwn = post.user_id === user?.id;
-            const isAdmin = profile?.roles?.includes('admin');
-            
-            return (
-              <div key={post.id} className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 flex flex-col h-full relative group transition-all hover:shadow-md">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                    <div className={cn("p-2 rounded-lg bg-gray-50 dark:bg-gray-700")}>
-                        {getTypeIcon(post.type)}
-                    </div>
-                    <div>
-                        <span className="text-xs font-medium text-gray-500 dark:text-gray-400 block">
-                            {getTypeLabel(post.type)}
-                        </span>
-                        <span className="text-xs text-gray-400">
-                            {format(parseISO(post.created_at), 'dd. MMM, HH:mm', { locale: de })}
-                        </span>
-                    </div>
-                  </div>
-                  {(isOwn || isAdmin) && (
-                    <button
-                      onClick={() => setDeleteId(post.id)}
-                      className="text-gray-400 hover:text-red-500 transition-colors p-2"
-                      title="Löschen"
-                    >
-                      <Trash2 className="w-5 h-5" />
-                    </button>
-                  )}
+        <AnimatePresence>
+            {posts.length === 0 ? (
+            <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="col-span-full text-center py-20"
+            >
+                <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gray-100 dark:bg-gray-800 mb-4">
+                    <MessageSquare className="w-10 h-10 text-gray-400" />
                 </div>
-
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2 line-clamp-2">
-                  {post.title}
-                </h3>
+                <p className="text-xl text-gray-500 font-medium">Noch keine Einträge auf dem schwarzen Brett.</p>
+            </motion.div>
+            ) : (
+            posts.map((post, index) => {
+                const isOwn = post.user_id === user?.id;
+                const isAdmin = profile?.roles?.includes('admin');
                 
-                <p className="text-gray-600 dark:text-gray-300 text-sm whitespace-pre-wrap flex-grow mb-6 line-clamp-6">
-                  {post.content}
-                </p>
+                return (
+                <motion.div 
+                    key={post.id} 
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                    layout
+                    className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-3xl p-6 border border-white/20 shadow-xl flex flex-col h-full relative group hover:shadow-2xl hover:shadow-indigo-500/10 transition-all hover:-translate-y-1"
+                >
+                    <div className="flex items-start justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                            <div className={cn(
+                                "p-3 rounded-2xl shadow-inner",
+                                post.type === 'task' ? "bg-green-100 dark:bg-green-900/30" : "bg-indigo-100 dark:bg-indigo-900/30"
+                            )}>
+                                {getTypeIcon(post.type)}
+                            </div>
+                            <div>
+                                <span className={cn(
+                                    "text-xs font-bold uppercase tracking-wider",
+                                    post.type === 'task' ? "text-green-600 dark:text-green-400" : "text-indigo-600 dark:text-indigo-400"
+                                )}>
+                                    {getTypeLabel(post.type)}
+                                </span>
+                                <span className="text-xs text-gray-400 block font-medium">
+                                    {format(parseISO(post.created_at), 'dd. MMM, HH:mm', { locale: de })}
+                                </span>
+                            </div>
+                        </div>
+                        {(isOwn || isAdmin) && (
+                            <button
+                            onClick={() => setDeleteId(post.id)}
+                            className="text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 p-2 rounded-xl transition-all opacity-0 group-hover:opacity-100"
+                            title="Löschen"
+                            >
+                            <Trash2 className="w-5 h-5" />
+                            </button>
+                        )}
+                    </div>
 
-                <div className="flex items-center gap-3 pt-4 border-t border-gray-100 dark:border-gray-700 mt-auto">
-                   <img
-                    src={post.profiles?.avatar_url || `https://ui-avatars.com/api/?name=${post.profiles?.full_name || 'User'}&background=random`}
-                    alt={post.profiles?.full_name || ''}
-                    className="w-8 h-8 rounded-full"
-                  />
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    {post.profiles?.full_name}
-                  </span>
-                </div>
-              </div>
-            );
-          })
-        )}
+                    <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-3 line-clamp-2 leading-tight">
+                    {post.title}
+                    </h3>
+                    
+                    <p className="text-gray-600 dark:text-gray-300 text-sm whitespace-pre-wrap flex-grow mb-8 line-clamp-6 leading-relaxed">
+                    {post.content}
+                    </p>
+
+                    <div className="flex items-center gap-3 pt-4 border-t border-gray-100 dark:border-gray-700/50 mt-auto">
+                        <img
+                            src={post.profiles?.avatar_url || `https://ui-avatars.com/api/?name=${post.profiles?.full_name || 'User'}&background=random`}
+                            alt={post.profiles?.full_name || ''}
+                            className="w-10 h-10 rounded-full shadow-sm ring-2 ring-white dark:ring-gray-700"
+                        />
+                        <div>
+                            <span className="text-sm font-bold text-gray-700 dark:text-gray-200 block">
+                                {post.profiles?.full_name}
+                            </span>
+                            <span className="text-xs text-gray-400">Verfasser</span>
+                        </div>
+                    </div>
+                </motion.div>
+                );
+            })
+            )}
+        </AnimatePresence>
       </div>
 
       <Modal
@@ -196,43 +239,43 @@ export const Board = () => {
         onClose={() => setIsModalOpen(false)}
         title="Neuer Eintrag"
       >
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
               Typ
             </label>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-4">
                 <button
                     type="button"
                     onClick={() => setFormData({ ...formData, type: 'announcement' })}
                     className={cn(
-                        "flex items-center justify-center gap-2 p-3 rounded-lg border text-sm font-medium transition-all",
+                        "flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border transition-all hover:scale-105 active:scale-95",
                         formData.type === 'announcement' 
-                            ? "border-indigo-500 bg-indigo-50 text-indigo-700 dark:bg-indigo-900/20 dark:text-indigo-300" 
-                            : "border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700"
+                            ? "border-indigo-500 bg-indigo-50 text-indigo-700 ring-2 ring-indigo-500 ring-offset-2 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-500 dark:ring-offset-gray-800" 
+                            : "border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-gray-300"
                     )}
                 >
-                    <Pin className="w-4 h-4" />
-                    Ankündigung
+                    <Pin className="w-6 h-6" />
+                    <span className="font-semibold text-sm">Ankündigung</span>
                 </button>
                 <button
                     type="button"
                     onClick={() => setFormData({ ...formData, type: 'task' })}
                     className={cn(
-                        "flex items-center justify-center gap-2 p-3 rounded-lg border text-sm font-medium transition-all",
+                        "flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border transition-all hover:scale-105 active:scale-95",
                         formData.type === 'task' 
-                            ? "border-green-500 bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-300" 
-                            : "border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700"
+                            ? "border-green-500 bg-green-50 text-green-700 ring-2 ring-green-500 ring-offset-2 dark:bg-green-900/30 dark:text-green-300 dark:border-green-500 dark:ring-offset-gray-800" 
+                            : "border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-gray-300"
                     )}
                 >
-                    <CheckSquare className="w-4 h-4" />
-                    Aufgabe
+                    <CheckSquare className="w-6 h-6" />
+                    <span className="font-semibold text-sm">Aufgabe</span>
                 </button>
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
               Titel
             </label>
             <input
@@ -241,36 +284,36 @@ export const Board = () => {
               placeholder="Worum geht es?"
               value={formData.title}
               onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-              className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full rounded-xl border-transparent bg-gray-50/50 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 px-4 py-3 text-sm transition-all"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
               Inhalt
             </label>
             <textarea
               required
-              rows={4}
+              rows={6}
               placeholder="Details..."
               value={formData.content}
               onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-              className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full rounded-xl border-transparent bg-gray-50/50 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 px-4 py-3 text-sm transition-all resize-none"
             />
           </div>
 
-          <div className="flex justify-end gap-3 mt-6">
+          <div className="flex justify-end gap-3 pt-2">
             <button
               type="button"
               onClick={() => setIsModalOpen(false)}
-              className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
+              className="px-6 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
             >
               Abbrechen
             </button>
             <button
               type="submit"
               disabled={submitting}
-              className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md transition-colors disabled:opacity-50"
+              className="px-6 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-lg shadow-indigo-500/30 transition-all hover:scale-[1.02] disabled:opacity-50 disabled:hover:scale-100"
             >
               {submitting ? 'Wird erstellt...' : 'Erstellen'}
             </button>

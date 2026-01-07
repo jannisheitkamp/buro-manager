@@ -9,6 +9,7 @@ import { Modal } from '@/components/Modal';
 import { toast } from 'react-hot-toast';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { motion, AnimatePresence } from 'framer-motion';
 
 // Helper to format currency safely
 const formatCurrency = (amount: number | null | undefined) => {
@@ -387,38 +388,43 @@ export const Production = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-8">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                    <TrendingUp className="w-8 h-8 text-indigo-600" />
+                <motion.h1 
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-400 flex items-center gap-3"
+                >
                     Produktion & Umsatz
-                </h1>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                </motion.h1>
+                <motion.p 
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.1 }}
+                  className="text-lg text-gray-500 dark:text-gray-400 mt-2 font-medium"
+                >
                     Erfasse deine eingereichten Verträge und behalte die Provision im Blick.
-                </p>
+                </motion.p>
             </div>
             
-            <div className="flex items-center gap-4 bg-white dark:bg-gray-800 p-2 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
-                <div className="px-4 border-r border-gray-100 dark:border-gray-700">
-                    <p className="text-xs text-gray-500">Provision (Liste)</p>
-                    <p className="text-lg font-bold text-indigo-600">{formatCurrency(totalCommission)}</p>
-                </div>
-                <div className="px-4 border-r border-gray-100 dark:border-gray-700 hidden sm:block">
-                    <p className="text-xs text-gray-500">Haftungsreserve (Total)</p>
-                    <p className="text-lg font-bold text-orange-500">{formatCurrency(totalLiability)}</p>
-                </div>
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.2 }}
+              className="flex items-center gap-3"
+            >
                 <button 
                     onClick={handleExportPDF}
-                    className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
+                    className="p-3 bg-white dark:bg-gray-800 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 transition-all"
                     title="Als PDF Exportieren"
                 >
                     <FileDown className="w-5 h-5" />
                 </button>
                 <button 
                     onClick={handleExport}
-                    className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
+                    className="p-3 bg-white dark:bg-gray-800 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 transition-all"
                     title="Als CSV Exportieren"
                 >
                     <Download className="w-5 h-5" />
@@ -428,52 +434,87 @@ export const Production = () => {
                         resetForm();
                         setIsModalOpen(true);
                     }}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
+                    className="group relative px-6 py-3 bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-semibold rounded-2xl shadow-lg shadow-indigo-500/30 hover:shadow-indigo-500/50 hover:scale-[1.02] transition-all flex items-center gap-2 overflow-hidden"
                 >
-                    <Plus className="w-4 h-4" /> Neuer Vertrag
+                    <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
+                    <Plus className="w-5 h-5 relative z-10" /> 
+                    <span className="relative z-10">Neuer Vertrag</span>
                 </button>
-            </div>
+            </motion.div>
         </div>
 
-        {/* Filters */}
-        <div className="flex flex-col sm:flex-row gap-4">
-            <div className="relative flex-1">
-                <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
-                <input 
-                    type="text" 
-                    placeholder="Suchen nach Name oder Schein-Nr..." 
-                    value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
-                    className="pl-9 w-full rounded-xl border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 py-2 text-sm focus:ring-2 focus:ring-indigo-500"
-                />
-            </div>
-            <div className="flex gap-2 overflow-x-auto pb-2 sm:pb-0">
-                {['all', 'life', 'property', 'health', 'legal', 'car'].map(cat => (
-                    <button
-                        key={cat}
-                        onClick={() => setFilterCategory(cat)}
-                        className={cn(
-                            "px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors",
-                            filterCategory === cat 
-                                ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300" 
-                                : "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700"
-                        )}
-                    >
-                        {cat === 'all' ? 'Alle' : 
-                         cat === 'life' ? 'Leben' :
-                         cat === 'property' ? 'Sach' :
-                         cat === 'health' ? 'Kranken' :
-                         cat === 'legal' ? 'Recht' : 'KFZ'}
-                    </button>
-                ))}
-            </div>
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+              className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-3xl p-6 border border-white/20 shadow-xl relative overflow-hidden group"
+            >
+                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                    <Euro className="w-24 h-24 text-indigo-600" />
+                </div>
+                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Gesamtprovision (Liste)</p>
+                <p className="text-4xl font-black text-indigo-600 dark:text-indigo-400 mt-2">{formatCurrency(totalCommission)}</p>
+            </motion.div>
+
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4 }}
+              className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-3xl p-6 border border-white/20 shadow-xl relative overflow-hidden group"
+            >
+                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                    <TrendingUp className="w-24 h-24 text-orange-500" />
+                </div>
+                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Haftungsreserve (Total)</p>
+                <p className="text-4xl font-black text-orange-500 dark:text-orange-400 mt-2">{formatCurrency(totalLiability)}</p>
+            </motion.div>
         </div>
 
-        {/* Table */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+        {/* Filters & Table */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5 }}
+          className="bg-white/60 dark:bg-gray-800/60 backdrop-blur-xl rounded-3xl border border-white/20 shadow-xl overflow-hidden"
+        >
+            <div className="p-6 border-b border-gray-100 dark:border-gray-700/50 flex flex-col sm:flex-row gap-4 justify-between items-center bg-white/40 dark:bg-gray-900/40">
+                <div className="flex gap-2 overflow-x-auto pb-2 sm:pb-0 w-full sm:w-auto scrollbar-hide">
+                    {['all', 'life', 'property', 'health', 'legal', 'car'].map(cat => (
+                        <button
+                            key={cat}
+                            onClick={() => setFilterCategory(cat)}
+                            className={cn(
+                                "px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all",
+                                filterCategory === cat 
+                                    ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/30 scale-105" 
+                                    : "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700"
+                            )}
+                        >
+                            {cat === 'all' ? 'Alle' : 
+                             cat === 'life' ? 'Leben' :
+                             cat === 'property' ? 'Sach' :
+                             cat === 'health' ? 'Kranken' :
+                             cat === 'legal' ? 'Recht' : 'KFZ'}
+                        </button>
+                    ))}
+                </div>
+                <div className="relative w-full sm:w-64">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input 
+                        type="text" 
+                        placeholder="Suchen..." 
+                        value={searchQuery}
+                        onChange={e => setSearchQuery(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2 rounded-xl border-none bg-white/50 dark:bg-gray-800/50 focus:bg-white dark:focus:bg-gray-800 focus:ring-2 focus:ring-indigo-500/20 transition-all text-sm"
+                    />
+                </div>
+            </div>
+
             <div className="overflow-x-auto">
                 <table className="w-full text-left text-sm">
-                    <thead className="bg-gray-50 dark:bg-gray-900/50 border-b border-gray-100 dark:border-gray-700">
+                    <thead className="bg-gray-50/50 dark:bg-gray-900/20">
                         <tr>
                             <th className="px-6 py-4 font-semibold text-gray-900 dark:text-white">Datum</th>
                             <th className="px-6 py-4 font-semibold text-gray-900 dark:text-white">Kunde</th>
@@ -484,60 +525,63 @@ export const Production = () => {
                             <th className="px-6 py-4 font-semibold text-gray-900 dark:text-white text-right">Aktion</th>
                         </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                    <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
                         {loading ? (
-                            <tr><td colSpan={7} className="px-6 py-8 text-center text-gray-500">Lade Daten...</td></tr>
+                            <tr><td colSpan={7} className="px-6 py-12 text-center text-gray-500">Lade Daten...</td></tr>
                         ) : filteredEntries.length === 0 ? (
-                            <tr><td colSpan={7} className="px-6 py-8 text-center text-gray-500">Keine Verträge gefunden.</td></tr>
+                            <tr><td colSpan={7} className="px-6 py-12 text-center text-gray-500">Keine Verträge gefunden.</td></tr>
                         ) : (
                             filteredEntries.map(entry => (
-                                <tr key={entry.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                                <tr key={entry.id} className="hover:bg-indigo-50/30 dark:hover:bg-indigo-900/10 transition-colors group">
                                     <td className="px-6 py-4 text-gray-600 dark:text-gray-300 whitespace-nowrap">
                                         {format(new Date(entry.submission_date), 'dd.MM.yyyy')}
                                     </td>
                                     <td className="px-6 py-4">
-                                        <div className="font-medium text-gray-900 dark:text-white">{entry.customer_name}, {entry.customer_firstname}</div>
-                                        <div className="text-xs text-gray-500">{entry.policy_number || '-'}</div>
+                                        <div className="font-bold text-gray-900 dark:text-white">{entry.customer_name}, {entry.customer_firstname}</div>
+                                        <div className="text-xs text-gray-500 font-mono mt-0.5">{entry.policy_number || '-'}</div>
                                     </td>
                                     <td className="px-6 py-4">
                                         <span className={cn(
-                                            "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium",
-                                            entry.category === 'life' ? "bg-blue-100 text-blue-800" :
-                                            entry.category === 'property' ? "bg-orange-100 text-orange-800" :
-                                            entry.category === 'health' ? "bg-red-100 text-red-800" :
-                                            "bg-gray-100 text-gray-800"
+                                            "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border",
+                                            entry.category === 'life' ? "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-800" :
+                                            entry.category === 'property' ? "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-900/20 dark:text-orange-300 dark:border-orange-800" :
+                                            entry.category === 'health' ? "bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-300 dark:border-red-800" :
+                                            "bg-gray-50 text-gray-700 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700"
                                         )}>
                                             {entry.category === 'life' ? 'Leben' : 
                                              entry.category === 'property' ? 'Sach' : 
                                              entry.category === 'health' ? 'Kranken' : entry.category}
                                         </span>
-                                        {entry.sub_category && <div className="text-xs text-gray-500 mt-1">{entry.sub_category}</div>}
+                                        {entry.sub_category && <div className="text-xs text-gray-500 mt-1 pl-1">{entry.sub_category}</div>}
                                     </td>
                                     <td className="px-6 py-4 text-gray-600 dark:text-gray-300">
-                                        {formatCurrency(entry.gross_premium || 0)} <span className="text-xs text-gray-400">({entry.payment_method})</span>
+                                        <div className="font-medium">{formatCurrency(entry.gross_premium || 0)}</div>
+                                        <div className="text-xs text-gray-400">{entry.payment_method}</div>
                                     </td>
                                     <td className="px-6 py-4 text-gray-600 dark:text-gray-300">
-                                        <div className="text-xs">Satz: {entry.commission_rate} {entry.category === 'life' ? '‰' : (entry.category === 'health' && !entry.sub_category?.includes('reise') ? 'MB' : '%')}</div>
-                                        <div>Summe: {formatCurrency(entry.valuation_sum || 0)}</div>
+                                        <div className="text-xs text-gray-400 mb-0.5">Satz: {entry.commission_rate} {entry.category === 'life' ? '‰' : (entry.category === 'health' && !entry.sub_category?.includes('reise') ? 'MB' : '%')}</div>
+                                        <div className="font-medium">{formatCurrency(entry.valuation_sum || 0)}</div>
                                     </td>
-                                    <td className="px-6 py-4 text-right font-bold text-indigo-600 dark:text-indigo-400">
+                                    <td className="px-6 py-4 text-right font-black text-indigo-600 dark:text-indigo-400">
                                         {formatCurrency(entry.commission_amount || 0)}
                                     </td>
-                                    <td className="px-6 py-4 text-right flex justify-end gap-2">
-                                        <button 
-                                            onClick={() => handleEdit(entry)}
-                                            className="text-gray-400 hover:text-indigo-500 transition-colors"
-                                            title="Bearbeiten"
-                                        >
-                                            <Pencil className="w-4 h-4" />
-                                        </button>
-                                        <button 
-                                            onClick={() => handleDelete(entry.id)}
-                                            className="text-gray-400 hover:text-red-500 transition-colors"
-                                            title="Löschen"
-                                        >
-                                            <Trash2 className="w-4 h-4" />
-                                        </button>
+                                    <td className="px-6 py-4 text-right">
+                                        <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <button 
+                                                onClick={() => handleEdit(entry)}
+                                                className="p-2 text-gray-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition-all"
+                                                title="Bearbeiten"
+                                            >
+                                                <Pencil className="w-4 h-4" />
+                                            </button>
+                                            <button 
+                                                onClick={() => handleDelete(entry.id)}
+                                                className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
+                                                title="Löschen"
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                             ))
@@ -545,7 +589,7 @@ export const Production = () => {
                     </tbody>
                 </table>
             </div>
-        </div>
+        </motion.div>
 
         {/* New Entry Modal */}
         <Modal
@@ -553,10 +597,10 @@ export const Production = () => {
             onClose={() => setIsModalOpen(false)}
             title={editingId ? "Vertrag bearbeiten" : "Neuen Vertrag erfassen"}
         >
-            <form onSubmit={handleSubmit} className="space-y-6">
+            <form onSubmit={handleSubmit} className="space-y-8">
                 
                 {/* 1. Category Selection */}
-                <div className="grid grid-cols-5 gap-2">
+                <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
                     {INSURANCE_TYPES.map(c => (
                         <button
                             key={c.id}
@@ -566,99 +610,103 @@ export const Production = () => {
                                 setSubCategory(c.subcategories[0]);
                             }}
                             className={cn(
-                                "flex flex-col items-center justify-center p-2 rounded-xl border transition-all",
+                                "flex flex-col items-center justify-center p-3 rounded-2xl border transition-all hover:scale-105 active:scale-95",
                                 category === c.id 
-                                    ? "border-indigo-500 bg-indigo-50 text-indigo-700 ring-1 ring-indigo-500 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-500" 
+                                    ? "border-indigo-500 bg-indigo-50/50 text-indigo-700 ring-2 ring-indigo-500 ring-offset-2 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-500 dark:ring-offset-gray-800" 
                                     : "border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-700 dark:text-gray-300"
                             )}
                         >
-                            <span className="text-xl mb-1">{c.icon}</span>
-                            <span className="text-xs font-medium">{c.label}</span>
+                            <span className="text-2xl mb-2">{c.icon}</span>
+                            <span className="text-xs font-semibold">{c.label}</span>
                         </button>
                     ))}
                 </div>
 
                 {/* 2. Customer & Basic Info */}
-                <div className="grid grid-cols-2 gap-4">
-                    <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Nachname</label>
-                        <input required type="text" value={customerName} onChange={e => setCustomerName(e.target.value)} className="w-full rounded-lg border-gray-300 bg-gray-50 px-3 py-2 text-sm focus:ring-indigo-500" />
-                    </div>
-                    <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Vorname</label>
-                        <input type="text" value={customerFirstname} onChange={e => setCustomerFirstname(e.target.value)} className="w-full rounded-lg border-gray-300 bg-gray-50 px-3 py-2 text-sm focus:ring-indigo-500" />
-                    </div>
-                    <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Versicherungsschein-Nr.</label>
-                        <input type="text" value={policyNumber} onChange={e => setPolicyNumber(e.target.value)} className="w-full rounded-lg border-gray-300 bg-gray-50 px-3 py-2 text-sm focus:ring-indigo-500" />
-                    </div>
-                    <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Einreichungsdatum</label>
-                        <input type="date" value={submissionDate} onChange={e => setSubmissionDate(e.target.value)} className="w-full rounded-lg border-gray-300 bg-gray-50 px-3 py-2 text-sm focus:ring-indigo-500" />
-                    </div>
-                </div>
-
-                {/* 3. Contract Details (Dynamic) */}
-                <div className="bg-gray-50 p-4 rounded-xl space-y-4">
-                    <h3 className="font-semibold text-gray-900 text-sm flex items-center gap-2">
-                        <FileText className="w-4 h-4" /> Vertragsdaten
-                    </h3>
-                    
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-xs font-medium text-gray-500 mb-1">Sparte / Tarif</label>
-                            <select 
-                                value={subCategory} 
-                                onChange={e => setSubCategory(e.target.value)} 
-                                className="w-full rounded-lg border-gray-300 bg-white px-3 py-2 text-sm focus:ring-indigo-500" 
-                            >
-                                {INSURANCE_TYPES.find(c => c.id === category)?.subcategories.map(sc => (
-                                    <option key={sc} value={sc}>{sc}</option>
-                                ))}
-                            </select>
-                        </div>
-                        <div>
-                            <label className="block text-xs font-medium text-gray-500 mb-1">Zahlweise</label>
-                            <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)} className="w-full rounded-lg border-gray-300 bg-white px-3 py-2 text-sm focus:ring-indigo-500">
-                                <option value="monthly">Monatlich</option>
-                                <option value="quarterly">Vierteljährlich</option>
-                                <option value="half_yearly">Halbjährlich</option>
-                                <option value="yearly">Jährlich</option>
-                                <option value="one_time">Einmalbeitrag</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-4">
-                        <div>
-                            <label className="block text-xs font-medium text-gray-500 mb-1">Beitrag Netto</label>
-                            <div className="relative">
-                                <input type="number" step="0.01" value={netPremium} onChange={e => setNetPremium(e.target.value ? Number(e.target.value) : '')} className="w-full rounded-lg border-gray-300 bg-white pl-8 px-3 py-2 text-sm focus:ring-indigo-500" />
-                                <span className="absolute left-3 top-2 text-gray-400 text-xs">€</span>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Nachname</label>
+                                <input required type="text" value={customerName} onChange={e => setCustomerName(e.target.value)} className="w-full rounded-xl border-transparent bg-gray-50/50 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 px-4 py-2.5 text-sm transition-all" />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Vorname</label>
+                                <input type="text" value={customerFirstname} onChange={e => setCustomerFirstname(e.target.value)} className="w-full rounded-xl border-transparent bg-gray-50/50 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 px-4 py-2.5 text-sm transition-all" />
                             </div>
                         </div>
                         <div>
-                            <label className="block text-xs font-medium text-gray-500 mb-1">Beitrag Brutto</label>
-                            <div className="relative">
-                                <input type="number" step="0.01" value={grossPremium} onChange={e => setGrossPremium(e.target.value ? Number(e.target.value) : '')} className="w-full rounded-lg border-gray-300 bg-white pl-8 px-3 py-2 text-sm focus:ring-indigo-500" />
-                                <span className="absolute left-3 top-2 text-gray-400 text-xs">€</span>
-                            </div>
+                            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Versicherungsschein-Nr.</label>
+                            <input type="text" value={policyNumber} onChange={e => setPolicyNumber(e.target.value)} className="w-full rounded-xl border-transparent bg-gray-50/50 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 px-4 py-2.5 text-sm transition-all" />
                         </div>
                         <div>
-                            <label className="block text-xs font-medium text-gray-500 mb-1">Laufzeit (Jahre)</label>
-                            <input type="number" value={duration} onChange={e => setDuration(Number(e.target.value))} className="w-full rounded-lg border-gray-300 bg-white px-3 py-2 text-sm focus:ring-indigo-500" />
+                            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Einreichungsdatum</label>
+                            <input type="date" value={submissionDate} onChange={e => setSubmissionDate(e.target.value)} className="w-full rounded-xl border-transparent bg-gray-50/50 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 px-4 py-2.5 text-sm transition-all" />
+                        </div>
+                    </div>
+
+                    {/* 3. Contract Details (Dynamic) */}
+                    <div className="bg-gray-50/50 dark:bg-gray-800/50 p-6 rounded-3xl space-y-4 border border-gray-100 dark:border-gray-700">
+                        <h3 className="font-bold text-gray-900 dark:text-white text-sm flex items-center gap-2 mb-2">
+                            <FileText className="w-4 h-4 text-indigo-500" /> Vertragsdaten
+                        </h3>
+                        
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-xs font-medium text-gray-500 mb-1.5">Sparte / Tarif</label>
+                                <select 
+                                    value={subCategory} 
+                                    onChange={e => setSubCategory(e.target.value)} 
+                                    className="w-full rounded-xl border-transparent bg-white focus:ring-2 focus:ring-indigo-500/20 px-3 py-2.5 text-sm shadow-sm" 
+                                >
+                                    {INSURANCE_TYPES.find(c => c.id === category)?.subcategories.map(sc => (
+                                        <option key={sc} value={sc}>{sc}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-medium text-gray-500 mb-1.5">Zahlweise</label>
+                                <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)} className="w-full rounded-xl border-transparent bg-white focus:ring-2 focus:ring-indigo-500/20 px-3 py-2.5 text-sm shadow-sm">
+                                    <option value="monthly">Monatlich</option>
+                                    <option value="quarterly">Vierteljährlich</option>
+                                    <option value="half_yearly">Halbjährlich</option>
+                                    <option value="yearly">Jährlich</option>
+                                    <option value="one_time">Einmalbeitrag</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-4">
+                            <div>
+                                <label className="block text-xs font-medium text-gray-500 mb-1.5">Beitrag Netto</label>
+                                <div className="relative">
+                                    <input type="number" step="0.01" value={netPremium} onChange={e => setNetPremium(e.target.value ? Number(e.target.value) : '')} className="w-full rounded-xl border-transparent bg-white pl-8 px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500/20 shadow-sm" />
+                                    <span className="absolute left-3 top-2.5 text-gray-400 text-xs">€</span>
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-medium text-gray-500 mb-1.5">Beitrag Brutto</label>
+                                <div className="relative">
+                                    <input type="number" step="0.01" value={grossPremium} onChange={e => setGrossPremium(e.target.value ? Number(e.target.value) : '')} className="w-full rounded-xl border-transparent bg-white pl-8 px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500/20 shadow-sm" />
+                                    <span className="absolute left-3 top-2.5 text-gray-400 text-xs">€</span>
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-medium text-gray-500 mb-1.5">Laufzeit (J)</label>
+                                <input type="number" value={duration} onChange={e => setDuration(Number(e.target.value))} className="w-full rounded-xl border-transparent bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500/20 shadow-sm" />
+                            </div>
                         </div>
                     </div>
                 </div>
 
                 {/* 4. Calculation Preview */}
-                <div className="bg-indigo-50 p-4 rounded-xl space-y-3 border border-indigo-100">
-                    <h3 className="font-semibold text-indigo-900 text-sm flex items-center gap-2">
+                <div className="bg-gradient-to-br from-indigo-50 to-violet-50 dark:from-indigo-900/20 dark:to-violet-900/20 p-6 rounded-3xl space-y-4 border border-indigo-100 dark:border-indigo-800/30">
+                    <h3 className="font-bold text-indigo-900 dark:text-indigo-300 text-sm flex items-center gap-2">
                         <Euro className="w-4 h-4" /> Provision (Vorschau)
                     </h3>
                     
-                    <div className="grid grid-cols-3 gap-4">
-                        <div>
+                    <div className="grid grid-cols-3 gap-6">
+                        <div className="bg-white/50 dark:bg-gray-800/50 p-3 rounded-2xl">
                             <label className="block text-xs font-medium text-indigo-400 mb-1">
                                 {category === 'life' ? 'Promille' : (['KV Voll', 'KV Zusatz'].includes(subCategory) ? 'MB-Faktor' : 'Prozent')}
                             </label>
@@ -667,54 +715,54 @@ export const Production = () => {
                                 step="0.1" 
                                 value={commissionRate} 
                                 readOnly
-                                className="w-full rounded-lg border-indigo-200 bg-gray-50 px-3 py-1.5 text-sm font-bold text-indigo-700 cursor-not-allowed" 
+                                className="w-full bg-transparent border-none p-0 text-xl font-black text-indigo-700 dark:text-indigo-300 focus:ring-0" 
                             />
                         </div>
-                        <div>
+                        <div className="bg-white/50 dark:bg-gray-800/50 p-3 rounded-2xl">
                             <label className="block text-xs font-medium text-indigo-400 mb-1">
-                                {category === 'life' ? 'Bewertungssumme' : (['KV Voll', 'KV Zusatz'].includes(subCategory) ? 'Monatsbeitrag' : 'Jahresbeitrag (Netto/Brutto)')}
+                                {category === 'life' ? 'Bewertungssumme' : (['KV Voll', 'KV Zusatz'].includes(subCategory) ? 'Monatsbeitrag' : 'Jahresbeitrag')}
                             </label>
-                            <div className="text-sm font-medium text-indigo-900 py-2">
+                            <div className="text-xl font-bold text-indigo-900 dark:text-indigo-200">
                                 {formatCurrency(valuationSum)}
                             </div>
                         </div>
-                        <div>
-                            <label className="block text-xs font-medium text-indigo-400 mb-1">Provision</label>
-                            <div className="text-lg font-bold text-green-600 py-1">
+                        <div className="bg-white/80 dark:bg-gray-800/80 p-3 rounded-2xl shadow-sm ring-1 ring-indigo-100 dark:ring-indigo-700/50">
+                            <label className="block text-xs font-bold text-indigo-600 dark:text-indigo-400 mb-1">PROVISION</label>
+                            <div className="text-2xl font-black text-green-600 dark:text-green-400">
                                 {formatCurrency(commissionAmount)}
                             </div>
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-4 pt-2 border-t border-indigo-100">
-                         <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-4 pt-4 border-t border-indigo-200/50 dark:border-indigo-700/30">
+                         <div className="flex items-center gap-3 bg-white/50 dark:bg-gray-800/50 px-4 py-2 rounded-xl">
                              <input 
                                  type="checkbox" 
                                  id="liabilityCheck"
                                  checked={liabilityActive}
                                  onChange={e => setLiabilityActive(e.target.checked)}
-                                 className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                 className="rounded-lg border-gray-300 text-indigo-600 focus:ring-indigo-500 w-5 h-5"
                              />
-                             <label htmlFor="liabilityCheck" className="text-sm text-gray-700 font-medium">Stornohaftung einbehalten</label>
+                             <label htmlFor="liabilityCheck" className="text-sm text-gray-700 dark:text-gray-300 font-medium cursor-pointer">Stornohaftung einbehalten</label>
                          </div>
                          {liabilityActive && (
-                             <div className="flex items-center gap-2">
+                             <div className="flex items-center gap-2 animate-in fade-in slide-in-from-left-4">
                                  <input 
                                      type="number" 
                                      value={liabilityRate} 
                                      onChange={e => setLiabilityRate(Number(e.target.value))} 
-                                     className="w-16 rounded-lg border-gray-300 bg-white px-2 py-1 text-sm focus:ring-indigo-500" 
+                                     className="w-20 rounded-xl border-transparent bg-white dark:bg-gray-800 focus:ring-2 focus:ring-indigo-500/20 px-3 py-2 text-sm font-bold text-center" 
                                  />
-                                 <span className="text-sm text-gray-500">%</span>
+                                 <span className="text-sm font-bold text-indigo-400">%</span>
                              </div>
                          )}
                     </div>
                 </div>
 
-                <div className="flex justify-end gap-3 pt-2">
-                    <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Abbrechen</button>
-                    <button type="submit" disabled={submitting} className="px-4 py-2 text-sm text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-md">
-                        Vertrag speichern
+                <div className="flex justify-end gap-3 pt-4">
+                    <button type="button" onClick={() => setIsModalOpen(false)} className="px-6 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-xl transition-colors">Abbrechen</button>
+                    <button type="submit" disabled={submitting} className="px-6 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-lg shadow-indigo-500/30 transition-all hover:scale-[1.02]">
+                        {editingId ? 'Änderungen speichern' : 'Vertrag einreichen'}
                     </button>
                 </div>
             </form>
