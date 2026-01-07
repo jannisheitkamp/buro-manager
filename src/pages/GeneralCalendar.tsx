@@ -29,6 +29,7 @@ export const GeneralCalendar = () => {
   const { user } = useStore();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
+  const [viewMode, setViewMode] = useState<'month' | 'week'>('month');
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
@@ -43,11 +44,15 @@ export const GeneralCalendar = () => {
   const [eventColor, setEventColor] = useState('blue');
 
   const fetchEvents = async () => {
-    // Fetch events for current month view (plus buffer)
-    const start = startOfWeek(startOfMonth(currentDate)).toISOString();
-    const end = endOfWeek(endOfMonth(currentDate)).toISOString();
-
-    console.log('Fetching events for range:', { start, end });
+    // Determine fetch range based on view mode
+    let start, end;
+    if (viewMode === 'month') {
+        start = startOfWeek(startOfMonth(currentDate), { weekStartsOn: 1 }).toISOString();
+        end = endOfWeek(endOfMonth(currentDate), { weekStartsOn: 1 }).toISOString();
+    } else {
+        start = startOfWeek(currentDate, { weekStartsOn: 1 }).toISOString();
+        end = endOfWeek(currentDate, { weekStartsOn: 1 }).toISOString();
+    }
 
     // 1. Calendar Events: Try with profiles first, fallback without if relationship error
     let calendarData;
@@ -117,19 +122,20 @@ export const GeneralCalendar = () => {
     // Add Absences
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     absenceData?.forEach((a: any) => {
-        // Create an event for each day of the absence within the view
         let d = new Date(a.start_date);
         const endDate = new Date(a.end_date);
         
-        // Prevent infinite loop if dates are invalid
+        // Safety check
         if (d > endDate) return;
 
+        // For week view, we might need to handle multi-day events differently,
+        // but splitting them into daily chunks works for both views visually.
         while (d <= endDate) {
             allEvents.push({
                 id: `${a.id}-${d.toISOString()}`,
                 title: `Urlaub: ${a.profiles?.full_name}`,
                 start_time: d.toISOString(),
-                end_time: d.toISOString(),
+                end_time: d.toISOString(), // Full day
                 user_id: a.user_id,
                 color: 'green',
                 type: 'absence',
@@ -185,7 +191,7 @@ export const GeneralCalendar = () => {
         sub3.unsubscribe();
         sub4.unsubscribe();
     };
-  }, [currentDate]);
+  }, [currentDate, viewMode]);
 
   const handleCreateOrUpdateEvent = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -298,16 +304,46 @@ export const GeneralCalendar = () => {
     return (
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-4">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white capitalize">
-                {format(currentDate, 'MMMM yyyy', { locale: de })}
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white capitalize min-w-[200px]">
+                {viewMode === 'month' 
+                    ? format(currentDate, 'MMMM yyyy', { locale: de })
+                    : `KW ${format(currentDate, 'w')} • ${format(startOfWeek(currentDate, { weekStartsOn: 1 }), 'MMM', { locale: de })}`
+                }
             </h2>
             <div className="flex bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
-                <button onClick={() => setCurrentDate(subMonths(currentDate, 1))} className="p-1 hover:bg-white dark:hover:bg-gray-700 rounded-md transition-colors"><ChevronLeft className="w-5 h-5" /></button>
+                <button onClick={() => {
+                    if (viewMode === 'month') setCurrentDate(subMonths(currentDate, 1));
+                    else setCurrentDate(addDays(currentDate, -7));
+                }} className="p-1 hover:bg-white dark:hover:bg-gray-700 rounded-md transition-colors"><ChevronLeft className="w-5 h-5" /></button>
                 <button onClick={() => setCurrentDate(new Date())} className="px-3 text-sm font-medium hover:bg-white dark:hover:bg-gray-700 rounded-md transition-colors">Heute</button>
-                <button onClick={() => setCurrentDate(addMonths(currentDate, 1))} className="p-1 hover:bg-white dark:hover:bg-gray-700 rounded-md transition-colors"><ChevronRight className="w-5 h-5" /></button>
+                <button onClick={() => {
+                    if (viewMode === 'month') setCurrentDate(addMonths(currentDate, 1));
+                    else setCurrentDate(addDays(currentDate, 7));
+                }} className="p-1 hover:bg-white dark:hover:bg-gray-700 rounded-md transition-colors"><ChevronRight className="w-5 h-5" /></button>
             </div>
         </div>
         <div className="flex gap-2">
+            <div className="flex bg-gray-100 dark:bg-gray-800 rounded-lg p-1 mr-2">
+                <button 
+                    onClick={() => setViewMode('month')}
+                    className={cn(
+                        "px-3 py-1 text-sm font-medium rounded-md transition-all",
+                        viewMode === 'month' ? "bg-white dark:bg-gray-700 shadow-sm text-indigo-600 dark:text-indigo-400" : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                    )}
+                >
+                    Monat
+                </button>
+                <button 
+                    onClick={() => setViewMode('week')}
+                    className={cn(
+                        "px-3 py-1 text-sm font-medium rounded-md transition-all",
+                        viewMode === 'week' ? "bg-white dark:bg-gray-700 shadow-sm text-indigo-600 dark:text-indigo-400" : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                    )}
+                >
+                    Woche
+                </button>
+            </div>
+
             <button
                 onClick={() => openNewEventModal(new Date())}
                 className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow-sm transition-colors"
@@ -416,11 +452,138 @@ export const GeneralCalendar = () => {
     return <div className="rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700">{rows}</div>;
   };
 
+  const renderWeekView = () => {
+      const startDate = startOfWeek(currentDate, { weekStartsOn: 1 });
+      const days = [];
+      
+      // Header: Mon 06, Tue 07, ...
+      for (let i = 0; i < 7; i++) {
+          const d = addDays(startDate, i);
+          days.push(
+              <div key={i} className={cn(
+                  "flex-1 text-center py-3 border-b border-r border-gray-200 dark:border-gray-700 last:border-r-0",
+                  isToday(d) ? "bg-indigo-50/50 dark:bg-indigo-900/20" : ""
+              )}>
+                  <div className="text-xs text-gray-500 uppercase font-semibold">{format(d, 'EEE', { locale: de })}</div>
+                  <div className={cn(
+                      "text-xl font-bold mt-1 w-8 h-8 flex items-center justify-center rounded-full mx-auto",
+                      isToday(d) ? "bg-indigo-600 text-white" : "text-gray-900 dark:text-white"
+                  )}>
+                      {format(d, 'd')}
+                  </div>
+              </div>
+          );
+      }
+
+      // Time Grid
+      const hours = Array.from({ length: 16 }, (_, i) => i + 6); // 06:00 to 21:00
+      
+      return (
+          <div className="flex flex-col h-[calc(100vh-250px)] overflow-hidden border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-900">
+              {/* Header Row */}
+              <div className="flex border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+                  <div className="w-16 border-r border-gray-200 dark:border-gray-700 flex-shrink-0"></div>
+                  {days}
+              </div>
+
+              {/* Scrollable Content */}
+              <div className="flex-1 overflow-y-auto custom-scrollbar relative">
+                  <div className="flex relative min-h-[960px]"> {/* 16 hours * 60px height */}
+                      {/* Time Column */}
+                      <div className="w-16 flex-shrink-0 border-r border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 z-20 sticky left-0">
+                          {hours.map(hour => (
+                              <div key={hour} className="h-[60px] text-xs text-gray-400 text-right pr-2 pt-2 border-b border-gray-100 dark:border-gray-800">
+                                  {hour}:00
+                              </div>
+                          ))}
+                      </div>
+
+                      {/* Day Columns */}
+                      {Array.from({ length: 7 }).map((_, dayIdx) => {
+                          const currentDay = addDays(startDate, dayIdx);
+                          const dayEvents = events.filter(e => isSameDay(new Date(e.start_time), currentDay));
+
+                          return (
+                              <div key={dayIdx} className="flex-1 border-r border-gray-100 dark:border-gray-800 last:border-r-0 relative group">
+                                  {/* Grid Lines */}
+                                  {hours.map(hour => (
+                                      <div key={hour} className="h-[60px] border-b border-gray-50 dark:border-gray-800/50" />
+                                  ))}
+
+                                  {/* Click to add event (overlay) */}
+                                  <div 
+                                      className="absolute inset-0 z-0"
+                                      onClick={(e) => {
+                                          const rect = e.currentTarget.getBoundingClientRect();
+                                          const y = e.clientY - rect.top + e.currentTarget.scrollTop;
+                                          const hourIndex = Math.floor(y / 60);
+                                          const hour = hours[0] + hourIndex;
+                                          
+                                          const newDate = new Date(currentDay);
+                                          newDate.setHours(hour, 0, 0, 0);
+                                          
+                                          // Update default time in form
+                                          setEventStart(`${hour.toString().padStart(2, '0')}:00`);
+                                          setEventEnd(`${(hour + 1).toString().padStart(2, '0')}:00`);
+                                          openNewEventModal(newDate);
+                                      }}
+                                  />
+
+                                  {/* Events */}
+                                  {dayEvents.map(ev => {
+                                      const start = new Date(ev.start_time);
+                                      const end = new Date(ev.end_time);
+                                      const startHour = start.getHours() + start.getMinutes() / 60;
+                                      const endHour = end.getHours() + end.getMinutes() / 60;
+                                      
+                                      // Calculate position relative to start of grid (06:00)
+                                      const top = (startHour - 6) * 60;
+                                      const height = Math.max((endHour - startHour) * 60, 20); // Min height 20px
+
+                                      if (top < 0) return null; // Skip events before 6am for now
+
+                                      return (
+                                          <div
+                                              key={ev.id}
+                                              onClick={(e) => { e.stopPropagation(); openEditModal(ev); }}
+                                              className={cn(
+                                                  "absolute left-1 right-1 rounded px-2 py-1 text-xs border-l-4 cursor-pointer hover:brightness-95 hover:scale-[1.02] transition-all shadow-sm z-10 overflow-hidden",
+                                                  ev.color === 'red' ? "bg-red-100 text-red-700 border-red-500 dark:bg-red-900/40 dark:text-red-100" :
+                                                  ev.color === 'green' ? "bg-green-100 text-green-700 border-green-500 dark:bg-green-900/40 dark:text-green-100" :
+                                                  ev.color === 'yellow' ? "bg-yellow-100 text-yellow-700 border-yellow-500 dark:bg-yellow-900/40 dark:text-yellow-100" :
+                                                  "bg-blue-100 text-blue-700 border-blue-500 dark:bg-blue-900/40 dark:text-blue-100"
+                                              )}
+                                              style={{ top: `${top}px`, height: `${height}px` }}
+                                              title={`${ev.title} (${format(start, 'HH:mm')} - ${format(end, 'HH:mm')})`}
+                                          >
+                                              <div className="font-semibold truncate">{ev.title}</div>
+                                              <div className="opacity-80 truncate text-[10px]">
+                                                  {format(start, 'HH:mm')} - {format(end, 'HH:mm')}
+                                              </div>
+                                              {ev.location && <div className="truncate opacity-70 text-[10px] mt-0.5">{ev.location}</div>}
+                                          </div>
+                                      );
+                                  })}
+                              </div>
+                          );
+                      })}
+                  </div>
+              </div>
+          </div>
+      );
+  };
+
   return (
     <div className="space-y-6">
         {renderHeader()}
-        {renderDays()}
-        {renderCells()}
+        {viewMode === 'month' ? (
+            <>
+                {renderDays()}
+                {renderCells()}
+            </>
+        ) : (
+            renderWeekView()
+        )}
 
         <Modal
             isOpen={isModalOpen}
