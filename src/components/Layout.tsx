@@ -16,7 +16,8 @@ import {
   Phone,
   TrendingUp,
   Shield,
-  Kanban
+  Kanban,
+  FileText
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { useState, useEffect } from 'react';
@@ -35,6 +36,7 @@ const navigation = [
   { name: 'Buchungen', href: '/bookings', icon: Building2 },
   { name: 'Produktion', href: '/production', icon: TrendingUp },
   { name: 'Schwarzes Brett', href: '/board', icon: ClipboardList },
+  { name: 'Dokumente', href: '/documents', icon: FileText },
   { name: 'Umfragen', href: '/polls', icon: BarChart2 },
   { name: 'Rückrufe', href: '/callbacks', icon: Phone },
   { name: 'Pakete', href: '/parcels', icon: Package },

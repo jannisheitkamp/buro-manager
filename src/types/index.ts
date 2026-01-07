@@ -104,3 +104,24 @@ export type PollVote = {
   user_id: string;
   created_at: string;
 };
+
+export type Document = {
+  id: string;
+  title: string;
+  content: string | null;
+  file_path: string | null;
+  file_type: 'text' | 'file';
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  creator?: Profile;
+  shares?: DocumentShare[];
+};
+
+export type DocumentShare = {
+  id: string;
+  document_id: string;
+  user_id: string;
+  created_at: string;
+  profile?: Profile;
+};

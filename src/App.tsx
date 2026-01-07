@@ -28,6 +28,7 @@ import { Onboarding } from '@/pages/Onboarding';
 import { OnboardingCheck } from '@/components/OnboardingCheck';
 import { MfaSetup } from '@/pages/MfaSetup';
 import { MfaCheck } from '@/components/MfaCheck';
+import { Documents } from '@/pages/Documents';
 
 function App() {
   const setUser = useStore((state) => state.setUser);
