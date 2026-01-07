@@ -301,16 +301,16 @@ export const Leads = () => {
                 </div>
             </div>
 
-            {/* Kanban Board */}
-            <div className="flex-1 overflow-x-auto overflow-y-hidden pb-4">
-                <div className="flex gap-6 h-full min-w-[1000px] px-1">
+            {/* Kanban Board (Scrollable Container) */}
+            <div className="flex-1 overflow-x-auto overflow-y-hidden pb-4 -mx-4 px-4 md:mx-0 md:px-0">
+                <div className="flex gap-4 md:gap-6 h-full w-max md:min-w-0 md:w-full px-1">
                     {COLUMNS.map((col) => {
                         const colLeads = getColumnLeads(col.id);
 
                         return (
                             <div 
                                 key={col.id} 
-                                className="flex-1 flex flex-col min-w-[280px] bg-gray-50/50 dark:bg-gray-800/20 rounded-3xl border border-gray-100 dark:border-gray-700/50 flex-shrink-0"
+                                className="flex flex-col w-[85vw] md:w-auto md:flex-1 bg-gray-50/50 dark:bg-gray-800/20 rounded-3xl border border-gray-100 dark:border-gray-700/50 flex-shrink-0 snap-center"
                                 onDragOver={(e) => e.preventDefault()}
                                 onDrop={(e) => {
                                     e.preventDefault();

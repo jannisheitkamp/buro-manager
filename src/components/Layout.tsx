@@ -189,7 +189,7 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
       </div>
 
       {/* Mobile Bottom Navigation Bar */}
-      <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 z-50 px-4 py-2 flex justify-between items-center safe-area-pb">
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-gray-800/95 backdrop-blur-md border-t border-gray-200 dark:border-gray-700 z-50 px-2 py-2 flex justify-around items-center safe-area-pb shadow-lg">
         {navigation.slice(0, 4).map((item) => {
           const Icon = item.icon;
           const isActive = location.pathname === item.href;
@@ -198,26 +198,26 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
               key={item.name}
               to={item.href}
               className={cn(
-                "flex flex-col items-center gap-1 p-2 rounded-lg transition-colors relative min-w-[60px]",
+                "flex flex-col items-center gap-1 p-1.5 rounded-xl transition-all relative flex-1 active:scale-95",
                 isActive 
-                  ? "text-indigo-600 dark:text-indigo-400" 
+                  ? "text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/20" 
                   : "text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
               )}
             >
-              <Icon className={cn("h-6 w-6 transition-transform", isActive ? "scale-110" : "")} />
-              <span className="text-[10px] font-medium truncate w-full text-center">{item.name}</span>
+              <Icon className={cn("h-5 w-5 transition-transform", isActive ? "scale-110" : "")} />
+              <span className="text-[9px] font-bold truncate w-full text-center">{item.name}</span>
               {item.name === 'Verzeichnis' && pendingCount > 0 && (
-                  <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                  <span className="absolute top-1 right-3 w-2 h-2 bg-red-500 rounded-full animate-pulse ring-2 ring-white dark:ring-gray-800" />
               )}
             </Link>
           );
         })}
         <button
-           className="flex flex-col items-center gap-1 p-2 rounded-lg text-gray-500 dark:text-gray-400 min-w-[60px]"
+           className="flex flex-col items-center gap-1 p-1.5 rounded-xl text-gray-500 dark:text-gray-400 flex-1 active:scale-95 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-all"
            onClick={() => setIsMobileMenuOpen(true)}
         >
-            <Menu className="h-6 w-6" />
-            <span className="text-[10px] font-medium">Mehr</span>
+            <Menu className="h-5 w-5" />
+            <span className="text-[9px] font-bold">Mehr</span>
         </button>
       </div>
 

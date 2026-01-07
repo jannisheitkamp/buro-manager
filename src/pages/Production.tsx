@@ -897,11 +897,11 @@ export const Production = () => {
                              <div className="text-center py-10 text-gray-500">Keine Verträge gefunden.</div>
                         ) : (
                             filteredEntries.map(entry => (
-                                <div key={entry.id} onClick={() => handleEdit(entry)} className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 active:scale-[0.98] transition-transform">
+                                <div key={entry.id} onClick={() => handleEdit(entry)} className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 active:scale-[0.98] transition-transform relative">
                                     <div className="flex justify-between items-start mb-3">
-                                        <div>
-                                            <h3 className="font-bold text-gray-900 dark:text-white">{entry.customer_name}, {entry.customer_firstname}</h3>
-                                            <p className="text-xs text-gray-500 font-mono">{entry.policy_number || 'Keine Schein-Nr.'}</p>
+                                        <div className="max-w-[60%]">
+                                            <h3 className="font-bold text-gray-900 dark:text-white truncate">{entry.customer_name}, {entry.customer_firstname}</h3>
+                                            <p className="text-xs text-gray-500 font-mono truncate">{entry.policy_number || 'Keine Schein-Nr.'}</p>
                                         </div>
                                         <div className="text-right">
                                             <p className="text-lg font-black text-indigo-600 dark:text-indigo-400">{formatCurrency(entry.commission_amount || 0)}</p>
@@ -909,7 +909,7 @@ export const Production = () => {
                                         </div>
                                     </div>
                                     
-                                    <div className="flex items-center gap-2 mb-3">
+                                    <div className="flex flex-wrap items-center gap-2 mb-3">
                                         <span className={cn(
                                             "inline-flex items-center px-2 py-1 rounded-lg text-xs font-bold border",
                                             entry.category === 'life' ? "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-800" :
@@ -922,7 +922,7 @@ export const Production = () => {
                                             entry.category === 'health' ? 'Kranken' : entry.category}
                                         </span>
                                         {entry.sub_category && (
-                                            <span className="text-xs text-gray-500 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded-lg">
+                                            <span className="text-xs text-gray-500 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded-lg truncate max-w-[150px]">
                                                 {entry.sub_category}
                                             </span>
                                         )}
@@ -935,7 +935,7 @@ export const Production = () => {
                                         </div>
                                         <button 
                                             onClick={(e) => { e.stopPropagation(); handleDelete(entry.id); }}
-                                            className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors"
+                                            className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors z-10"
                                         >
                                             <Trash2 className="w-5 h-5" />
                                         </button>

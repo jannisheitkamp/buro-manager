@@ -64,19 +64,44 @@ export const Admin = () => {
     };
 
     const toggleApproval = async (userId: string, currentStatus: boolean) => {
-        try {
-            const { error } = await supabase
-                .from('profiles')
-                .update({ is_approved: !currentStatus })
-                .eq('id', userId);
-            
-            if (error) throw error;
-            
-            setUsers(users.map(u => u.id === userId ? { ...u, is_approved: !currentStatus } : u));
-            toast.success(currentStatus ? 'Nutzer deaktiviert' : 'Nutzer freigeschaltet');
-        } catch (error) {
-            toast.error('Fehler beim Update');
-        }
+        const action = currentStatus ? 'deaktivieren' : 'freischalten';
+        toast((t) => (
+            <div className="flex flex-col gap-3 min-w-[250px]">
+                <p className="font-bold text-gray-900 dark:text-white">Nutzer wirklich {action}?</p>
+                <div className="flex gap-2">
+                    <button 
+                        onClick={async () => {
+                            toast.dismiss(t.id);
+                            try {
+                                const { error } = await supabase
+                                    .from('profiles')
+                                    .update({ is_approved: !currentStatus })
+                                    .eq('id', userId);
+                                
+                                if (error) throw error;
+                                
+                                setUsers(users.map(u => u.id === userId ? { ...u, is_approved: !currentStatus } : u));
+                                toast.success(currentStatus ? 'Nutzer deaktiviert' : 'Nutzer freigeschaltet');
+                            } catch (error) {
+                                toast.error('Fehler beim Update');
+                            }
+                        }}
+                        className={cn(
+                            "flex-1 px-3 py-1.5 rounded-lg text-sm font-bold transition-colors text-white",
+                            currentStatus ? "bg-amber-500 hover:bg-amber-600" : "bg-emerald-500 hover:bg-emerald-600"
+                        )}
+                    >
+                        Ja, {action}
+                    </button>
+                    <button 
+                        onClick={() => toast.dismiss(t.id)}
+                        className="flex-1 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-bold transition-colors"
+                    >
+                        Abbrechen
+                    </button>
+                </div>
+            </div>
+        ), { duration: 5000, position: 'top-center' });
     };
 
     const toggleAdmin = async (userId: string, currentRoles: string[] | null) => {
