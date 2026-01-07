@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useStore } from '@/store/useStore';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, MoreHorizontal, ArrowRight, ArrowLeft, Trash2, DollarSign, User, FileText, CheckCircle2, FileInput } from 'lucide-react';
+import { Plus, ArrowRight, ArrowLeft, Trash2, User, Phone, Mail, Clock, Box, FileInput, CheckCircle2 } from 'lucide-react';
 import { Modal } from '@/components/Modal';
 import { toast } from 'react-hot-toast';
 import { cn } from '@/utils/cn';
@@ -12,8 +12,11 @@ import { useNavigate } from 'react-router-dom';
 type Lead = {
     id: string;
     customer_name: string;
-    status: 'new' | 'contacted' | 'proposal' | 'closed';
-    value: number;
+    phone?: string;
+    email?: string;
+    availability?: string;
+    product?: string;
+    status: 'new' | 'contacted' | 'proposal' | 'closed' | 'archived';
     notes: string;
     created_at: string;
 };
@@ -35,7 +38,10 @@ export const Leads = () => {
 
     const [formData, setFormData] = useState({
         customer_name: '',
-        value: '',
+        phone: '',
+        email: '',
+        availability: '',
+        product: '',
         notes: '',
         status: 'new'
     });
@@ -75,7 +81,10 @@ export const Leads = () => {
             const { error } = await supabase.from('leads').insert({
                 user_id: user.id,
                 customer_name: formData.customer_name,
-                value: Number(formData.value) || 0,
+                phone: formData.phone,
+                email: formData.email,
+                availability: formData.availability,
+                product: formData.product,
                 notes: formData.notes,
                 status: formData.status
             });
@@ -83,7 +92,7 @@ export const Leads = () => {
             if (error) throw error;
             toast.success('Lead erstellt');
             setIsModalOpen(false);
-            setFormData({ customer_name: '', value: '', notes: '', status: 'new' });
+            setFormData({ customer_name: '', phone: '', email: '', availability: '', product: '', notes: '', status: 'new' });
         } catch (error) {
             console.error(error);
             toast.error('Fehler beim Speichern');
@@ -109,9 +118,18 @@ export const Leads = () => {
         else toast.success('Lead gelöscht');
     };
 
-    const getColumnLeads = (status: string) => leads.filter(l => l.status === status);
+    const archiveLead = async (id: string) => {
+        const { error } = await supabase.from('leads').update({ status: 'archived' }).eq('id', id);
+        if (error) {
+            toast.error('Fehler beim Archivieren');
+        } else {
+            // Optimistic update - remove from list as it's no longer in one of the active columns
+            setLeads(leads.filter(l => l.id !== id));
+            toast.success('Lead archiviert');
+        }
+    };
 
-    const totalValue = leads.reduce((acc, curr) => acc + (curr.value || 0), 0);
+    const getColumnLeads = (status: string) => leads.filter(l => l.status === status);
 
     return (
         <div className="max-w-[1600px] mx-auto space-y-8 h-[calc(100vh-100px)] flex flex-col pb-4">
@@ -131,12 +149,6 @@ export const Leads = () => {
                 </div>
 
                 <div className="flex items-center gap-4">
-                    <div className="hidden md:block text-right mr-4">
-                        <p className="text-xs font-bold text-gray-400 uppercase">Pipeline Wert</p>
-                        <p className="text-2xl font-black text-gray-900 dark:text-white">
-                            {new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(totalValue)}
-                        </p>
-                    </div>
                     <motion.button
                         initial={{ opacity: 0, scale: 0.9 }}
                         animate={{ opacity: 1, scale: 1 }}
@@ -153,7 +165,6 @@ export const Leads = () => {
                 <div className="flex gap-6 h-full min-w-[1000px] px-1">
                     {COLUMNS.map((col) => {
                         const colLeads = getColumnLeads(col.id);
-                        const colValue = colLeads.reduce((acc, curr) => acc + (curr.value || 0), 0);
 
                         return (
                             <div key={col.id} className="flex-1 flex flex-col min-w-[280px] bg-gray-50/50 dark:bg-gray-800/20 rounded-3xl border border-gray-100 dark:border-gray-700/50 flex-shrink-0">
@@ -161,7 +172,7 @@ export const Leads = () => {
                                 <div className={`p-4 rounded-t-3xl border-b border-gray-100 dark:border-gray-700/50 flex items-center justify-between ${col.color.split(' ')[0]} bg-opacity-50`}>
                                     <div>
                                         <h3 className={`font-bold ${col.color.split(' ')[1]}`}>{col.label}</h3>
-                                        <p className="text-xs opacity-70 font-medium">{colLeads.length} Leads • {new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(colValue)}</p>
+                                        <p className="text-xs opacity-70 font-medium">{colLeads.length} Leads</p>
                                     </div>
                                     <div className={`w-2 h-2 rounded-full ${col.color.replace('text', 'bg').split(' ')[1]}`} />
                                 </div>
@@ -178,23 +189,47 @@ export const Leads = () => {
                                                 exit={{ opacity: 0, scale: 0.9 }}
                                                 className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 group hover:shadow-md transition-all cursor-grab active:cursor-grabbing"
                                             >
-                                                <div className="flex justify-between items-start mb-2">
-                                                    <h4 className="font-bold text-gray-900 dark:text-white line-clamp-1">{lead.customer_name}</h4>
+                                                <div className="flex justify-between items-start mb-3">
+                                                    <h4 className="font-bold text-gray-900 dark:text-white line-clamp-1 text-base">{lead.customer_name}</h4>
                                                     <button onClick={() => deleteLead(lead.id)} className="text-gray-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100">
                                                         <Trash2 className="w-4 h-4" />
                                                     </button>
                                                 </div>
                                                 
-                                                {lead.value > 0 && (
-                                                    <div className="flex items-center gap-1 text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                                                        <DollarSign className="w-3.5 h-3.5 text-gray-400" />
-                                                        {new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(lead.value)}
-                                                    </div>
-                                                )}
+                                                <div className="space-y-2 mb-3">
+                                                    {lead.product && (
+                                                        <div className="flex items-center gap-2 text-xs font-semibold text-indigo-600 bg-indigo-50 dark:bg-indigo-900/20 dark:text-indigo-300 px-2 py-1 rounded-lg w-fit">
+                                                            <Box className="w-3 h-3" />
+                                                            {lead.product}
+                                                        </div>
+                                                    )}
+                                                    
+                                                    {(lead.phone || lead.email) && (
+                                                        <div className="flex flex-col gap-1 text-xs text-gray-500 dark:text-gray-400">
+                                                            {lead.phone && (
+                                                                <div className="flex items-center gap-1.5">
+                                                                    <Phone className="w-3 h-3" /> {lead.phone}
+                                                                </div>
+                                                            )}
+                                                            {lead.email && (
+                                                                <div className="flex items-center gap-1.5">
+                                                                    <Mail className="w-3 h-3" /> {lead.email}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    )}
+
+                                                    {lead.availability && (
+                                                        <div className="flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400 font-medium">
+                                                            <Clock className="w-3 h-3" />
+                                                            {lead.availability}
+                                                        </div>
+                                                    )}
+                                                </div>
                                                 
                                                 {lead.notes && (
-                                                    <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 mb-3 bg-gray-50 dark:bg-gray-900/50 p-2 rounded-lg">
-                                                        {lead.notes}
+                                                    <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 mb-3 bg-gray-50 dark:bg-gray-900/50 p-2 rounded-lg italic">
+                                                        "{lead.notes}"
                                                     </p>
                                                 )}
 
@@ -228,10 +263,10 @@ export const Leads = () => {
                                                                     onClick={() => navigate('/production', { 
                                                                         state: { 
                                                                             prefill: {
-                                                                                customer_name: lead.customer_name.split(' ').slice(1).join(' '), // Try to guess surname
-                                                                                customer_firstname: lead.customer_name.split(' ')[0], // Try to guess firstname
-                                                                                valuation_sum: lead.value,
-                                                                                // If customer_name is just one word, handle it gracefully
+                                                                                customer_name: lead.customer_name.split(' ').slice(1).join(' '),
+                                                                                customer_firstname: lead.customer_name.split(' ')[0],
+                                                                                sub_category: lead.product, // Prefill product as subcategory if possible
+                                                                                // Remove value mapping since we removed it from lead
                                                                                 ...(lead.customer_name.includes(' ') ? {} : { customer_name: lead.customer_name, customer_firstname: '' })
                                                                             } 
                                                                         } 
@@ -241,9 +276,13 @@ export const Leads = () => {
                                                                 >
                                                                     <FileInput className="w-4 h-4" />
                                                                 </button>
-                                                                <div className="p-1.5 text-emerald-500 flex items-center justify-center bg-emerald-50 rounded-full" title="Abgeschlossen">
+                                                                <button 
+                                                                    onClick={() => archiveLead(lead.id)}
+                                                                    className="p-1.5 text-emerald-500 flex items-center justify-center bg-emerald-50 hover:bg-emerald-100 rounded-full transition-colors" 
+                                                                    title="Lead archivieren (erledigt)"
+                                                                >
                                                                     <CheckCircle2 className="w-4 h-4" />
-                                                                </div>
+                                                                </button>
                                                             </div>
                                                         )}
                                                     </div>
@@ -273,13 +312,32 @@ export const Leads = () => {
                         <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Kunde / Name</label>
                         <input required type="text" value={formData.customer_name} onChange={e => setFormData({...formData, customer_name: e.target.value})} className="w-full rounded-xl border-gray-200 bg-gray-50 px-4 py-2" placeholder="Max Mustermann" />
                     </div>
-                    <div>
-                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Geschätzter Wert (€)</label>
-                        <input type="number" value={formData.value} onChange={e => setFormData({...formData, value: e.target.value})} className="w-full rounded-xl border-gray-200 bg-gray-50 px-4 py-2" placeholder="0.00" />
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Telefon</label>
+                            <input type="tel" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} className="w-full rounded-xl border-gray-200 bg-gray-50 px-4 py-2" placeholder="0171..." />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">E-Mail</label>
+                            <input type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} className="w-full rounded-xl border-gray-200 bg-gray-50 px-4 py-2" placeholder="kunde@mail.de" />
+                        </div>
                     </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                         <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Produkt / Interesse</label>
+                            <input type="text" value={formData.product} onChange={e => setFormData({...formData, product: e.target.value})} className="w-full rounded-xl border-gray-200 bg-gray-50 px-4 py-2" placeholder="z.B. KFZ, BU..." />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Erreichbarkeit</label>
+                            <input type="text" value={formData.availability} onChange={e => setFormData({...formData, availability: e.target.value})} className="w-full rounded-xl border-gray-200 bg-gray-50 px-4 py-2" placeholder="ab 18 Uhr..." />
+                        </div>
+                    </div>
+
                     <div>
                         <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Notizen</label>
-                        <textarea value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})} className="w-full rounded-xl border-gray-200 bg-gray-50 px-4 py-2 h-24" placeholder="Interessiert an BU..." />
+                        <textarea value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})} className="w-full rounded-xl border-gray-200 bg-gray-50 px-4 py-2 h-24" placeholder="Details zum Gespräch..." />
                     </div>
                     <div className="flex justify-end gap-2 pt-4">
                         <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-gray-500 hover:bg-gray-100 rounded-xl">Abbrechen</button>

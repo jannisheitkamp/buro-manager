@@ -124,6 +124,30 @@ const INTENTS: IntentHandler[] = [
         }
     },
     {
+        id: 'open_tasks',
+        keywords: ['offen', 'aufgaben', 'tasks', 'zu tun', 'todo', 'status', 'lage', 'was liegt an'],
+        handler: async (navigate) => {
+             // Parallel fetch
+             const [cb, l, p] = await Promise.all([
+                 supabase.from('callbacks').select('*', { count: 'exact', head: true }).neq('status', 'done'),
+                 supabase.from('leads').select('*', { count: 'exact', head: true }).eq('status', 'new'),
+                 supabase.from('parcels').select('*', { count: 'exact', head: true }).eq('status', 'pending')
+             ]);
+             
+             const total = (cb.count || 0) + (l.count || 0) + (p.count || 0);
+             
+             if (total === 0) return { text: "Du bist komplett sauber! Nichts offen. 🏖️" };
+
+             return {
+                 text: `Du hast **${total} offene Dinge**: ${cb.count} Rückrufe, ${l.count} neue Leads und ${p.count} Pakete.`,
+                 actions: [
+                     { label: 'Rückrufe', action: () => navigate('/callbacks') },
+                     { label: 'Leads', action: () => navigate('/leads') }
+                 ]
+             };
+        }
+    },
+    {
         id: 'parcels',
         keywords: ['paket', 'lieferung', 'dhl', 'post', 'hermes', 'dpd', 'zustellung', 'erwarte'],
         handler: async (navigate) => {
