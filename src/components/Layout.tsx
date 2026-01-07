@@ -1,4 +1,4 @@
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useStore } from '@/store/useStore';
 import { 
   LayoutDashboard, 
@@ -42,14 +42,24 @@ const navigation = [
 ];
 
 export const Layout = ({ children }: { children: React.ReactNode }) => {
+  const { user, profile, signOut, loading } = useStore();
   const location = useLocation();
-  const { user, profile, signOut } = useStore();
+  const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { theme, toggleTheme } = useTheme();
   const [pendingCount, setPendingCount] = useState(0);
 
   // Enable global notifications
   useNotifications();
+
+  // Redirect if not approved
+  useEffect(() => {
+    if (!loading && profile && !profile.is_approved) {
+      if (location.pathname !== '/pending-approval') {
+        navigate('/pending-approval');
+      }
+    }
+  }, [profile, loading, location.pathname, navigate]);
 
   useEffect(() => {
     const checkPending = async () => {
