@@ -38,6 +38,7 @@ const MenuBar = ({ editor }: { editor: any }) => {
     <div className="border-b border-gray-200 dark:border-gray-700 p-2 flex flex-wrap gap-1 sticky top-0 bg-white dark:bg-gray-800 z-10">
       <div className="flex gap-1 border-r border-gray-200 dark:border-gray-700 pr-2 mr-2">
         <button
+          type="button"
           onClick={() => editor.chain().focus().undo().run()}
           disabled={!editor.can().undo()}
           className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 disabled:opacity-50"
@@ -46,6 +47,7 @@ const MenuBar = ({ editor }: { editor: any }) => {
           <Undo size={18} />
         </button>
         <button
+          type="button"
           onClick={() => editor.chain().focus().redo().run()}
           disabled={!editor.can().redo()}
           className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 disabled:opacity-50"
@@ -57,6 +59,7 @@ const MenuBar = ({ editor }: { editor: any }) => {
 
       <div className="flex gap-1 border-r border-gray-200 dark:border-gray-700 pr-2 mr-2">
         <button
+          type="button"
           onClick={() => editor.chain().focus().toggleBold().run()}
           className={cn(
             "p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300",
@@ -67,6 +70,7 @@ const MenuBar = ({ editor }: { editor: any }) => {
           <Bold size={18} />
         </button>
         <button
+          type="button"
           onClick={() => editor.chain().focus().toggleItalic().run()}
           className={cn(
             "p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300",
@@ -77,6 +81,7 @@ const MenuBar = ({ editor }: { editor: any }) => {
           <Italic size={18} />
         </button>
         <button
+          type="button"
           onClick={() => editor.chain().focus().toggleUnderline().run()}
           className={cn(
             "p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300",
@@ -90,6 +95,7 @@ const MenuBar = ({ editor }: { editor: any }) => {
 
       <div className="flex gap-1 border-r border-gray-200 dark:border-gray-700 pr-2 mr-2">
         <button
+          type="button"
           onClick={() => editor.chain().focus().setTextAlign('left').run()}
           className={cn(
             "p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300",
@@ -100,6 +106,7 @@ const MenuBar = ({ editor }: { editor: any }) => {
           <AlignLeft size={18} />
         </button>
         <button
+          type="button"
           onClick={() => editor.chain().focus().setTextAlign('center').run()}
           className={cn(
             "p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300",
@@ -110,6 +117,7 @@ const MenuBar = ({ editor }: { editor: any }) => {
           <AlignCenter size={18} />
         </button>
         <button
+          type="button"
           onClick={() => editor.chain().focus().setTextAlign('right').run()}
           className={cn(
             "p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300",
@@ -123,6 +131,7 @@ const MenuBar = ({ editor }: { editor: any }) => {
 
       <div className="flex gap-1 border-r border-gray-200 dark:border-gray-700 pr-2 mr-2">
         <button
+          type="button"
           onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
           className={cn(
             "p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300",
@@ -133,6 +142,7 @@ const MenuBar = ({ editor }: { editor: any }) => {
           <Heading1 size={18} />
         </button>
         <button
+          type="button"
           onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
           className={cn(
             "p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300",
@@ -143,6 +153,7 @@ const MenuBar = ({ editor }: { editor: any }) => {
           <Heading2 size={18} />
         </button>
         <button
+          type="button"
           onClick={() => editor.chain().focus().toggleBulletList().run()}
           className={cn(
             "p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300",
@@ -153,6 +164,7 @@ const MenuBar = ({ editor }: { editor: any }) => {
           <List size={18} />
         </button>
         <button
+          type="button"
           onClick={() => editor.chain().focus().toggleOrderedList().run()}
           className={cn(
             "p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300",
@@ -166,6 +178,7 @@ const MenuBar = ({ editor }: { editor: any }) => {
 
       <div className="flex gap-1">
         <button
+          type="button"
           onClick={addTable}
           className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
           title="Tabelle einfügen"
@@ -176,6 +189,7 @@ const MenuBar = ({ editor }: { editor: any }) => {
         {editor.isActive('table') && (
             <>
                 <button
+                type="button"
                 onClick={() => editor.chain().focus().addColumnAfter().run()}
                 className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
                 title="Spalte hinzufügen"
@@ -183,6 +197,7 @@ const MenuBar = ({ editor }: { editor: any }) => {
                 <Plus size={18} className="rotate-90" />
                 </button>
                 <button
+                type="button"
                 onClick={() => editor.chain().focus().addRowAfter().run()}
                 className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
                 title="Zeile hinzufügen"
@@ -190,6 +205,7 @@ const MenuBar = ({ editor }: { editor: any }) => {
                 <Plus size={18} />
                 </button>
                 <button
+                type="button"
                 onClick={() => editor.chain().focus().deleteTable().run()}
                 className="p-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400"
                 title="Tabelle löschen"
