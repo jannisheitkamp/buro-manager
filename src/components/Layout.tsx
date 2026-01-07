@@ -189,8 +189,8 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
       </div>
 
       {/* Mobile Bottom Navigation Bar */}
-      <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 z-50 px-6 py-2 flex justify-between items-center safe-area-pb">
-        {navigation.slice(0, 5).map((item) => {
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 z-50 px-4 py-2 flex justify-between items-center safe-area-pb">
+        {navigation.slice(0, 4).map((item) => {
           const Icon = item.icon;
           const isActive = location.pathname === item.href;
           return (
@@ -198,14 +198,14 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
               key={item.name}
               to={item.href}
               className={cn(
-                "flex flex-col items-center gap-1 p-2 rounded-lg transition-colors relative",
+                "flex flex-col items-center gap-1 p-2 rounded-lg transition-colors relative min-w-[60px]",
                 isActive 
                   ? "text-indigo-600 dark:text-indigo-400" 
                   : "text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
               )}
             >
               <Icon className={cn("h-6 w-6 transition-transform", isActive ? "scale-110" : "")} />
-              <span className="text-[10px] font-medium">{item.name}</span>
+              <span className="text-[10px] font-medium truncate w-full text-center">{item.name}</span>
               {item.name === 'Verzeichnis' && pendingCount > 0 && (
                   <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse" />
               )}
@@ -213,7 +213,7 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
           );
         })}
         <button
-           className="flex flex-col items-center gap-1 p-2 rounded-lg text-gray-500 dark:text-gray-400"
+           className="flex flex-col items-center gap-1 p-2 rounded-lg text-gray-500 dark:text-gray-400 min-w-[60px]"
            onClick={() => setIsMobileMenuOpen(true)}
         >
             <Menu className="h-6 w-6" />

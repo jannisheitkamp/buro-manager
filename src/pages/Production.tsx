@@ -811,7 +811,7 @@ export const Production = () => {
                         </div>
                     </div>
 
-                    <div className="overflow-x-auto">
+                    <div className="overflow-x-auto hidden md:block">
                         <table className="w-full text-left text-sm">
                             <thead className="bg-gray-50/50 dark:bg-gray-900/20">
                                 <tr>
@@ -887,6 +887,62 @@ export const Production = () => {
                                 )}
                             </tbody>
                         </table>
+                    </div>
+
+                    {/* Mobile Card View */}
+                    <div className="md:hidden space-y-4 p-4">
+                        {loading ? (
+                             <div className="text-center py-10 text-gray-500">Lade Daten...</div>
+                        ) : filteredEntries.length === 0 ? (
+                             <div className="text-center py-10 text-gray-500">Keine Verträge gefunden.</div>
+                        ) : (
+                            filteredEntries.map(entry => (
+                                <div key={entry.id} onClick={() => handleEdit(entry)} className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 active:scale-[0.98] transition-transform">
+                                    <div className="flex justify-between items-start mb-3">
+                                        <div>
+                                            <h3 className="font-bold text-gray-900 dark:text-white">{entry.customer_name}, {entry.customer_firstname}</h3>
+                                            <p className="text-xs text-gray-500 font-mono">{entry.policy_number || 'Keine Schein-Nr.'}</p>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-lg font-black text-indigo-600 dark:text-indigo-400">{formatCurrency(entry.commission_amount || 0)}</p>
+                                            <p className="text-[10px] text-gray-400">{format(new Date(entry.submission_date), 'dd.MM.yy')}</p>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <span className={cn(
+                                            "inline-flex items-center px-2 py-1 rounded-lg text-xs font-bold border",
+                                            entry.category === 'life' ? "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-800" :
+                                            entry.category === 'property' ? "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-900/20 dark:text-orange-300 dark:border-orange-800" :
+                                            entry.category === 'health' ? "bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-300 dark:border-red-800" :
+                                            "bg-gray-50 text-gray-700 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700"
+                                        )}>
+                                            {entry.category === 'life' ? 'Leben' : 
+                                            entry.category === 'property' ? 'Sach' : 
+                                            entry.category === 'health' ? 'Kranken' : entry.category}
+                                        </span>
+                                        {entry.sub_category && (
+                                            <span className="text-xs text-gray-500 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded-lg">
+                                                {entry.sub_category}
+                                            </span>
+                                        )}
+                                    </div>
+
+                                    <div className="flex justify-between items-end border-t border-gray-100 dark:border-gray-700 pt-3">
+                                        <div>
+                                            <p className="text-xs text-gray-400">Bewertung</p>
+                                            <p className="text-sm font-bold text-gray-700 dark:text-gray-300">{formatCurrency(entry.valuation_sum || 0)}</p>
+                                        </div>
+                                        <button 
+                                            onClick={(e) => { e.stopPropagation(); handleDelete(entry.id); }}
+                                            className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors"
+                                        >
+                                            <Trash2 className="w-5 h-5" />
+                                        </button>
+                                    </div>
+                                </div>
+                            ))
+                        )}
                     </div>
                 </motion.div>
             </>

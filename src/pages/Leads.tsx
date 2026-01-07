@@ -202,7 +202,7 @@ export const Leads = () => {
 
     if (showArchived) {
         return (
-            <div className="max-w-[1600px] mx-auto space-y-8 h-[calc(100vh-100px)] flex flex-col pb-4">
+            <div className="max-w-[1600px] mx-auto space-y-8 h-[calc(100vh-140px)] md:h-[calc(100vh-100px)] flex flex-col pb-4">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 flex-shrink-0">
                     <div>
                         <h1 className="text-3xl font-black text-gray-900 dark:text-white flex items-center gap-3">
