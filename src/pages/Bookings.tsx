@@ -11,10 +11,7 @@ import { toast } from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const RESOURCES = [
-    { id: 'Besprechungsraum', label: 'Besprechungsraum', icon: MapPin, color: 'text-indigo-600', bg: 'bg-indigo-100' },
-    { id: 'Firmenwagen', label: 'Firmenwagen (BMW)', icon: Car, color: 'text-blue-600', bg: 'bg-blue-100' },
-    { id: 'Beamer', label: 'Beamer / Projektor', icon: Projector, color: 'text-orange-600', bg: 'bg-orange-100' },
-    { id: 'Zoom', label: 'Zoom Account (Pro)', icon: Monitor, color: 'text-cyan-600', bg: 'bg-cyan-100' }
+    { id: 'Besprechungsraum', label: 'Besprechungsraum', icon: MapPin, color: 'text-indigo-600', bg: 'bg-indigo-100' }
 ];
 
 export const Bookings = () => {
