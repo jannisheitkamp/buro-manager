@@ -302,7 +302,7 @@ export const Leads = () => {
             </div>
 
             {/* Kanban Board (Scrollable Container) */}
-            <div className="flex-1 overflow-x-auto overflow-y-hidden pb-4 -mx-4 px-4 md:mx-0 md:px-0">
+            <div className="flex-1 overflow-x-auto overflow-y-hidden pb-4 -mx-4 px-4 md:mx-0 md:px-0 snap-x snap-mandatory">
                 <div className="flex gap-4 md:gap-6 h-full w-max md:min-w-0 md:w-full px-1">
                     {COLUMNS.map((col) => {
                         const colLeads = getColumnLeads(col.id);

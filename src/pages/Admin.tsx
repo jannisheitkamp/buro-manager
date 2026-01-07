@@ -73,16 +73,21 @@ export const Admin = () => {
                         onClick={async () => {
                             toast.dismiss(t.id);
                             try {
-                                const { error } = await supabase
+                                const { data, error } = await supabase
                                     .from('profiles')
                                     .update({ is_approved: !currentStatus })
-                                    .eq('id', userId);
+                                    .eq('id', userId)
+                                    .select();
                                 
                                 if (error) throw error;
+                                if (!data || data.length === 0) {
+                                    throw new Error('Keine Änderung vorgenommen (Berechtigung?)');
+                                }
                                 
                                 setUsers(users.map(u => u.id === userId ? { ...u, is_approved: !currentStatus } : u));
                                 toast.success(currentStatus ? 'Nutzer deaktiviert' : 'Nutzer freigeschaltet');
                             } catch (error) {
+                                console.error(error);
                                 toast.error('Fehler beim Update');
                             }
                         }}
@@ -116,16 +121,19 @@ export const Admin = () => {
         }
 
         try {
-            const { error } = await supabase
+            const { data, error } = await supabase
                 .from('profiles')
                 .update({ roles: newRoles })
-                .eq('id', userId);
+                .eq('id', userId)
+                .select();
             
             if (error) throw error;
+            if (!data || data.length === 0) throw new Error('Keine Änderung (RLS?)');
             
             setUsers(users.map(u => u.id === userId ? { ...u, roles: newRoles } : u));
             toast.success(isAdmin ? 'Admin-Rechte entzogen' : 'Admin-Rechte vergeben');
         } catch (error) {
+            console.error(error);
             toast.error('Fehler beim Update');
         }
     };
@@ -140,12 +148,14 @@ export const Admin = () => {
                         onClick={async () => {
                             toast.dismiss(t.id);
                             try {
-                                const { error } = await supabase
+                                const { data, error } = await supabase
                                     .from('profiles')
                                     .delete()
-                                    .eq('id', userId);
+                                    .eq('id', userId)
+                                    .select();
                                 
                                 if (error) throw error;
+                                if (!data || data.length === 0) throw new Error('Keine Löschung (RLS?)');
                                 
                                 setUsers(users.filter(u => u.id !== userId));
                                 toast.success('Nutzer gelöscht');
