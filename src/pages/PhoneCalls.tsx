@@ -65,18 +65,34 @@ export const PhoneCalls = () => {
   };
 
   const handleDelete = async (id: string) => {
-      if (!confirm('Anruf wirklich löschen?')) return;
-      
-      const { error } = await supabase
-        .from('phone_calls')
-        .delete()
-        .eq('id', id);
-
-      if (error) toast.error('Fehler beim Löschen');
-      else {
-          toast.success('Gelöscht');
-          setCalls(prev => prev.filter(c => c.id !== id));
-      }
+      toast((t) => (
+          <div className="flex flex-col gap-2">
+              <span className="font-semibold">Anruf wirklich löschen?</span>
+              <div className="flex gap-2">
+                  <button 
+                      onClick={async () => {
+                          toast.dismiss(t.id);
+                          const { error } = await supabase.from('phone_calls').delete().eq('id', id);
+                          if(!error) {
+                              toast.success('Gelöscht');
+                              setCalls(prev => prev.filter(c => c.id !== id));
+                          } else {
+                              toast.error('Fehler beim Löschen');
+                          }
+                      }}
+                      className="bg-red-500 text-white px-3 py-1 rounded-lg text-sm hover:bg-red-600 transition-colors"
+                  >
+                      Löschen
+                  </button>
+                  <button 
+                      onClick={() => toast.dismiss(t.id)}
+                      className="bg-gray-100 text-gray-700 px-3 py-1 rounded-lg text-sm hover:bg-gray-200 transition-colors"
+                  >
+                      Abbrechen
+                  </button>
+              </div>
+          </div>
+      ), { duration: 5000 });
   };
 
   // Only show "done" if explicitly marked in notes. New calls have no notes.
