@@ -12,19 +12,21 @@ export const IncomingCallHandler = () => {
 
   useEffect(() => {
     const logCall = async () => {
-      // Support both our custom params and standard 3CX/example params
-      const number = searchParams.get('number') || searchParams.get('phoneNumber');
-      const name = searchParams.get('name') || searchParams.get('displayName') || 'Unbekannt';
-      const ext = searchParams.get('ext') || searchParams.get('agent'); // New: Extension param
+      // Log ALL params to see what we get (will be visible in notes/console)
+      const allParams = Object.fromEntries(searchParams.entries());
+      console.log('Received params:', allParams);
 
-      if (!number) {
-        setStatus('Keine Nummer erkannt.');
-        setTimeout(() => navigate('/'), 2000);
-        return;
-      }
+      // Support both our custom params and standard 3CX/example params
+      // Fallback to "Unknown" if nothing is found
+      const number = searchParams.get('number') || searchParams.get('phoneNumber') || 'Unbekannt';
+      const name = searchParams.get('name') || searchParams.get('displayName') || 'Unbekannt';
+      const ext = searchParams.get('ext') || searchParams.get('agent'); 
+
+      // REMOVED THE BLOCKING CHECK
+      // if (!number) { ... }
 
       // Try to find the user by extension (if provided)
-      let userId = user?.id; // Default to current logged in user
+      let userId = user?.id; 
       
       if (!userId && ext) {
           const { data: profile } = await supabase
@@ -36,16 +38,12 @@ export const IncomingCallHandler = () => {
           if (profile) userId = profile.id;
       }
 
-      // Remove debounce for testing
-      // const oneMinuteAgo = new Date(Date.now() - 60000).toISOString();
-      // const { data: recent } = await supabase...
-
-      // Always insert for now
+      // Always insert, even if data is missing
       const payload = {
-          caller_number: number,
+          caller_number: number, // Will be "Unbekannt" if missing
           direction: 'inbound',
           status: 'missed',
-          notes: name !== 'Unbekannt' ? `Anrufer: ${name}` : undefined,
+          notes: `Raw Params: ${JSON.stringify(allParams)}`, // Save raw params to debug
           agent_extension: ext || 'unknown',
           user_id: userId || null
       };
