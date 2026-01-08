@@ -13,7 +13,8 @@ export const ProfilePage = () => {
 
     // Profile State
     const [fullName, setFullName] = useState('');
-    const [agencyNumber, setAgencyNumber] = useState(''); // New
+    const [agencyNumber, setAgencyNumber] = useState(''); 
+    const [phoneExtension, setPhoneExtension] = useState(''); // New
     const [avatarUrl, setAvatarUrl] = useState('');
     
     // Password State
@@ -39,7 +40,8 @@ export const ProfilePage = () => {
     useEffect(() => {
         if (profile) {
             setFullName(profile.full_name || '');
-            setAgencyNumber(profile.agency_number || ''); // Load existing
+            setAgencyNumber(profile.agency_number || ''); 
+            setPhoneExtension(profile.phone_extension || ''); // Load
             setAvatarUrl(profile.avatar_url || '');
             fetchUserRates();
         }
@@ -112,6 +114,7 @@ export const ProfilePage = () => {
                 .update({ 
                     full_name: fullName,
                     agency_number: agencyNumber,
+                    phone_extension: phoneExtension, // Save
                     avatar_url: avatarUrl 
                 })
                 .eq('id', user.id);
@@ -260,6 +263,18 @@ export const ProfilePage = () => {
                                     placeholder="z.B. 123456"
                                     className="w-full rounded-xl bg-gray-50 dark:bg-gray-900 border-transparent focus:bg-white focus:ring-2 focus:ring-indigo-500/20 px-4 py-2.5 text-sm transition-all"
                                 />
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">3CX Durchwahl (für Anruferkennung)</label>
+                                <input 
+                                    type="text" 
+                                    value={phoneExtension}
+                                    onChange={e => setPhoneExtension(e.target.value)}
+                                    placeholder="z.B. 100 oder Jannis"
+                                    className="w-full rounded-xl bg-gray-50 dark:bg-gray-900 border-transparent focus:bg-white focus:ring-2 focus:ring-indigo-500/20 px-4 py-2.5 text-sm transition-all"
+                                />
+                                <p className="text-[10px] text-gray-400 mt-1">Wichtig für die Zuordnung von Anrufen, wenn der Browser nicht eingeloggt ist.</p>
                             </div>
 
                             <div>

@@ -15,11 +15,25 @@ export const IncomingCallHandler = () => {
       // Support both our custom params and standard 3CX/example params
       const number = searchParams.get('number') || searchParams.get('phoneNumber');
       const name = searchParams.get('name') || searchParams.get('displayName') || 'Unbekannt';
-      
+      const ext = searchParams.get('ext') || searchParams.get('agent'); // New: Extension param
+
       if (!number) {
         setStatus('Keine Nummer erkannt.');
         setTimeout(() => navigate('/'), 2000);
         return;
+      }
+
+      // Try to find the user by extension (if provided)
+      let userId = user?.id; // Default to current logged in user
+      
+      if (!userId && ext) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('phone_extension', ext)
+            .single();
+          
+          if (profile) userId = profile.id;
       }
 
       // Check if we already logged this call in the last minute (debounce)
@@ -35,9 +49,10 @@ export const IncomingCallHandler = () => {
         await supabase.from('phone_calls').insert({
           caller_number: number,
           direction: 'inbound',
-          status: 'missed', // Default to missed/incoming, user can resolve it
+          status: 'missed', // Keep as 'missed' initially, can be updated later
           notes: name !== 'Unbekannt' ? `Anrufer: ${name}` : undefined,
-          agent_extension: user?.email // Track who received the call
+          agent_extension: ext || user?.email, // Track who received the call
+          user_id: userId // Assign to specific user
         });
       }
 

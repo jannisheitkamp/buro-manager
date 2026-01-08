@@ -3,6 +3,7 @@ export type Profile = {
   email: string | null;
   full_name: string | null;
   agency_number?: string | null;
+  phone_extension?: string | null; // New
   avatar_url: string | null;
   roles: string[];
   address?: string | null;
