@@ -1097,21 +1097,26 @@ export const Production = () => {
                         </div>
 
                         {/* Row 3: Management & Dates */}
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Betreuung von</label>
-                                <select 
-                                    value={managedBy} 
-                                    onChange={e => setManagedBy(e.target.value)} 
-                                    className="w-full rounded-xl border-transparent bg-gray-50/50 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 px-3 py-2.5 text-sm transition-all"
-                                >
-                                    <option value="">Bitte wählen...</option>
-                                    {profiles.map(p => (
-                                        <option key={p.id} value={p.id}>
-                                            {p.full_name} {p.agency_number ? `(${p.agency_number})` : ''}
-                                        </option>
-                                    ))}
-                                </select>
+                                <div className="relative">
+                                    <select 
+                                        value={managedBy} 
+                                        onChange={e => setManagedBy(e.target.value)} 
+                                        className="w-full appearance-none rounded-xl border-transparent bg-gray-50/50 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 px-4 py-2.5 text-sm transition-all pr-8"
+                                    >
+                                        <option value="">Bitte wählen...</option>
+                                        {profiles.map(p => (
+                                            <option key={p.id} value={p.id}>
+                                                {p.full_name} {p.agency_number ? `(${p.agency_number})` : ''}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
+                                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                                    </div>
+                                </div>
                             </div>
                             <div>
                                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Einreichungsdatum</label>
@@ -1120,7 +1125,7 @@ export const Production = () => {
                         </div>
                         
                         {/* Row 4: Extra Dates */}
-                         <div className="grid grid-cols-2 gap-4">
+                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                              <div>
                                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Vertragsbeginn</label>
                                 <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-full rounded-xl border-transparent bg-gray-50/50 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 px-4 py-2.5 text-sm transition-all" />
@@ -1130,25 +1135,30 @@ export const Production = () => {
                                 <input type="date" value={policingDate} onChange={e => setPolicingDate(e.target.value)} className="w-full rounded-xl border-transparent bg-gray-50/50 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 px-4 py-2.5 text-sm transition-all" />
                             </div>
                         </div>
-                         <div className="grid grid-cols-2 gap-4">
+                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                              <div>
                                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Provisionserhalt</label>
                                 <input type="date" value={commissionReceivedDate} onChange={e => setCommissionReceivedDate(e.target.value)} className="w-full rounded-xl border-transparent bg-gray-50/50 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 px-4 py-2.5 text-sm transition-all" />
                             </div>
                              <div>
                                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Abschluss von</label>
-                                <select 
-                                    value={closedBy} 
-                                    onChange={e => setClosedBy(e.target.value)} 
-                                    className="w-full rounded-xl border-transparent bg-gray-50/50 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 px-3 py-2.5 text-sm transition-all"
-                                >
-                                    <option value="">Bitte wählen...</option>
-                                    {profiles.map(p => (
-                                        <option key={p.id} value={p.id}>
-                                            {p.full_name} {p.agency_number ? `(${p.agency_number})` : ''}
-                                        </option>
-                                    ))}
-                                </select>
+                                <div className="relative">
+                                    <select 
+                                        value={closedBy} 
+                                        onChange={e => setClosedBy(e.target.value)} 
+                                        className="w-full appearance-none rounded-xl border-transparent bg-gray-50/50 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 px-4 py-2.5 text-sm transition-all pr-8"
+                                    >
+                                        <option value="">Bitte wählen...</option>
+                                        {profiles.map(p => (
+                                            <option key={p.id} value={p.id}>
+                                                {p.full_name} {p.agency_number ? `(${p.agency_number})` : ''}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
+                                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
