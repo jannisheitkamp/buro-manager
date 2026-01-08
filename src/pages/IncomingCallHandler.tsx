@@ -46,14 +46,22 @@ export const IncomingCallHandler = () => {
         .single();
 
       if (!recent) {
-        await supabase.from('phone_calls').insert({
+        const payload = {
           caller_number: number,
           direction: 'inbound',
-          status: 'missed', // Keep as 'missed' initially, can be updated later
+          status: 'missed',
           notes: name !== 'Unbekannt' ? `Anrufer: ${name}` : undefined,
-          agent_extension: ext || user?.email, // Track who received the call
-          user_id: userId // Assign to specific user
-        });
+          agent_extension: ext || user?.email,
+          user_id: userId
+        };
+        console.log('Inserting call:', payload);
+
+        const { error } = await supabase.from('phone_calls').insert(payload);
+        if (error) {
+            console.error('Insert error:', error);
+            setStatus(`Fehler: ${error.message}`);
+            return;
+        }
       }
 
       setStatus('Anruf erfasst!');
