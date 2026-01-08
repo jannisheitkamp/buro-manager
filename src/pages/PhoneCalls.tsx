@@ -11,8 +11,9 @@ export const PhoneCalls = () => {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'missed'>('all');
 
-  const fetchCalls = async () => {
+    const fetchCalls = async () => {
     setLoading(true);
+    // Only fetch calls for current user
     const { data, error } = await supabase
       .from('phone_calls')
       .select('*')
@@ -57,10 +58,31 @@ export const PhoneCalls = () => {
         .eq('id', id);
       
       if (error) toast.error('Fehler');
-      else toast.success('Als erledigt markiert');
+      else {
+          toast.success('Als erledigt markiert');
+          fetchCalls(); // Refresh to update UI
+      }
   };
 
-  const filteredCalls = filter === 'all' ? calls : calls.filter(c => c.status === 'missed' && !c.notes);
+  const handleDelete = async (id: string) => {
+      if (!confirm('Anruf wirklich löschen?')) return;
+      
+      const { error } = await supabase
+        .from('phone_calls')
+        .delete()
+        .eq('id', id);
+
+      if (error) toast.error('Fehler beim Löschen');
+      else {
+          toast.success('Gelöscht');
+          setCalls(prev => prev.filter(c => c.id !== id));
+      }
+  };
+
+  // Only show "done" if explicitly marked in notes. New calls have no notes.
+  const isDone = (call: any) => call.notes?.includes('erledigt');
+
+  const filteredCalls = filter === 'all' ? calls : calls.filter(c => c.status === 'missed' && !isDone(c));
 
   return (
     <div className="p-4 md:p-8 max-w-5xl mx-auto space-y-8">
@@ -131,17 +153,20 @@ export const PhoneCalls = () => {
                                     {call.duration > 0 && (
                                         <span>• {Math.floor(call.duration / 60)}m {call.duration % 60}s</span>
                                     )}
-                                    {call.notes && (
+                                    {isDone(call) && (
                                         <span className="bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full flex items-center gap-1">
                                             <CheckCircle className="w-3 h-3" /> Erledigt
                                         </span>
+                                    )}
+                                    {call.notes && !isDone(call) && (
+                                         <span className="text-gray-400 italic">• {call.notes}</span>
                                     )}
                                 </div>
                             </div>
                         </div>
 
                         <div className="flex items-center gap-2">
-                            {call.status === 'missed' && !call.notes && (
+                            {call.status === 'missed' && !isDone(call) && (
                                 <button 
                                     onClick={() => handleMarkDone(call.id)}
                                     className="px-4 py-2 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-xl text-sm font-medium transition-colors opacity-0 group-hover:opacity-100"
@@ -149,6 +174,13 @@ export const PhoneCalls = () => {
                                     Rückruf erledigt
                                 </button>
                             )}
+                            <button 
+                                onClick={() => handleDelete(call.id)}
+                                className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors opacity-0 group-hover:opacity-100"
+                                title="Löschen"
+                            >
+                                <XCircle className="w-5 h-5" />
+                            </button>
                         </div>
                     </div>
                 ))}
