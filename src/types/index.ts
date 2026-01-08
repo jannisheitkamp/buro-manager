@@ -2,6 +2,7 @@ export type Profile = {
   id: string;
   email: string | null;
   full_name: string | null;
+  agency_number?: string | null;
   avatar_url: string | null;
   roles: string[];
   address?: string | null;

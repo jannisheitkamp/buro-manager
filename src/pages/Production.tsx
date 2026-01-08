@@ -109,8 +109,9 @@ export const Production = () => {
   const [submissionDate, setSubmissionDate] = useState(new Date().toISOString().split('T')[0]);
   const [customerName, setCustomerName] = useState('');
   const [customerFirstname, setCustomerFirstname] = useState('');
-  const [managedBy, setManagedBy] = useState<string>(''); // New
-  const [status, setStatus] = useState<'submitted' | 'policed' | 'cancelled'>('submitted'); // New
+  const [managedBy, setManagedBy] = useState<string>(''); 
+  const [closedBy, setClosedBy] = useState<string>(''); // New: Explicit closer selection
+  const [status, setStatus] = useState<'submitted' | 'policed' | 'cancelled'>('submitted');
   
   // Contract Data
   const [startDate, setStartDate] = useState('');
@@ -235,7 +236,7 @@ export const Production = () => {
 
     try {
         const payload = {
-            user_id: user.id,
+            user_id: closedBy || user.id, // Use selected closer OR current user
             managed_by: managedBy || user.id, // Default to self if empty
             submission_date: submissionDate,
             policy_number: policyNumber,
@@ -261,13 +262,10 @@ export const Production = () => {
         };
 
         if (editingId) {
-            // Don't overwrite user_id on edit unless intended. Usually we keep original creator.
-            // We only update the fields that are editable.
-            const { user_id, ...updatePayload } = payload;
-            
+            // Update everything including user_id if changed
             const { error } = await supabase
                 .from('production_entries')
-                .update(updatePayload)
+                .update(payload)
                 .eq('id', editingId);
             if (error) throw error;
             toast.success('Vertrag aktualisiert!');
@@ -297,6 +295,7 @@ export const Production = () => {
       setPolicyNumber('');
       setSubmissionDate(new Date().toISOString().split('T')[0]);
       setManagedBy(user?.id || '');
+      setClosedBy(user?.id || '');
       setStatus('submitted');
       setStartDate('');
       setPolicingDate('');
@@ -318,6 +317,7 @@ export const Production = () => {
       setCustomerName(entry.customer_name || '');
       setCustomerFirstname(entry.customer_firstname || '');
       setManagedBy(entry.managed_by || entry.user_id);
+      setClosedBy(entry.user_id);
       setStatus(entry.status || 'submitted');
       setCategory(entry.category);
       setSubCategory(entry.sub_category);
@@ -1125,12 +1125,18 @@ export const Production = () => {
                                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Provisionserhalt</label>
                                 <input type="date" value={commissionReceivedDate} onChange={e => setCommissionReceivedDate(e.target.value)} className="w-full rounded-xl border-transparent bg-gray-50/50 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 px-4 py-2.5 text-sm transition-all" />
                             </div>
-                            {/* Placeholder or Submitter Info */}
                              <div>
                                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Abschluss von</label>
-                                <div className="w-full px-4 py-2.5 text-sm text-gray-500 bg-gray-100 rounded-xl">
-                                    {editingId ? entries.find(e => e.id === editingId)?.profiles?.full_name : user?.full_name}
-                                </div>
+                                <select 
+                                    value={closedBy} 
+                                    onChange={e => setClosedBy(e.target.value)} 
+                                    className="w-full rounded-xl border-transparent bg-gray-50/50 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 px-3 py-2.5 text-sm transition-all"
+                                >
+                                    <option value="">Bitte wählen...</option>
+                                    {profiles.map(p => (
+                                        <option key={p.id} value={p.id}>{p.full_name}</option>
+                                    ))}
+                                </select>
                             </div>
                         </div>
                     </div>

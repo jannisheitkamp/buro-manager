@@ -13,6 +13,7 @@ export const ProfilePage = () => {
 
     // Profile State
     const [fullName, setFullName] = useState('');
+    const [agencyNumber, setAgencyNumber] = useState(''); // New
     const [avatarUrl, setAvatarUrl] = useState('');
     
     // Password State
@@ -38,6 +39,7 @@ export const ProfilePage = () => {
     useEffect(() => {
         if (profile) {
             setFullName(profile.full_name || '');
+            setAgencyNumber(profile.agency_number || ''); // Load existing
             setAvatarUrl(profile.avatar_url || '');
             fetchUserRates();
         }
@@ -109,6 +111,7 @@ export const ProfilePage = () => {
                 .from('profiles')
                 .update({ 
                     full_name: fullName,
+                    agency_number: agencyNumber,
                     avatar_url: avatarUrl 
                 })
                 .eq('id', user.id);
@@ -244,6 +247,17 @@ export const ProfilePage = () => {
                                     type="text" 
                                     value={fullName}
                                     onChange={e => setFullName(e.target.value)}
+                                    className="w-full rounded-xl bg-gray-50 dark:bg-gray-900 border-transparent focus:bg-white focus:ring-2 focus:ring-indigo-500/20 px-4 py-2.5 text-sm transition-all"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Agenturnummer</label>
+                                <input 
+                                    type="text" 
+                                    value={agencyNumber}
+                                    onChange={e => setAgencyNumber(e.target.value)}
+                                    placeholder="z.B. 123456"
                                     className="w-full rounded-xl bg-gray-50 dark:bg-gray-900 border-transparent focus:bg-white focus:ring-2 focus:ring-indigo-500/20 px-4 py-2.5 text-sm transition-all"
                                 />
                             </div>
