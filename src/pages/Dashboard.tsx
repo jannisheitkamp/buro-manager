@@ -121,7 +121,8 @@ export const Dashboard = () => {
       // Fetch 6 months of production data
       supabase.from('production_entries').select('commission_amount, submission_date').eq('user_id', user.id).gte('submission_date', startSixMonthsAgo),
       supabase.from('calendar_events').select('*').gte('start_time', todayStart).lte('start_time', todayEnd).order('start_time', { ascending: true }),
-      supabase.from('board_messages').select('*, profiles(full_name)').order('created_at', { ascending: false }).limit(3)
+      supabase.from('board_messages').select('*, profiles(full_name)').order('created_at', { ascending: false }).limit(3),
+      supabase.from('phone_calls').select('*').eq('status', 'missed').order('created_at', { ascending: false }) // New: Live Calls
     ]);
 
     // 2. Process Colleagues
@@ -143,6 +144,13 @@ export const Dashboard = () => {
     // 3. Process Tasks (Timeline)
     const callbacks = callbacksRes.data || [];
     const events = eventsRes.data || [];
+    const missedCalls = (boardRes[5] as any)?.data || []; // Type assertion trick or proper fetch above
+
+    // Filter missed calls: Show own calls + unassigned calls (if no user_id)
+    const myMissedCalls = missedCalls.filter((c: any) => 
+        !c.notes?.includes('erledigt') && 
+        (c.user_id === user.id || (!c.user_id && profile?.roles?.includes('admin')))
+    );
     
     // Transform to unified "Task" format
     const timelineItems = [
@@ -158,9 +166,17 @@ export const Dashboard = () => {
         id: c.id,
         type: 'callback',
         title: `Rückruf: ${c.customer_name}`,
-        time: new Date(c.created_at), // Created time as reference, or maybe just "Today"
+        time: new Date(c.created_at), 
         meta: c.phone,
         priority: c.priority
+      })),
+      ...myMissedCalls.map((c: any) => ({
+        id: c.id,
+        type: 'missed_call', // New Type
+        title: `Verpasst: ${c.caller_number}`,
+        time: new Date(c.created_at),
+        meta: c.notes?.replace('Anrufer: ', '') || 'Unbekannt',
+        priority: 'high' // Missed calls are important
       }))
     ].sort((a, b) => {
         return a.time.getTime() - b.time.getTime();
@@ -216,7 +232,8 @@ export const Dashboard = () => {
       supabase.channel('d_parcels').on('postgres_changes', { event: '*', schema: 'public', table: 'parcels' }, fetchData),
       supabase.channel('d_prod').on('postgres_changes', { event: '*', schema: 'public', table: 'production_entries' }, fetchData),
       supabase.channel('d_events').on('postgres_changes', { event: '*', schema: 'public', table: 'calendar_events' }, fetchData),
-      supabase.channel('d_board').on('postgres_changes', { event: '*', schema: 'public', table: 'board_messages' }, fetchData)
+      supabase.channel('d_board').on('postgres_changes', { event: '*', schema: 'public', table: 'board_messages' }, fetchData),
+      supabase.channel('d_calls').on('postgres_changes', { event: '*', schema: 'public', table: 'phone_calls' }, fetchData) // Subscribe to calls
     ].map(c => c.subscribe());
 
     return () => channels.forEach(c => c.unsubscribe());
@@ -344,7 +361,8 @@ export const Dashboard = () => {
                     <div className="space-y-6 relative before:absolute before:inset-y-0 before:left-[27px] before:w-0.5 before:bg-gray-100 dark:before:bg-gray-700">
                         {myTasks.map((task, idx) => {
                             const isEvent = task.type === 'event';
-                            const isHighPrio = task.priority === 'high';
+                            const isMissedCall = task.type === 'missed_call';
+                            const isHighPrio = task.priority === 'high' || isMissedCall;
                             
                             return (
                                 <motion.div 
@@ -359,7 +377,7 @@ export const Dashboard = () => {
                                         "absolute left-0 top-0 w-14 text-xs font-bold text-right pr-4 pt-1",
                                         isHighPrio ? "text-red-500" : "text-gray-400"
                                     )}>
-                                        {isEvent ? format(task.time, 'HH:mm') : 'Todo'}
+                                        {isEvent ? format(task.time, 'HH:mm') : (isMissedCall ? 'Anruf' : 'Todo')}
                                     </div>
                                     
                                     {/* Dot */}
@@ -374,7 +392,7 @@ export const Dashboard = () => {
                                         isHighPrio 
                                             ? "bg-red-50 dark:bg-red-900/10 border-red-100 dark:border-red-900/30" 
                                             : "bg-gray-50 dark:bg-gray-900/50 border-transparent hover:border-gray-200 dark:hover:border-gray-700"
-                                    )} onClick={() => navigate(isEvent ? '/general-calendar' : '/callbacks')}>
+                                    )} onClick={() => navigate(isEvent ? '/general-calendar' : '/calls')}>
                                         <div className="flex justify-between items-start">
                                             <h3 className={cn("font-medium text-sm", isHighPrio ? "text-red-900 dark:text-red-200" : "text-gray-900 dark:text-white")}>
                                                 {task.title}
@@ -588,7 +606,7 @@ export const Dashboard = () => {
                     <TrendingUp className="w-6 h-6" />
                     <span className="text-sm font-bold">Umsatz +</span>
                 </button>
-                <button onClick={() => navigate('/callbacks')} className="bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 hover:border-indigo-200 dark:hover:border-indigo-800 p-4 rounded-3xl flex flex-col items-center justify-center gap-2 transition-all hover:scale-[1.02] group">
+                <button onClick={() => navigate('/calls')} className="bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 hover:border-indigo-200 dark:hover:border-indigo-800 p-4 rounded-3xl flex flex-col items-center justify-center gap-2 transition-all hover:scale-[1.02] group">
                     <Phone className="w-6 h-6 text-gray-400 group-hover:text-indigo-500 transition-colors" />
                     <span className="text-sm font-medium text-gray-600 dark:text-gray-300 group-hover:text-indigo-600 dark:group-hover:text-indigo-400">Rückruf</span>
                 </button>
