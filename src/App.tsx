@@ -27,6 +27,7 @@ import { Admin } from '@/pages/Admin';
 import { Onboarding } from '@/pages/Onboarding';
 import { OnboardingCheck } from '@/components/OnboardingCheck';
 import { MfaSetup } from '@/pages/MfaSetup';
+import { MfaVerify } from '@/pages/MfaVerify';
 import { MfaCheck } from '@/components/MfaCheck';
 import { Documents } from '@/pages/Documents';
 
@@ -69,6 +70,7 @@ function App() {
         
         <Route element={<ProtectedRoute />}>
           <Route path="/mfa-setup" element={<MfaSetup />} />
+          <Route path="/mfa-verify" element={<MfaVerify />} />
           
           <Route element={<MfaCheck />}>
             <Route path="/onboarding" element={<Onboarding />} />
