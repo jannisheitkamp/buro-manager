@@ -140,7 +140,7 @@ export const Production = () => {
 
   useEffect(() => {
       const loadProfiles = async () => {
-          const { data } = await supabase.from('profiles').select('id, full_name');
+          const { data } = await supabase.from('profiles').select('id, full_name, agency_number');
           if (data) setProfiles(data);
       };
       loadProfiles();
@@ -211,8 +211,8 @@ export const Production = () => {
         .from('production_entries')
         .select(`
             *,
-            profiles:user_id (full_name, avatar_url),
-            manager:managed_by (full_name)
+            profiles:user_id (full_name, avatar_url, agency_number),
+            manager:managed_by (full_name, agency_number)
         `)
         .order('created_at', { ascending: false });
     
@@ -237,7 +237,7 @@ export const Production = () => {
     try {
         const payload = {
             user_id: closedBy || user.id, // Use selected closer OR current user
-            managed_by: managedBy || user.id, // Default to self if empty
+            managed_by: managedBy || closedBy || user.id, // Default to closer/self if empty
             submission_date: submissionDate,
             policy_number: policyNumber,
             customer_name: customerName,
@@ -1107,7 +1107,9 @@ export const Production = () => {
                                 >
                                     <option value="">Bitte wählen...</option>
                                     {profiles.map(p => (
-                                        <option key={p.id} value={p.id}>{p.full_name}</option>
+                                        <option key={p.id} value={p.id}>
+                                            {p.full_name} {p.agency_number ? `(${p.agency_number})` : ''}
+                                        </option>
                                     ))}
                                 </select>
                             </div>
@@ -1142,7 +1144,9 @@ export const Production = () => {
                                 >
                                     <option value="">Bitte wählen...</option>
                                     {profiles.map(p => (
-                                        <option key={p.id} value={p.id}>{p.full_name}</option>
+                                        <option key={p.id} value={p.id}>
+                                            {p.full_name} {p.agency_number ? `(${p.agency_number})` : ''}
+                                        </option>
                                     ))}
                                 </select>
                             </div>
