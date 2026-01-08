@@ -31,6 +31,7 @@ import { MfaVerify } from '@/pages/MfaVerify';
 import { MfaCheck } from '@/components/MfaCheck';
 import { Documents } from '@/pages/Documents';
 import { PhoneCalls } from '@/pages/PhoneCalls';
+import { IncomingCallHandler } from '@/pages/IncomingCallHandler';
 import { Phone } from 'lucide-react';
 
 function App() {
@@ -69,6 +70,7 @@ function App() {
       <Toaster position="top-right" />
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/incoming-call" element={<IncomingCallHandler />} />
         
         <Route element={<ProtectedRoute />}>
           <Route path="/mfa-setup" element={<MfaSetup />} />
