@@ -36,37 +36,32 @@ export const IncomingCallHandler = () => {
           if (profile) userId = profile.id;
       }
 
-      // Check if we already logged this call in the last minute (debounce)
-      const oneMinuteAgo = new Date(Date.now() - 60000).toISOString();
-      const { data: recent } = await supabase
-        .from('phone_calls')
-        .select('id')
-        .eq('caller_number', number)
-        .gte('created_at', oneMinuteAgo)
-        .single();
+      // Remove debounce for testing
+      // const oneMinuteAgo = new Date(Date.now() - 60000).toISOString();
+      // const { data: recent } = await supabase...
 
-      if (!recent) {
-        const payload = {
+      // Always insert for now
+      const payload = {
           caller_number: number,
           direction: 'inbound',
           status: 'missed',
           notes: name !== 'Unbekannt' ? `Anrufer: ${name}` : undefined,
-          agent_extension: ext || user?.email,
-          user_id: userId
-        };
-        console.log('Inserting call:', payload);
+          agent_extension: ext || 'unknown',
+          user_id: userId || null
+      };
+      
+      console.log('Attempting to insert:', payload);
 
-        const { error } = await supabase.from('phone_calls').insert(payload);
-        if (error) {
-            console.error('Insert error:', error);
-            setStatus(`Fehler: ${error.message}`);
-            return;
-        }
+      const { data, error } = await supabase.from('phone_calls').insert(payload).select();
+      
+      if (error) {
+          console.error('CRITICAL INSERT ERROR:', error);
+          setStatus(`DB Error: ${error.message} (${error.code})`);
+      } else {
+          console.log('Insert success:', data);
+          setStatus(`Gespeichert! ID: ${data[0].id}`);
+          setTimeout(() => navigate('/calls'), 1500);
       }
-
-      setStatus('Anruf erfasst!');
-      // Redirect to calls list
-      setTimeout(() => navigate('/calls'), 1000);
     };
 
     logCall();
