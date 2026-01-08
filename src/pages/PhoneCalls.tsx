@@ -13,7 +13,7 @@ export const PhoneCalls = () => {
 
     const fetchCalls = async () => {
     setLoading(true);
-    // Only fetch calls for current user
+    // Fetch ALL calls for debugging purposes temporarily
     const { data, error } = await supabase
       .from('phone_calls')
       .select('*')
