@@ -38,28 +38,30 @@ export const IncomingCallHandler = () => {
           if (profile) userId = profile.id;
       }
 
-      // Always insert, even if data is missing
-      const payload = {
-          caller_number: number, // Will be "Unbekannt" if missing
-          direction: 'inbound',
-          status: 'missed',
-          notes: `Raw Params: ${JSON.stringify(allParams)}`, // Save raw params to debug
-          agent_extension: ext || 'unknown',
-          user_id: userId || null
-      };
-      
-      console.log('Attempting to insert:', payload);
+      // Check if we already logged this call in the last minute (debounce)
+      const oneMinuteAgo = new Date(Date.now() - 60000).toISOString();
+      const { data: recent } = await supabase
+        .from('phone_calls')
+        .select('id')
+        .eq('caller_number', number)
+        .gte('created_at', oneMinuteAgo)
+        .single();
 
-      const { data, error } = await supabase.from('phone_calls').insert(payload).select();
-      
-      if (error) {
-          console.error('CRITICAL INSERT ERROR:', error);
-          setStatus(`DB Error: ${error.message} (${error.code})`);
-      } else {
-          console.log('Insert success:', data);
-          setStatus(`Gespeichert! ID: ${data[0].id}`);
-          setTimeout(() => navigate('/calls'), 1500);
+      if (!recent) {
+        const payload = {
+            caller_number: number,
+            direction: 'inbound',
+            status: 'missed',
+            notes: name !== 'Unbekannt' ? `Anrufer: ${name}` : undefined,
+            agent_extension: ext || undefined,
+            user_id: userId || null
+        };
+        
+        await supabase.from('phone_calls').insert(payload);
       }
+
+      setStatus('Anruf erfasst!');
+      setTimeout(() => navigate('/calls'), 1000);
     };
 
     logCall();
