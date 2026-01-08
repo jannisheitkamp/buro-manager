@@ -873,6 +873,7 @@ export const Production = () => {
                                 <tr>
                                     <th className="px-6 py-4 font-semibold text-gray-900 dark:text-white">Status</th>
                                     <th className="px-6 py-4 font-semibold text-gray-900 dark:text-white">Kunde</th>
+                                    <th className="px-6 py-4 font-semibold text-gray-900 dark:text-white">Betreuer</th>
                                     <th className="px-6 py-4 font-semibold text-gray-900 dark:text-white">Sparte</th>
                                     <th className="px-6 py-4 font-semibold text-gray-900 dark:text-white">Beitrag</th>
                                     <th className="px-6 py-4 font-semibold text-gray-900 dark:text-white">Bewertung</th>
@@ -906,6 +907,12 @@ export const Production = () => {
                                             <td className="px-6 py-4">
                                                 <div className="font-bold text-gray-900 dark:text-white">{entry.customer_name}, {entry.customer_firstname}</div>
                                                 <div className="text-xs text-gray-500 font-mono mt-0.5">{entry.policy_number || '-'}</div>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="text-sm text-gray-900 dark:text-white">{entry.manager?.full_name || '-'}</div>
+                                                {entry.profiles?.full_name && entry.profiles.full_name !== entry.manager?.full_name && (
+                                                    <div className="text-xs text-gray-400 mt-0.5">Von: {entry.profiles.full_name}</div>
+                                                )}
                                             </td>
                                             <td className="px-6 py-4">
                                                 <span className={cn(
@@ -970,6 +977,7 @@ export const Production = () => {
                                         <div className="max-w-[60%]">
                                             <h3 className="font-bold text-gray-900 dark:text-white truncate">{entry.customer_name}, {entry.customer_firstname}</h3>
                                             <p className="text-xs text-gray-500 font-mono truncate">{entry.policy_number || 'Keine Schein-Nr.'}</p>
+                                            <p className="text-xs text-indigo-500 mt-1 truncate">Betreuer: {entry.manager?.full_name || '-'}</p>
                                         </div>
                                         <div className="text-right">
                                             <p className="text-lg font-black text-indigo-600 dark:text-indigo-400">{formatCurrency(entry.commission_amount || 0)}</p>
