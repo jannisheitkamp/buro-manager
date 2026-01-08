@@ -175,7 +175,7 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
             )}
           </nav>
 
-          <div className="p-4 border-t border-gray-200/50 dark:border-gray-700/50 space-y-2">
+          <div className="p-4 border-t border-gray-200/50 dark:border-gray-700/50 space-y-2 pb-24 lg:pb-4">
             <Link
                 to="/profile"
                 className={cn(
