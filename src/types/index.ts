@@ -125,3 +125,31 @@ export type DocumentShare = {
   created_at: string;
   profile?: Profile;
 };
+
+export type ProductionEntry = {
+  id: string;
+  user_id: string;
+  managed_by: string | null;
+  submission_date: string;
+  policy_number: string | null;
+  customer_name: string;
+  customer_firstname: string | null;
+  category: string;
+  sub_category: string | null;
+  start_date: string | null;
+  payment_method: string | null;
+  duration: number | null;
+  net_premium: number | null;
+  gross_premium: number | null;
+  commission_rate: number | null;
+  valuation_sum: number | null;
+  commission_amount: number | null;
+  liability_rate: number | null;
+  status: 'submitted' | 'policed' | 'cancelled';
+  policing_date: string | null;
+  commission_received_date: string | null;
+  notes: string | null;
+  created_at: string;
+  profiles?: Profile; // The closer (user_id)
+  manager?: Profile; // The manager (managed_by)
+};

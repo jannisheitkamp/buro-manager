@@ -109,11 +109,16 @@ export const Production = () => {
   const [submissionDate, setSubmissionDate] = useState(new Date().toISOString().split('T')[0]);
   const [customerName, setCustomerName] = useState('');
   const [customerFirstname, setCustomerFirstname] = useState('');
+  const [managedBy, setManagedBy] = useState<string>(''); // New
+  const [status, setStatus] = useState<'submitted' | 'policed' | 'cancelled'>('submitted'); // New
   
   // Contract Data
   const [startDate, setStartDate] = useState('');
+  const [policingDate, setPolicingDate] = useState(''); // New
+  const [commissionReceivedDate, setCommissionReceivedDate] = useState(''); // New
   const [duration, setDuration] = useState(1);
   const [paymentMethod, setPaymentMethod] = useState('monthly'); // monthly = 12
+  const [notes, setNotes] = useState(''); // New
   
   // Money
   const [netPremium, setNetPremium] = useState<number | ''>(''); // e.g. 50.00
@@ -129,6 +134,16 @@ export const Production = () => {
   const [grossPremiumYearly, setGrossPremiumYearly] = useState(0);
   const [valuationSum, setValuationSum] = useState(0); // AP-Summe
   const [commissionAmount, setCommissionAmount] = useState(0);
+
+  const [profiles, setProfiles] = useState<any[]>([]); // For "Managed By" dropdown
+
+  useEffect(() => {
+      const loadProfiles = async () => {
+          const { data } = await supabase.from('profiles').select('id, full_name');
+          if (data) setProfiles(data);
+      };
+      loadProfiles();
+  }, []);
 
   // --- Auto-Calculation Effect ---
   useEffect(() => {
@@ -193,7 +208,11 @@ export const Production = () => {
     setLoading(true);
     const { data, error } = await supabase
         .from('production_entries')
-        .select('*, profiles(full_name, avatar_url)')
+        .select(`
+            *,
+            profiles:user_id (full_name, avatar_url),
+            manager:managed_by (full_name)
+        `)
         .order('created_at', { ascending: false });
     
     if (error) {
@@ -217,6 +236,7 @@ export const Production = () => {
     try {
         const payload = {
             user_id: user.id,
+            managed_by: managedBy || user.id, // Default to self if empty
             submission_date: submissionDate,
             policy_number: policyNumber,
             customer_name: customerName,
@@ -224,6 +244,8 @@ export const Production = () => {
             category,
             sub_category: subCategory,
             start_date: startDate || null,
+            policing_date: policingDate || null,
+            commission_received_date: commissionReceivedDate || null,
             payment_method: paymentMethod,
             duration,
             net_premium: Number(netPremium),
@@ -234,13 +256,18 @@ export const Production = () => {
             valuation_sum: valuationSum,
             commission_amount: commissionAmount,
             liability_rate: liabilityActive ? Number(liabilityRate) : 0,
-            status: 'submitted'
+            status,
+            notes
         };
 
         if (editingId) {
+            // Don't overwrite user_id on edit unless intended. Usually we keep original creator.
+            // We only update the fields that are editable.
+            const { user_id, ...updatePayload } = payload;
+            
             const { error } = await supabase
                 .from('production_entries')
-                .update(payload)
+                .update(updatePayload)
                 .eq('id', editingId);
             if (error) throw error;
             toast.success('Vertrag aktualisiert!');
@@ -269,12 +296,18 @@ export const Production = () => {
       setCustomerFirstname('');
       setPolicyNumber('');
       setSubmissionDate(new Date().toISOString().split('T')[0]);
+      setManagedBy(user?.id || '');
+      setStatus('submitted');
+      setStartDate('');
+      setPolicingDate('');
+      setCommissionReceivedDate('');
       setNetPremium('');
       setGrossPremium('');
       setDuration(1);
       setPaymentMethod('monthly');
       setLiabilityRate(10);
       setLiabilityActive(true);
+      setNotes('');
       // Reset category to defaults if needed
   };
 
@@ -284,13 +317,18 @@ export const Production = () => {
       setPolicyNumber(entry.policy_number || '');
       setCustomerName(entry.customer_name || '');
       setCustomerFirstname(entry.customer_firstname || '');
+      setManagedBy(entry.managed_by || entry.user_id);
+      setStatus(entry.status || 'submitted');
       setCategory(entry.category);
       setSubCategory(entry.sub_category);
       setStartDate(entry.start_date || '');
+      setPolicingDate(entry.policing_date || '');
+      setCommissionReceivedDate(entry.commission_received_date || '');
       setPaymentMethod(entry.payment_method);
       setDuration(entry.duration || 1);
       setNetPremium(entry.net_premium || '');
       setGrossPremium(entry.gross_premium || '');
+      setNotes(entry.notes || '');
       
       const lRate = Number(entry.liability_rate);
       if (lRate > 0) {
@@ -418,7 +456,9 @@ export const Production = () => {
       if (filteredEntries.length === 0) return;
       
       const headers = [
-          'Datum', 
+          'Status',
+          'Einreichung',
+          'Policierung',
           'Nachname', 
           'Vorname', 
           'Schein-Nr', 
@@ -429,7 +469,8 @@ export const Production = () => {
           'Beitrag (Netto)', 
           'Bewertungssumme', 
           'Satz', 
-          'Provision'
+          'Provision',
+          'Betreuer'
       ];
 
       // Helper for German number format (comma as decimal)
@@ -447,23 +488,36 @@ export const Production = () => {
           'monthly': 'Monatlich', 'quarterly': 'Vierteljährlich',
           'half_yearly': 'Halbjährlich', 'yearly': 'Jährlich', 'one_time': 'Einmalig'
       };
+      const statusMap: Record<string, string> = {
+          'submitted': 'Eingereicht', 'policed': 'Policiert', 'cancelled': 'Storniert'
+      };
 
       const csvContent = [
           '\uFEFF' + headers.join(';'), // Add BOM for Excel
-          ...filteredEntries.map(e => [
-              format(new Date(e.submission_date), 'dd.MM.yyyy'),
-              `"${e.customer_name || ''}"`,
-              `"${e.customer_firstname || ''}"`,
-              `"${e.policy_number || ''}"`,
-              catMap[e.category] || e.category,
-              `"${e.sub_category || ''}"`,
-              payMap[e.payment_method] || e.payment_method,
-              fmtNum(e.gross_premium),
-              fmtNum(e.net_premium),
-              fmtNum(e.valuation_sum),
-              fmtNum(e.commission_rate),
-              fmtNum(e.commission_amount)
-          ].join(';'))
+          ...filteredEntries.map(e => {
+              // Find manager name if possible (not joined in current select, need to check fetch)
+              // We fetched profiles(full_name) for user_id. We might need managed_by join too.
+              // For now, let's just use what we have or skip name if not joined.
+              // We only joined `profiles` on `user_id`.
+              // We should update fetchEntries to join `managed_by` as well.
+              return [
+                  statusMap[e.status] || e.status,
+                  format(new Date(e.submission_date), 'dd.MM.yyyy'),
+                  e.policing_date ? format(new Date(e.policing_date), 'dd.MM.yyyy') : '',
+                  `"${e.customer_name || ''}"`,
+                  `"${e.customer_firstname || ''}"`,
+                  `"${e.policy_number || ''}"`,
+                  catMap[e.category] || e.category,
+                  `"${e.sub_category || ''}"`,
+                  payMap[e.payment_method] || e.payment_method,
+                  fmtNum(e.gross_premium),
+                  fmtNum(e.net_premium),
+                  fmtNum(e.valuation_sum),
+                  fmtNum(e.commission_rate),
+                  fmtNum(e.commission_amount),
+                  `"${e.manager?.full_name || ''}"`
+              ].join(';');
+          })
       ].join('\n');
 
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -485,18 +539,20 @@ export const Production = () => {
       doc.text(`Zeitraum: ${filterCategory === 'all' ? 'Alle' : filterCategory}`, 14, 33);
 
       const tableData = filteredEntries.map(e => [
-          format(new Date(e.submission_date), 'dd.MM.yyyy'),
+          format(new Date(e.submission_date), 'dd.MM.yy'),
+          e.policing_date ? format(new Date(e.policing_date), 'dd.MM.yy') : '-',
           `${e.customer_name}, ${e.customer_firstname}`,
           e.sub_category || e.category,
+          e.status === 'policed' ? 'Policiert' : (e.status === 'cancelled' ? 'Storno' : 'Offen'),
           formatCurrency(e.valuation_sum),
           formatCurrency(e.commission_amount)
       ]);
 
       autoTable(doc, {
           startY: 40,
-          head: [['Datum', 'Kunde', 'Sparte', 'Bewertung', 'Provision']],
+          head: [['Eingereicht', 'Policiert', 'Kunde', 'Sparte', 'Status', 'Bewertung', 'Provision']],
           body: tableData,
-          foot: [['', '', 'Summe:', '', formatCurrency(totalCommission)]],
+          foot: [['', '', '', '', 'Summe:', '', formatCurrency(totalCommission)]],
           theme: 'grid',
           headStyles: { fillColor: [79, 70, 229] }, // Indigo 600
           footStyles: { fillColor: [243, 244, 246], textColor: [0, 0, 0], fontStyle: 'bold' } // Gray 100
@@ -815,7 +871,7 @@ export const Production = () => {
                         <table className="w-full text-left text-sm">
                             <thead className="bg-gray-50/50 dark:bg-gray-900/20">
                                 <tr>
-                                    <th className="px-6 py-4 font-semibold text-gray-900 dark:text-white">Datum</th>
+                                    <th className="px-6 py-4 font-semibold text-gray-900 dark:text-white">Status</th>
                                     <th className="px-6 py-4 font-semibold text-gray-900 dark:text-white">Kunde</th>
                                     <th className="px-6 py-4 font-semibold text-gray-900 dark:text-white">Sparte</th>
                                     <th className="px-6 py-4 font-semibold text-gray-900 dark:text-white">Beitrag</th>
@@ -832,8 +888,20 @@ export const Production = () => {
                                 ) : (
                                     filteredEntries.map(entry => (
                                         <tr key={entry.id} className="hover:bg-indigo-50/30 dark:hover:bg-indigo-900/10 transition-colors group">
-                                            <td className="px-6 py-4 text-gray-600 dark:text-gray-300 whitespace-nowrap">
-                                                {format(new Date(entry.submission_date), 'dd.MM.yyyy')}
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <div className="flex flex-col gap-1">
+                                                    <span className={cn(
+                                                        "inline-flex items-center px-2 py-0.5 rounded text-xs font-bold w-fit",
+                                                        entry.status === 'policed' ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" :
+                                                        entry.status === 'cancelled' ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" :
+                                                        "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                                                    )}>
+                                                        {entry.status === 'policed' ? 'Policiert' : entry.status === 'cancelled' ? 'Storniert' : 'Eingereicht'}
+                                                    </span>
+                                                    <span className="text-[10px] text-gray-400">
+                                                        {format(new Date(entry.submission_date), 'dd.MM.yy')}
+                                                    </span>
+                                                </div>
                                             </td>
                                             <td className="px-6 py-4">
                                                 <div className="font-bold text-gray-900 dark:text-white">{entry.customer_name}, {entry.customer_firstname}</div>
@@ -983,6 +1051,7 @@ export const Production = () => {
                 {/* 2. Customer & Basic Info */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-4">
+                        {/* Row 1: Names */}
                         <div className="grid grid-cols-2 gap-4">
                             <div>
                                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Nachname</label>
@@ -993,18 +1062,81 @@ export const Production = () => {
                                 <input type="text" value={customerFirstname} onChange={e => setCustomerFirstname(e.target.value)} className="w-full rounded-xl border-transparent bg-gray-50/50 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 px-4 py-2.5 text-sm transition-all" />
                             </div>
                         </div>
-                        <div>
-                            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Versicherungsschein-Nr.</label>
-                            <input type="text" value={policyNumber} onChange={e => setPolicyNumber(e.target.value)} className="w-full rounded-xl border-transparent bg-gray-50/50 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 px-4 py-2.5 text-sm transition-all" />
+
+                        {/* Row 2: Policy No & Status */}
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Versicherungsschein-Nr.</label>
+                                <input type="text" value={policyNumber} onChange={e => setPolicyNumber(e.target.value)} className="w-full rounded-xl border-transparent bg-gray-50/50 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 px-4 py-2.5 text-sm transition-all" />
+                            </div>
+                             <div>
+                                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Status</label>
+                                <select 
+                                    value={status} 
+                                    onChange={(e) => setStatus(e.target.value as any)} 
+                                    className={cn(
+                                        "w-full rounded-xl border-transparent px-3 py-2.5 text-sm shadow-sm transition-all focus:ring-2 focus:ring-indigo-500/20",
+                                        status === 'submitted' ? "bg-blue-50 text-blue-700" :
+                                        status === 'policed' ? "bg-green-50 text-green-700" :
+                                        "bg-red-50 text-red-700"
+                                    )}
+                                >
+                                    <option value="submitted">Eingereicht</option>
+                                    <option value="policed">Policiert</option>
+                                    <option value="cancelled">Storniert</option>
+                                </select>
+                            </div>
                         </div>
-                        <div>
-                            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Einreichungsdatum</label>
-                            <input type="date" value={submissionDate} onChange={e => setSubmissionDate(e.target.value)} className="w-full rounded-xl border-transparent bg-gray-50/50 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 px-4 py-2.5 text-sm transition-all" />
+
+                        {/* Row 3: Management & Dates */}
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Betreuung von</label>
+                                <select 
+                                    value={managedBy} 
+                                    onChange={e => setManagedBy(e.target.value)} 
+                                    className="w-full rounded-xl border-transparent bg-gray-50/50 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 px-3 py-2.5 text-sm transition-all"
+                                >
+                                    <option value="">Bitte wählen...</option>
+                                    {profiles.map(p => (
+                                        <option key={p.id} value={p.id}>{p.full_name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Einreichungsdatum</label>
+                                <input type="date" value={submissionDate} onChange={e => setSubmissionDate(e.target.value)} className="w-full rounded-xl border-transparent bg-gray-50/50 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 px-4 py-2.5 text-sm transition-all" />
+                            </div>
+                        </div>
+                        
+                        {/* Row 4: Extra Dates */}
+                         <div className="grid grid-cols-2 gap-4">
+                             <div>
+                                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Vertragsbeginn</label>
+                                <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-full rounded-xl border-transparent bg-gray-50/50 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 px-4 py-2.5 text-sm transition-all" />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Policierungsdatum</label>
+                                <input type="date" value={policingDate} onChange={e => setPolicingDate(e.target.value)} className="w-full rounded-xl border-transparent bg-gray-50/50 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 px-4 py-2.5 text-sm transition-all" />
+                            </div>
+                        </div>
+                         <div className="grid grid-cols-2 gap-4">
+                             <div>
+                                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Provisionserhalt</label>
+                                <input type="date" value={commissionReceivedDate} onChange={e => setCommissionReceivedDate(e.target.value)} className="w-full rounded-xl border-transparent bg-gray-50/50 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 px-4 py-2.5 text-sm transition-all" />
+                            </div>
+                            {/* Placeholder or Submitter Info */}
+                             <div>
+                                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Abschluss von</label>
+                                <div className="w-full px-4 py-2.5 text-sm text-gray-500 bg-gray-100 rounded-xl">
+                                    {editingId ? entries.find(e => e.id === editingId)?.profiles?.full_name : user?.full_name}
+                                </div>
+                            </div>
                         </div>
                     </div>
 
                     {/* 3. Contract Details (Dynamic) */}
-                    <div className="bg-gray-50/50 dark:bg-gray-800/50 p-6 rounded-3xl space-y-4 border border-gray-100 dark:border-gray-700">
+                    <div className="bg-gray-50/50 dark:bg-gray-800/50 p-6 rounded-3xl space-y-4 border border-gray-100 dark:border-gray-700 h-fit">
                         <h3 className="font-bold text-gray-900 dark:text-white text-sm flex items-center gap-2 mb-2">
                             <FileText className="w-4 h-4 text-indigo-500" /> Vertragsdaten
                         </h3>
@@ -1053,6 +1185,18 @@ export const Production = () => {
                                 <label className="block text-xs font-medium text-gray-500 mb-1.5">Laufzeit (J)</label>
                                 <input type="number" value={duration} onChange={e => setDuration(Number(e.target.value))} className="w-full rounded-xl border-transparent bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500/20 shadow-sm" />
                             </div>
+                        </div>
+
+                         {/* Notes Area */}
+                        <div>
+                            <label className="block text-xs font-medium text-gray-500 mb-1.5">Bemerkungen</label>
+                            <textarea 
+                                value={notes} 
+                                onChange={e => setNotes(e.target.value)} 
+                                rows={3}
+                                className="w-full rounded-xl border-transparent bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500/20 shadow-sm resize-none"
+                                placeholder="Wichtige Hinweise..."
+                            />
                         </div>
                     </div>
                 </div>
