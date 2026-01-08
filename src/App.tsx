@@ -13,8 +13,8 @@ import { Bookings } from '@/pages/Bookings';
 import { Board } from '@/pages/Board';
 import { Polls } from '@/pages/Polls';
 import { Parcels } from '@/pages/Parcels';
-import { Callbacks } from '@/pages/Callbacks';
 import { Directory } from '@/pages/Directory';
+import { Documents } from '@/pages/Documents';
 import { ProfilePage } from '@/pages/Profile';
 import { Toaster } from 'react-hot-toast';
 
@@ -29,7 +29,6 @@ import { OnboardingCheck } from '@/components/OnboardingCheck';
 import { MfaSetup } from '@/pages/MfaSetup';
 import { MfaVerify } from '@/pages/MfaVerify';
 import { MfaCheck } from '@/components/MfaCheck';
-import { Documents } from '@/pages/Documents';
 import { PhoneCalls } from '@/pages/PhoneCalls';
 import { IncomingCallHandler } from '@/pages/IncomingCallHandler';
 import { Phone } from 'lucide-react';
@@ -87,7 +86,6 @@ function App() {
               <Route path="/production" element={<Layout><PageTransition><Production /></PageTransition></Layout>} />
               <Route path="/board" element={<Layout><PageTransition><Board /></PageTransition></Layout>} />
               <Route path="/polls" element={<Layout><PageTransition><Polls /></PageTransition></Layout>} />
-              <Route path="/callbacks" element={<Layout><PageTransition><Callbacks /></PageTransition></Layout>} />
               <Route path="/parcels" element={<Layout><PageTransition><Parcels /></PageTransition></Layout>} />
               <Route path="/directory" element={<Layout><PageTransition><Directory /></PageTransition></Layout>} />
               <Route path="/admin" element={<Layout><PageTransition><Admin /></PageTransition></Layout>} />
