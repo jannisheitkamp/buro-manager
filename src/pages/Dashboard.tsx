@@ -392,7 +392,11 @@ export const Dashboard = () => {
                                         isHighPrio 
                                             ? "bg-red-50 dark:bg-red-900/10 border-red-100 dark:border-red-900/30" 
                                             : "bg-gray-50 dark:bg-gray-900/50 border-transparent hover:border-gray-200 dark:hover:border-gray-700"
-                                    )} onClick={() => navigate(isEvent ? '/general-calendar' : '/calls')}>
+                                    )} onClick={() => {
+                                        if (isEvent) navigate('/general-calendar');
+                                        else if (isMissedCall) navigate('/calls?tab=live');
+                                        else navigate('/calls?tab=tasks');
+                                    }}>
                                         <div className="flex justify-between items-start">
                                             <h3 className={cn("font-medium text-sm", isHighPrio ? "text-red-900 dark:text-red-200" : "text-gray-900 dark:text-white")}>
                                                 {task.title}
@@ -606,7 +610,7 @@ export const Dashboard = () => {
                     <TrendingUp className="w-6 h-6" />
                     <span className="text-sm font-bold">Umsatz +</span>
                 </button>
-                <button onClick={() => navigate('/calls')} className="bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 hover:border-indigo-200 dark:hover:border-indigo-800 p-4 rounded-3xl flex flex-col items-center justify-center gap-2 transition-all hover:scale-[1.02] group">
+                <button onClick={() => navigate('/calls?tab=tasks')} className="bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 hover:border-indigo-200 dark:hover:border-indigo-800 p-4 rounded-3xl flex flex-col items-center justify-center gap-2 transition-all hover:scale-[1.02] group">
                     <Phone className="w-6 h-6 text-gray-400 group-hover:text-indigo-500 transition-colors" />
                     <span className="text-sm font-medium text-gray-600 dark:text-gray-300 group-hover:text-indigo-600 dark:group-hover:text-indigo-400">Rückruf</span>
                 </button>

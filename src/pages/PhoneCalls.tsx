@@ -10,10 +10,19 @@ import { Modal } from '@/components/Modal';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Callback, Profile } from '@/types';
+import { useSearchParams } from 'react-router-dom';
 
 export const PhoneCalls = () => {
   const { user, profile } = useStore();
-  const [activeTab, setActiveTab] = useState<'live' | 'tasks'>('live');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState<'live' | 'tasks'>(
+      (searchParams.get('tab') as 'live' | 'tasks') || 'live'
+  );
+  
+  // Update URL when tab changes
+  useEffect(() => {
+      setSearchParams({ tab: activeTab });
+  }, [activeTab, setSearchParams]);
   
   // --- STATE FOR LIVE CALLS ---
   const [calls, setCalls] = useState<any[]>([]);
