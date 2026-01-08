@@ -30,6 +30,8 @@ import { MfaSetup } from '@/pages/MfaSetup';
 import { MfaVerify } from '@/pages/MfaVerify';
 import { MfaCheck } from '@/components/MfaCheck';
 import { Documents } from '@/pages/Documents';
+import { PhoneCalls } from '@/pages/PhoneCalls';
+import { Phone } from 'lucide-react';
 
 function App() {
   const setUser = useStore((state) => state.setUser);
@@ -88,6 +90,7 @@ function App() {
               <Route path="/directory" element={<Layout><PageTransition><Directory /></PageTransition></Layout>} />
               <Route path="/admin" element={<Layout><PageTransition><Admin /></PageTransition></Layout>} />
               <Route path="/documents" element={<Layout><PageTransition><Documents /></PageTransition></Layout>} />
+              <Route path="/calls" element={<Layout><PageTransition><PhoneCalls /></PageTransition></Layout>} />
               <Route path="/profile" element={<Layout><PageTransition><ProfilePage /></PageTransition></Layout>} />
             </Route>
           </Route>

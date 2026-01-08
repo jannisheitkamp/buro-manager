@@ -38,6 +38,7 @@ const navigation = [
   { name: 'Schwarzes Brett', href: '/board', icon: ClipboardList },
   { name: 'Dokumente', href: '/documents', icon: FileText },
   { name: 'Umfragen', href: '/polls', icon: BarChart2 },
+  { name: 'Anrufe', href: '/calls', icon: Phone }, // New Item
   { name: 'Rückrufe', href: '/callbacks', icon: Phone },
   { name: 'Pakete', href: '/parcels', icon: Package },
   { name: 'Verzeichnis', href: '/directory', icon: Users },
