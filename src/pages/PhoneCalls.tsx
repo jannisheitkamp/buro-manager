@@ -100,6 +100,14 @@ export const PhoneCalls = () => {
       ), { duration: 5000 });
   };
 
+  const handleCreateTaskFromCall = (call: any) => {
+      setCustomerName(call.notes?.replace('Anrufer: ', '') || 'Unbekannt');
+      setPhone(call.caller_number || '');
+      setTopic('Verpasster Anruf');
+      setIsModalOpen(true);
+      setActiveTab('tasks'); // Switch to tasks tab so user sees the modal in context
+  };
+
   const isDone = (call: any) => call.notes?.includes('erledigt');
   const filteredCalls = filterCalls === 'all' ? calls : calls.filter(c => c.status === 'missed' && !isDone(c));
 
@@ -352,12 +360,23 @@ export const PhoneCalls = () => {
 
                                 <div className="flex items-center gap-2 self-end md:self-auto">
                                     {call.status === 'missed' && !isDone(call) && (
-                                        <button 
-                                            onClick={() => handleMarkDone(call.id)}
-                                            className="px-4 py-2 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-xl text-sm font-bold transition-colors"
-                                        >
-                                            Rückruf erledigt
-                                        </button>
+                                        <>
+                                            <button 
+                                                onClick={() => handleCreateTaskFromCall(call)}
+                                                className="px-4 py-2 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-xl text-sm font-bold transition-colors flex items-center gap-2"
+                                                title="Aufgabe erstellen"
+                                            >
+                                                <ClipboardList className="w-4 h-4" />
+                                                <span className="hidden md:inline">Aufgabe</span>
+                                            </button>
+                                            <button 
+                                                onClick={() => handleMarkDone(call.id)}
+                                                className="px-4 py-2 bg-green-50 text-green-600 hover:bg-green-100 rounded-xl text-sm font-bold transition-colors flex items-center gap-2"
+                                            >
+                                                <Check className="w-4 h-4" />
+                                                <span className="hidden md:inline">Erledigt</span>
+                                            </button>
+                                        </>
                                     )}
                                     <button 
                                         onClick={() => handleDeleteCall(call.id)}
