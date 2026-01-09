@@ -79,34 +79,14 @@ export const PhoneCalls = () => {
   };
 
   const handleDeleteCall = async (id: string) => {
-      toast((t) => (
-          <div className="flex flex-col gap-2">
-              <span className="font-semibold">Anruf wirklich löschen?</span>
-              <div className="flex gap-2">
-                  <button 
-                      onClick={async () => {
-                          toast.dismiss(t.id);
-                          const { error } = await supabase.from('phone_calls').delete().eq('id', id);
-                          if(!error) {
-                              toast.success('Gelöscht');
-                              setCalls(prev => prev.filter(c => c.id !== id));
-                          } else {
-                              toast.error('Fehler beim Löschen');
-                          }
-                      }}
-                      className="bg-red-500 text-white px-3 py-1 rounded-lg text-sm hover:bg-red-600 transition-colors"
-                  >
-                      Löschen
-                  </button>
-                  <button 
-                      onClick={() => toast.dismiss(t.id)}
-                      className="bg-gray-100 text-gray-700 px-3 py-1 rounded-lg text-sm hover:bg-gray-200 transition-colors"
-                  >
-                      Abbrechen
-                  </button>
-              </div>
-          </div>
-      ), { duration: 5000 });
+      // Direct delete without confirmation as requested for faster workflow
+      const { error } = await supabase.from('phone_calls').delete().eq('id', id);
+      if(!error) {
+          toast.success('Gelöscht');
+          setCalls(prev => prev.filter(c => c.id !== id));
+      } else {
+          toast.error('Fehler beim Löschen');
+      }
   };
 
   const handleCreateTaskFromCall = (call: any) => {
@@ -332,16 +312,26 @@ export const PhoneCalls = () => {
                 ) : (
                     <div className="divide-y divide-gray-100 dark:divide-gray-700">
                         {filteredCalls.map((call) => (
-                            <div key={call.id} className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-4 group">
+                            <div key={call.id} className={cn(
+                                "p-4 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-4 group rounded-2xl border mb-3",
+                                call.status === 'missed' && !isDone(call) 
+                                    ? "bg-white dark:bg-gray-800 border-indigo-100 dark:border-indigo-900/30 shadow-sm" 
+                                    : "bg-gray-50 dark:bg-gray-900/20 border-transparent opacity-75"
+                            )}>
                                 <div className="flex items-center gap-4">
                                     <div className={cn(
-                                        "w-12 h-12 rounded-2xl flex items-center justify-center shrink-0",
-                                        call.status === 'missed' ? "bg-red-100 text-red-600 dark:bg-red-900/20" : "bg-green-100 text-green-600 dark:bg-green-900/20"
+                                        "w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-inner",
+                                        call.status === 'missed' && !isDone(call)
+                                            ? "bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400" 
+                                            : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400"
                                     )}>
-                                        {call.status === 'missed' ? <PhoneMissed className="w-6 h-6" /> : <PhoneIncoming className="w-6 h-6" />}
+                                        <PhoneIncoming className="w-6 h-6" />
                                     </div>
                                     <div>
-                                        <h3 className="font-bold text-gray-900 dark:text-white text-lg">
+                                        <h3 className={cn(
+                                            "font-bold text-lg",
+                                            call.status === 'missed' && !isDone(call) ? "text-gray-900 dark:text-white" : "text-gray-500 dark:text-gray-400"
+                                        )}>
                                             {call.caller_number || 'Unbekannt'}
                                         </h3>
                                         <div className="flex items-center gap-3 text-sm text-gray-500">
@@ -361,39 +351,45 @@ export const PhoneCalls = () => {
                                                 <span className="text-gray-400 italic max-w-md truncate hidden md:inline">• {call.notes}</span>
                                             )}
                                         </div>
-                                        {call.notes && !isDone(call) && (
-                                            <p className="text-xs text-gray-400 mt-1 md:hidden">{call.notes}</p>
-                                        )}
                                     </div>
                                 </div>
 
                                 <div className="flex items-center gap-2 self-end md:self-auto">
-                                    {call.status === 'missed' && !isDone(call) && (
+                                    {call.status === 'missed' && !isDone(call) ? (
                                         <>
                                             <button 
                                                 onClick={() => handleCreateTaskFromCall(call)}
-                                                className="px-4 py-2 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-xl text-sm font-bold transition-colors flex items-center gap-2"
-                                                title="Aufgabe erstellen"
+                                                className="px-4 py-2 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 rounded-xl text-sm font-bold transition-colors flex items-center gap-2"
+                                                title="Rückruf-Aufgabe erstellen"
                                             >
                                                 <ClipboardList className="w-4 h-4" />
                                                 <span className="hidden md:inline">Aufgabe</span>
                                             </button>
                                             <button 
                                                 onClick={() => handleMarkDone(call.id)}
-                                                className="px-4 py-2 bg-green-50 text-green-600 hover:bg-green-100 rounded-xl text-sm font-bold transition-colors flex items-center gap-2"
+                                                className="px-4 py-2 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 rounded-xl text-sm font-bold transition-colors flex items-center gap-2"
+                                                title="Als erledigt markieren (keine Aktion nötig)"
                                             >
                                                 <Check className="w-4 h-4" />
                                                 <span className="hidden md:inline">Erledigt</span>
                                             </button>
+                                            <button 
+                                                onClick={() => handleDeleteCall(call.id)}
+                                                className="px-4 py-2 bg-gray-50 dark:bg-gray-800 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl text-sm font-bold transition-colors flex items-center gap-2"
+                                                title="Eintrag löschen"
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                            </button>
                                         </>
+                                    ) : (
+                                        <button 
+                                            onClick={() => handleDeleteCall(call.id)}
+                                            className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors opacity-50 hover:opacity-100"
+                                            title="Löschen"
+                                        >
+                                            <XCircle className="w-5 h-5" />
+                                        </button>
                                     )}
-                                    <button 
-                                        onClick={() => handleDeleteCall(call.id)}
-                                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors opacity-0 group-hover:opacity-100"
-                                        title="Löschen"
-                                    >
-                                        <XCircle className="w-5 h-5" />
-                                    </button>
                                 </div>
                             </div>
                         ))}
