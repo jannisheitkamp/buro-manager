@@ -146,9 +146,9 @@ export const Dashboard = () => {
     const events = eventsRes.data || [];
     const missedCalls = (boardRes[5] as any)?.data || []; // Type assertion trick or proper fetch above
 
-    // Filter missed calls: Show own calls + unassigned calls (if no user_id)
+      // Filter missed calls: Show own calls + unassigned calls (if no user_id)
     const myMissedCalls = missedCalls.filter((c: any) => 
-        !c.notes?.includes('erledigt') && 
+        !c.notes?.includes('erledigt') && c.status === 'missed' &&
         (c.user_id === user.id || (!c.user_id && profile?.roles?.includes('admin')))
     );
     
@@ -172,14 +172,15 @@ export const Dashboard = () => {
       })),
       ...myMissedCalls.map((c: any) => ({
         id: c.id,
-        type: 'missed_call', // New Type
+        type: 'missed_call', 
         title: `Verpasst: ${c.caller_number}`,
         time: new Date(c.created_at),
-        meta: c.notes?.replace('Anrufer: ', '') || 'Unbekannt',
-        priority: 'high' // Missed calls are important
+        meta: c.notes?.replace('Anrufer: ', '').replace(/Raw Params:.*/, '') || 'Unbekannt',
+        priority: 'high'
       }))
     ].sort((a, b) => {
-        return a.time.getTime() - b.time.getTime();
+        // Sort by time: Show newest/soonest first
+        return b.time.getTime() - a.time.getTime(); 
     });
     setMyTasks(timelineItems);
 
