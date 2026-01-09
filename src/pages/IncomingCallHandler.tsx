@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { PhoneIncoming, Loader2 } from 'lucide-react';
@@ -9,71 +9,58 @@ export const IncomingCallHandler = () => {
   const navigate = useNavigate();
   const { user } = useStore();
   const [status, setStatus] = useState('Logging...');
+  const hasLogged = useRef(false); // Prevent double execution
 
   useEffect(() => {
-    const logCall = async () => {
-      // Log ALL params to see what we get (will be visible in notes/console)
-      const allParams = Object.fromEntries(searchParams.entries());
-      console.log('Received params:', allParams);
+    if (hasLogged.current) return;
+    hasLogged.current = true;
 
-      // Support both our custom params and standard 3CX/example params
-      // Fallback to "Unknown" if nothing is found
+    const logCall = async () => {
+      // ... params extraction ...
+      const allParams = Object.fromEntries(searchParams.entries());
       const number = searchParams.get('number') || searchParams.get('phoneNumber') || 'Unbekannt';
       const name = searchParams.get('name') || searchParams.get('displayName') || 'Unbekannt';
       const ext = searchParams.get('ext') || searchParams.get('agent'); 
 
-      // REMOVED THE BLOCKING CHECK
-      // if (!number) { ... }
-
       // Try to find the user by extension (if provided)
       let userId = user?.id; 
-      
       if (!userId && ext) {
           const { data: profile } = await supabase
             .from('profiles')
             .select('id')
             .eq('phone_extension', ext)
             .single();
-          
           if (profile) userId = profile.id;
       }
 
-      // Check if we already logged this call in the last minute (debounce)
+      // Check for recent duplicate calls (Debounce)
       const oneMinuteAgo = new Date(Date.now() - 60000).toISOString();
       const { data: recent } = await supabase
         .from('phone_calls')
         .select('id')
         .eq('caller_number', number)
         .gte('created_at', oneMinuteAgo)
-        .single();
+        .maybeSingle(); // Use maybeSingle to avoid errors if 0 found
 
-      const payload = {
-          caller_number: number,
-          direction: 'inbound',
-          status: 'missed',
-          notes: name !== 'Unbekannt' ? `Anrufer: ${name}` : undefined,
-          agent_extension: ext || undefined,
-          user_id: userId || null
-      };
+      if (!recent) {
+          const payload = {
+              caller_number: number,
+              direction: 'inbound',
+              status: 'missed',
+              notes: name !== 'Unbekannt' ? `Anrufer: ${name}` : undefined,
+              agent_extension: ext || undefined,
+              user_id: userId || null
+          };
+          
+          await supabase.from('phone_calls').insert(payload);
+          setStatus('Gespeichert!');
+      } else {
+          setStatus('Bereits erfasst.');
+      }
       
-      await supabase.from('phone_calls').insert(payload);
-      
-      // Feedback UI
-      setStatus('Gespeichert!');
-      
-      // Auto-Close the window after a short delay
-      // This solves the "annoying popup" issue
-      setTimeout(() => {
-          window.close();
-      }, 800);
-      
-      // Fallback redirect if window.close() is blocked by browser
-      // (Browsers sometimes block scripts from closing windows they didn't open via script)
-      setTimeout(() => {
-          if (!window.closed) {
-              navigate('/calls');
-          }
-      }, 1000);
+      // Auto-Close logic
+      setTimeout(() => window.close(), 800);
+      setTimeout(() => { if (!window.closed) navigate('/calls'); }, 1000);
     };
 
     logCall();

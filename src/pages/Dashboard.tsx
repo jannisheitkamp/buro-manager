@@ -393,29 +393,33 @@ export const Dashboard = () => {
 
                                     {/* Content Card */}
                                     <div className={cn(
-                                        "p-4 rounded-2xl border transition-all hover:shadow-md cursor-pointer",
+                                        "p-3 rounded-xl border transition-all hover:shadow-sm cursor-pointer flex items-center justify-between gap-3",
                                         isHighPrio 
-                                            ? "bg-red-50 dark:bg-red-900/10 border-red-100 dark:border-red-900/30" 
-                                            : "bg-gray-50 dark:bg-gray-900/50 border-transparent hover:border-gray-200 dark:hover:border-gray-700"
+                                            ? "bg-white dark:bg-gray-800 border-red-100 dark:border-red-900/30 shadow-red-100/50" 
+                                            : "bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700/50"
                                     )} onClick={() => {
                                         if (isEvent) navigate('/general-calendar');
                                         else if (isMissedCall) navigate('/calls?tab=live');
                                         else navigate('/calls?tab=tasks');
                                     }}>
-                                        <div className="flex justify-between items-start">
-                                            <h3 className={cn("font-medium text-sm", isHighPrio ? "text-red-900 dark:text-red-200" : "text-gray-900 dark:text-white")}>
+                                        <div className="flex flex-col gap-0.5 overflow-hidden">
+                                            <h3 className={cn("font-bold text-sm truncate", isHighPrio ? "text-red-600 dark:text-red-400" : "text-gray-900 dark:text-white")}>
                                                 {task.title}
                                             </h3>
+                                            <p className="text-xs text-gray-500 flex items-center gap-1.5 truncate">
+                                                {isEvent ? (
+                                                    <span className="bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide font-medium">{task.meta || 'Allgemein'}</span>
+                                                ) : (
+                                                    <span className="flex items-center gap-1 text-indigo-500">
+                                                        <Phone className="w-3 h-3" /> {task.meta}
+                                                    </span>
+                                                )}
+                                            </p>
                                         </div>
-                                        <p className="text-xs text-gray-500 mt-1 flex items-center gap-2">
-                                            {isEvent ? (
-                                                <span className="bg-white dark:bg-gray-800 px-1.5 py-0.5 rounded text-gray-400 border border-gray-100 dark:border-gray-700">{task.meta || 'Allgemein'}</span>
-                                            ) : (
-                                                <span className="flex items-center gap-1 text-indigo-500 hover:underline">
-                                                    <Phone className="w-3 h-3" /> {task.meta}
-                                                </span>
-                                            )}
-                                        </p>
+                                        
+                                        {isHighPrio && (
+                                            <div className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
+                                        )}
                                     </div>
                                 </motion.div>
                             );
