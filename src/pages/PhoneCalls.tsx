@@ -98,7 +98,11 @@ export const PhoneCalls = () => {
   };
 
   const isDone = (call: any) => call.notes?.includes('erledigt');
-  const filteredCalls = filterCalls === 'all' ? calls : calls.filter(c => c.status === 'missed' && !isDone(c));
+
+  // --- RENDER HELPERS ---
+  // Ensure uniqueness just before rendering to be absolutely safe
+  const uniqueCalls = Array.from(new Map(calls.map(item => [item.id, item])).values());
+  const filteredCalls = filterCalls === 'all' ? uniqueCalls : uniqueCalls.filter(c => c.status === 'missed' && !isDone(c));
 
 
   // --- CALLBACK TASKS LOGIC ---
@@ -209,9 +213,10 @@ export const PhoneCalls = () => {
     const channel1 = supabase
       .channel('phone_calls_changes')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'phone_calls' }, (payload) => {
-        // Prevent duplicates
         setCalls((prev) => {
-            if (prev.some(c => c.id === payload.new.id)) return prev;
+            // Strong deduplication: Check ID existence
+            const exists = prev.some(c => c.id === payload.new.id);
+            if (exists) return prev;
             return [payload.new, ...prev];
         });
         if (payload.new.status === 'missed') {
