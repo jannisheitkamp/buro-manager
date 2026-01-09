@@ -47,21 +47,33 @@ export const IncomingCallHandler = () => {
         .gte('created_at', oneMinuteAgo)
         .single();
 
-      if (!recent) {
-        const payload = {
-            caller_number: number,
-            direction: 'inbound',
-            status: 'missed',
-            notes: name !== 'Unbekannt' ? `Anrufer: ${name}` : undefined,
-            agent_extension: ext || undefined,
-            user_id: userId || null
-        };
-        
-        await supabase.from('phone_calls').insert(payload);
-      }
-
-      setStatus('Anruf erfasst!');
-      setTimeout(() => navigate('/calls'), 1000);
+      const payload = {
+          caller_number: number,
+          direction: 'inbound',
+          status: 'missed',
+          notes: name !== 'Unbekannt' ? `Anrufer: ${name}` : undefined,
+          agent_extension: ext || undefined,
+          user_id: userId || null
+      };
+      
+      await supabase.from('phone_calls').insert(payload);
+      
+      // Feedback UI
+      setStatus('Gespeichert!');
+      
+      // Auto-Close the window after a short delay
+      // This solves the "annoying popup" issue
+      setTimeout(() => {
+          window.close();
+      }, 800);
+      
+      // Fallback redirect if window.close() is blocked by browser
+      // (Browsers sometimes block scripts from closing windows they didn't open via script)
+      setTimeout(() => {
+          if (!window.closed) {
+              navigate('/calls');
+          }
+      }, 1000);
     };
 
     logCall();
