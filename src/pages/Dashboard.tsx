@@ -180,7 +180,9 @@ export const Dashboard = () => {
       }))
     ].sort((a, b) => {
         // Sort by time: Show newest/soonest first
-        return b.time.getTime() - a.time.getTime(); 
+        // Events are future (ascending), Tasks/Calls are past (descending)
+        // Let's just sort by "relevance": Future events soon, then past tasks recent
+        return a.time.getTime() - b.time.getTime(); 
     });
     setMyTasks(timelineItems);
 
