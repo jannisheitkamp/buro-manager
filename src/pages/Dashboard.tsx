@@ -112,7 +112,8 @@ export const Dashboard = () => {
       parcelsRes, 
       prodRes,
       eventsRes,
-      boardRes
+      boardRes,
+      callsRes // Add this!
     ] = await Promise.all([
       supabase.from('user_status').select('*').order('updated_at', { ascending: false }),
       supabase.from('profiles').select('*'),
@@ -144,7 +145,8 @@ export const Dashboard = () => {
     // 3. Process Tasks (Timeline)
     const callbacks = callbacksRes.data || [];
     const events = eventsRes.data || [];
-    const missedCalls = (boardRes[5] as any)?.data || []; // Type assertion trick or proper fetch above
+    const missedCalls = callsRes.data || [];
+
 
       // Filter missed calls: Show own calls + unassigned calls (if no user_id)
     const myMissedCalls = missedCalls.filter((c: any) => 
