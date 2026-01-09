@@ -209,13 +209,20 @@ export const PhoneCalls = () => {
     const channel1 = supabase
       .channel('phone_calls_changes')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'phone_calls' }, (payload) => {
-        setCalls((prev) => [payload.new, ...prev]);
+        // Prevent duplicates
+        setCalls((prev) => {
+            if (prev.some(c => c.id === payload.new.id)) return prev;
+            return [payload.new, ...prev];
+        });
         if (payload.new.status === 'missed') {
             toast('Neuer verpasster Anruf!', { icon: '📞' });
         }
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'phone_calls' }, (payload) => {
         setCalls((prev) => prev.map(c => c.id === payload.new.id ? payload.new : c));
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'phone_calls' }, (payload) => {
+        setCalls((prev) => prev.filter(c => c.id !== payload.old.id));
       })
       .subscribe();
 
