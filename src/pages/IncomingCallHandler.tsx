@@ -67,16 +67,32 @@ export const IncomingCallHandler = () => {
   }, [searchParams, navigate, user]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-      <div className="bg-white dark:bg-gray-800 p-8 rounded-3xl shadow-xl flex flex-col items-center gap-4 text-center max-w-sm mx-auto animate-in fade-in zoom-in duration-300">
-        <div className="w-16 h-16 bg-indigo-100 dark:bg-indigo-900/30 rounded-full flex items-center justify-center animate-pulse">
-            <PhoneIncoming className="w-8 h-8 text-indigo-600 dark:text-indigo-400" />
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-500 via-purple-600 to-indigo-800 text-white overflow-hidden relative">
+      {/* Background decoration */}
+      <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 brightness-100 contrast-150 mix-blend-overlay"></div>
+      <div className="absolute -top-24 -left-24 w-96 h-96 bg-purple-500 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob"></div>
+      <div className="absolute -bottom-24 -right-24 w-96 h-96 bg-indigo-500 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob animation-delay-2000"></div>
+
+      <div className="bg-white/10 backdrop-blur-xl border border-white/20 p-8 rounded-3xl shadow-2xl flex flex-col items-center gap-6 text-center max-w-sm mx-auto animate-in fade-in zoom-in duration-500 relative z-10">
+        
+        <div className="relative">
+            <div className="absolute inset-0 bg-white/20 rounded-full animate-ping duration-1000"></div>
+            <div className="w-24 h-24 bg-white rounded-full flex items-center justify-center shadow-lg relative z-10">
+                <PhoneIncoming className="w-10 h-10 text-indigo-600 animate-bounce" />
+            </div>
         </div>
-        <div>
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white">Anruf erkannt</h2>
-            <p className="text-gray-500 dark:text-gray-400 mt-1">{status}</p>
+
+        <div className="space-y-1">
+            <h2 className="text-2xl font-black tracking-tight">Eingehender Anruf</h2>
+            <p className="text-indigo-100 font-medium text-lg">{status}</p>
         </div>
-        {status === 'Logging...' && <Loader2 className="w-5 h-5 animate-spin text-gray-400" />}
+
+        {status === 'Logging...' && (
+            <div className="flex items-center gap-2 text-sm text-white/60">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Verbinde mit System...</span>
+            </div>
+        )}
       </div>
     </div>
   );
