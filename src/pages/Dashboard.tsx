@@ -346,12 +346,14 @@ export const Dashboard = () => {
       <div className="grid grid-cols-1 xx:grid-cols-12 gap-8">
         
         {/* LEFT COLUMN: TIMELINE & TASKS (5 cols) */}
-        <div className="xx:col-span-5 space-y-6">
+        <div className="lg:col-span-5 space-y-6">
             <div className="flex items-center justify-between">
                 <h2 className="text-lg font-bold flex items-center gap-2">
                     <Clock className="w-5 h-5 text-gray-400" />
                     Mein Fokus heute
-                >>
+                    <span className="text-[10px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded-md uppercase tracking-wider font-bold">Neu</span>
+                </h2>
+            </div>
 
             <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 min-h-[500px]">
                 {myTasks.length === 0 ? (
