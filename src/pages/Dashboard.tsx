@@ -343,16 +343,15 @@ export const Dashboard = () => {
       </div>
 
       {/* 2. MAIN GRID */}
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
+      <div className="grid grid-cols-1 xx:grid-cols-12 gap-8">
         
         {/* LEFT COLUMN: TIMELINE & TASKS (5 cols) */}
-        <div className="xl:col-span-5 space-y-6">
+        <div className="xx:col-span-5 space-y-6">
             <div className="flex items-center justify-between">
                 <h2 className="text-lg font-bold flex items-center gap-2">
                     <Clock className="w-5 h-5 text-gray-400" />
                     Mein Fokus heute
-                </h2>
-            </div>
+                >>
 
             <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 min-h-[500px]">
                 {myTasks.length === 0 ? (
@@ -431,7 +430,7 @@ export const Dashboard = () => {
         </div>
 
         {/* MIDDLE COLUMN: TEAM & BOARD (4 cols) */}
-        <div className="xl:col-span-4 space-y-6">
+        <div className="lg:col-span-4 space-y-6">
             <h2 className="text-lg font-bold flex items-center gap-2">
                 <Users className="w-5 h-5 text-gray-400" />
                 Team Status
@@ -533,7 +532,7 @@ export const Dashboard = () => {
 
         {/* RIGHT COLUMN: ASSETS & TOOLS (3 cols) */}
         <div className="xl:col-span-3 space-y-6">
-            
+            g
             {/* NEW: Revenue Trend Chart Widget */}
             <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
                 <div className="flex items-center justify-between mb-4">
