@@ -438,50 +438,70 @@ export const Dashboard = () => {
 
             <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden flex flex-col max-h-[600px]">
                 <div className="p-2 overflow-y-auto flex-1 space-y-1 custom-scrollbar">
-                    {colleagues.map(colleague => {
-                        const status = colleague.current_status;
-                        const isMe = colleague.id === user?.id;
-                        
-                        return (
-                            <div key={colleague.id} className={cn(
-                                "flex items-center gap-3 p-3 rounded-2xl transition-colors",
-                                isMe ? "bg-indigo-50/50 dark:bg-indigo-900/10" : "hover:bg-gray-50 dark:hover:bg-gray-700/50"
-                            )}>
-                                <div className="relative shrink-0">
-                                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 flex items-center justify-center font-bold text-gray-500 text-sm">
-                                        {colleague.full_name?.charAt(0)}
-                                    </div>
-                                    <div className={cn(
-                                        "absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-white dark:border-gray-800",
-                                        status?.status === 'office' ? "bg-emerald-500" :
-                                        status?.status === 'remote' ? "bg-blue-500" :
-                                        status?.status === 'break' ? "bg-amber-500" :
-                                        status?.status === 'off' ? "bg-gray-400" : "bg-purple-500"
-                                    )} />
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                    <div className="flex justify-between items-baseline">
-                                        <p className={cn("text-sm font-medium truncate", isMe && "text-indigo-700 dark:text-indigo-300")}>
-                                            {colleague.full_name} {isMe && '(Du)'}
-                                        </p>
-                                        <span className="text-[10px] text-gray-400 ml-2 whitespace-nowrap">
-                                            {status?.updated_at ? format(new Date(status.updated_at), 'HH:mm') : ''}
-                                        </span>
-                                    </div>
-                                    <div className="flex items-center gap-2 mt-0.5">
-                                        <StatusBadge status={status?.status || 'off'} />
-                                        {status?.message && (
-                                            <span className="text-xs text-gray-500 truncate max-w-[120px]">
-                                                • {status.message}
-                                            </span>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
-            </div>
+                        {colleagues.map((colleague) => {
+                            const status = colleague.current_status?.status || 'office';
+                            const note = colleague.current_status?.message;
+                            
+                            const getStatusColor = (s: string) => {
+                                switch(s) {
+                                    case 'office': return 'bg-emerald-500 shadow-emerald-500/50';
+                                    case 'remote': return 'bg-blue-500 shadow-blue-500/50';
+                                    case 'break': return 'bg-amber-500 shadow-amber-500/50';
+                                    case 'vacation': return 'bg-purple-500 shadow-purple-500/50';
+                                    case 'sick': return 'bg-red-500 shadow-red-500/50';
+                                    default: return 'bg-gray-400';
+                                }
+                            };
+
+                            const getStatusText = (s: string) => {
+                                switch(s) {
+                                    case 'office': return 'Im Büro';
+                                    case 'remote': return 'Home Office';
+                                    case 'break': return 'Pause';
+                                    case 'vacation': return 'Urlaub';
+                                    case 'sick': return 'Krank';
+                                    default: return 'Abwesend';
+                                }
+                            };
+
+                            return (
+                                 <div key={colleague.id} className="group relative flex items-center justify-between p-3 rounded-2xl hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-all duration-300">
+                                     <div className="flex items-center gap-4">
+                                         <div className="relative">
+                                             {colleague.avatar_url ? (
+                                                 <img src={colleague.avatar_url} alt={colleague.full_name} className="w-12 h-12 rounded-full object-cover ring-2 ring-white dark:ring-gray-800 shadow-sm group-hover:scale-105 transition-transform" />
+                                             ) : (
+                                                 <div className="w-12 h-12 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-600 flex items-center justify-center ring-2 ring-white dark:ring-gray-800 shadow-sm group-hover:scale-105 transition-transform">
+                                                     <span className="text-gray-500 dark:text-gray-300 font-bold text-lg">{colleague.full_name?.charAt(0)}</span>
+                                                 </div>
+                                             )}
+                                             <div className={cn(
+                                                 "absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full border-2 border-white dark:border-gray-800 shadow-sm transition-colors duration-300",
+                                                 getStatusColor(status)
+                                             )} />
+                                         </div>
+                                         
+                                         <div>
+                                             <h3 className="font-bold text-gray-900 dark:text-white leading-tight group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                                                 {colleague.full_name}
+                                             </h3>
+                                             <p className="text-xs text-gray-500 font-medium flex items-center gap-1.5 mt-0.5">
+                                                 <span className={cn("w-1.5 h-1.5 rounded-full opacity-60", getStatusColor(status).split(' ')[0])}></span>
+                                                 {getStatusText(status)}
+                                             </p>
+                                         </div>
+                                     </div>
+
+                                     {note && (
+                                         <div className="hidden sm:flex items-center gap-1.5 text-xs text-gray-400 bg-gray-50 dark:bg-gray-800/50 px-2.5 py-1.5 rounded-lg max-w-[120px] truncate border border-gray-100 dark:border-gray-700/50">
+                                             <span>💬 {note}</span>
+                                         </div>
+                                     )}
+                                 </div>
+                             );
+                         })}
+                 </div>
+             </div>
 
             {/* Board Teaser */}
             <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
