@@ -270,179 +270,239 @@ export const Dashboard = () => {
   );
 
   return (
-    <div className="max-w-full mx-auto space-y-6 pb-6 px-4 md:px-8 lg:px-12 h-[calc(100vh-6rem)] overflow-hidden flex flex-col">
+    <div className="max-w-[1600px] mx-auto space-y-8 pb-12 px-4 md:px-8">
       
-      {/* 1. TOP BAR (KPIs & Status) */}
-      <div className="flex flex-col xl:flex-row gap-4 xl:items-center justify-between shrink-0">
-         <div>
-            <h1 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                Moin, {profile?.full_name?.split(' ')[0]}! 👋
-            </h1>
-            <div className="flex items-center gap-2 mt-1">
-                <div className="relative group">
-                    <input 
-                        type="text" 
-                        placeholder="Status setzen..." 
-                        className="bg-transparent border-none text-sm text-gray-500 focus:ring-0 p-0 w-48 placeholder-gray-400"
-                        value={statusMessage}
-                        onChange={e => setStatusMessage(e.target.value)}
-                        onKeyDown={e => e.key === 'Enter' && handleStatusUpdate(myCurrentStatus?.status || 'office')}
-                    />
-                    <div className="hidden group-hover:flex absolute top-full left-0 bg-white dark:bg-gray-800 shadow-xl rounded-xl p-2 gap-1 z-50 border border-gray-100 dark:border-gray-700 mt-2">
-                        {STATUS_CONFIG.map(s => {
-                            const Icon = s.icon;
-                            return (
-                                <button key={s.value} onClick={() => handleStatusUpdate(s.value)} className={cn("p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700", myCurrentStatus?.status === s.value && "bg-indigo-50 text-indigo-600")} title={s.label}>
-                                    <Icon className="w-4 h-4" />
-                                </button>
-                            )
-                        })}
+      {/* 1. HERO SECTION (Restored & Improved) */}
+      <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 relative overflow-hidden">
+         <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-900/10 dark:to-purple-900/10 rounded-bl-[100px] -mr-10 -mt-10 pointer-events-none" />
+         
+         <div className="relative z-10 flex flex-col xl:flex-row gap-8 items-start xl:items-center justify-between">
+            {/* Greeting & Status Input */}
+            <div className="flex-1 w-full xl:w-auto">
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+                    Moin, {profile?.full_name?.split(' ')[0]}! 👋
+                </h1>
+                <div className="flex flex-col gap-4 bg-white dark:bg-gray-800 p-4 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm max-w-4xl">
+                    <div className="w-full">
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block">Deine Nachricht</label>
+                        <input 
+                            type="text" 
+                            placeholder="Was machst du gerade? (z.B. 'Kundenmeeting')" 
+                            className="w-full rounded-xl border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500 dark:placeholder-gray-500"
+                            value={statusMessage}
+                            onChange={e => setStatusMessage(e.target.value)}
+                            onKeyDown={e => e.key === 'Enter' && handleStatusUpdate(myCurrentStatus?.status || 'office')}
+                        />
+                    </div>
+                    <div className="w-full">
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">Dein Status</label>
+                        <div className="flex gap-2 pb-1 flex-wrap">
+                            {STATUS_CONFIG.map(s => {
+                                const Icon = s.icon;
+                                const active = myCurrentStatus?.status === s.value;
+                                return (
+                                    <button
+                                        key={s.value}
+                                        onClick={() => handleStatusUpdate(s.value)}
+                                        className={cn(
+                                            "px-3 py-2 rounded-xl transition-all flex items-center gap-2",
+                                            active 
+                                                ? cn("shadow-md ring-2 ring-offset-1 ring-offset-white dark:ring-offset-gray-900 ring-indigo-500 font-bold transform scale-105", s.className) 
+                                                : "bg-gray-50 dark:bg-gray-900/50 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 border border-transparent hover:border-gray-200 dark:hover:border-gray-600"
+                                        )}
+                                        title={s.label}
+                                    >
+                                        <Icon className={cn("w-4 h-4", active ? "scale-110" : "")} />
+                                        <span className="text-xs whitespace-nowrap">{s.label}</span>
+                                    </button>
+                                )
+                            })}
+                        </div>
                     </div>
                 </div>
-                <span className={cn("w-2 h-2 rounded-full", myCurrentStatus?.status === 'office' ? "bg-emerald-500" : "bg-gray-400")} />
-            </div>
-         </div>
-
-         <div className="flex gap-4 overflow-x-auto pb-2 xl:pb-0">
-            <div className="bg-white dark:bg-gray-800 px-4 py-3 rounded-2xl border border-gray-100 dark:border-gray-700 flex items-center gap-3 min-w-[140px] shadow-sm">
-                <div className="w-8 h-8 rounded-full bg-indigo-50 dark:bg-indigo-900/20 flex items-center justify-center text-indigo-600">
-                    <TrendingUp className="w-4 h-4" />
-                </div>
-                <div>
-                    <p className="text-[10px] text-gray-500 font-bold uppercase">Umsatz</p>
-                    <p className="text-sm font-bold text-gray-900 dark:text-white">{new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(stats.monthlyCommission)}</p>
-                </div>
-            </div>
-            
-            <div className="bg-white dark:bg-gray-800 px-4 py-3 rounded-2xl border border-gray-100 dark:border-gray-700 flex items-center gap-3 min-w-[140px] shadow-sm">
-                <div className="w-8 h-8 rounded-full bg-red-50 dark:bg-red-900/20 flex items-center justify-center text-red-600">
-                    <Phone className="w-4 h-4" />
-                </div>
-                <div>
-                    <p className="text-[10px] text-gray-500 font-bold uppercase">Offen</p>
-                    <p className="text-sm font-bold text-gray-900 dark:text-white">{stats.openCallbacks} Tasks</p>
-                </div>
             </div>
 
-            <div className="bg-white dark:bg-gray-800 px-4 py-3 rounded-2xl border border-gray-100 dark:border-gray-700 flex items-center gap-3 min-w-[140px] shadow-sm">
-                <div className="w-8 h-8 rounded-full bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center text-blue-600">
-                    <Package className="w-4 h-4" />
+            {/* Quick KPIs (Top Right) */}
+            <div className="flex gap-6">
+                <div className="text-right">
+                    <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Umsatz</p>
+                    <p className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
+                        {new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(stats.monthlyCommission)}
+                    </p>
                 </div>
-                <div>
-                    <p className="text-[10px] text-gray-500 font-bold uppercase">Pakete</p>
-                    <p className="text-sm font-bold text-gray-900 dark:text-white">{stats.pendingParcels} im Büro</p>
+                <div className="w-px bg-gray-200 dark:bg-gray-700 h-10 self-center hidden sm:block" />
+                <div className="text-right">
+                    <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Offene Tasks</p>
+                    <div className="flex items-center justify-end gap-2">
+                        <span className="text-2xl font-bold text-gray-900 dark:text-white">{stats.openCallbacks}</span>
+                        {stats.openCallbacks > 0 && <span className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse" />}
+                    </div>
+                </div>
+                 <div className="w-px bg-gray-200 dark:bg-gray-700 h-10 self-center hidden sm:block" />
+                <div className="text-right">
+                    <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Pakete</p>
+                    <div className="flex items-center justify-end gap-2">
+                        <span className="text-2xl font-bold text-gray-900 dark:text-white">{stats.pendingParcels}</span>
+                        {stats.pendingParcels > 0 && <span className="w-2.5 h-2.5 bg-blue-500 rounded-full" />}
+                    </div>
                 </div>
             </div>
          </div>
       </div>
 
-      {/* 2. MAIN SPLIT VIEW (Full Height) */}
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-6 min-h-0">
+      {/* 2. MAIN CONTENT GRID (2 Columns: Main + Sidebar) */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
         
-        {/* LEFT: WORKSPACE (2/3) */}
-        <div className="lg:col-span-2 bg-white dark:bg-gray-800 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm flex flex-col overflow-hidden">
-            <div className="p-4 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center bg-gray-50/50 dark:bg-gray-800/50">
-                <h2 className="font-bold flex items-center gap-2 text-gray-900 dark:text-white">
-                    <Briefcase className="w-4 h-4 text-gray-400" />
-                    Mein Schreibtisch
+        {/* LEFT COLUMN: TIMELINE & TASKS (2/3 width) */}
+        <div className="lg:col-span-2 space-y-6">
+            <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold flex items-center gap-2">
+                    <Clock className="w-6 h-6 text-gray-400" />
+                    Aktuelles & Aufgaben
                 </h2>
-                <div className="flex gap-2">
-                    <button onClick={() => navigate('/calls?tab=tasks')} className="text-xs bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 px-3 py-1.5 rounded-lg font-medium hover:text-indigo-600 transition-colors">
-                        + Aufgabe
-                    </button>
-                </div>
+                <button onClick={() => navigate('/calls?tab=tasks')} className="text-sm font-medium text-indigo-600 hover:underline">
+                    Alle anzeigen
+                </button>
             </div>
-            
-            <div className="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar">
+
+            <div className="bg-white dark:bg-gray-800 rounded-3xl p-0 shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden min-h-[500px]">
                 {myTasks.length === 0 ? (
-                     <div className="h-full flex flex-col items-center justify-center text-gray-400">
-                        <Coffee className="w-12 h-12 mb-2 opacity-20" />
-                        <p className="text-sm">Alles erledigt.</p>
-                     </div>
+                    <div className="flex flex-col items-center justify-center h-64 text-center text-gray-400">
+                        <div className="w-16 h-16 bg-gray-50 dark:bg-gray-900 rounded-full flex items-center justify-center mb-4">
+                            <Coffee className="w-8 h-8 text-gray-300" />
+                        </div>
+                        <p>Nichts Dringendes anstehend.</p>
+                        <p className="text-xs mt-1">Genieß den Kaffee!</p>
+                    </div>
                 ) : (
-                    myTasks.map((task) => {
-                        const isHigh = task.priority === 'high' || task.type === 'missed_call';
-                        return (
-                            <div 
-                                key={`${task.type}-${task.id}`}
-                                onClick={() => {
-                                    if (task.type === 'event') navigate('/general-calendar');
-                                    else navigate('/calls?tab=tasks');
-                                }}
-                                className={cn(
-                                    "p-3 rounded-xl border flex items-center gap-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors group",
-                                    isHigh ? "bg-red-50/30 border-red-100 dark:border-red-900/30" : "border-gray-100 dark:border-gray-700/50"
-                                )}
-                            >
-                                <div className={cn(
-                                    "w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold shrink-0",
-                                    task.type === 'missed_call' ? "bg-red-100 text-red-600" :
-                                    task.type === 'event' ? "bg-indigo-100 text-indigo-600" : "bg-emerald-100 text-emerald-600"
-                                )}>
-                                    {format(task.time, 'HH:mm')}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <h3 className={cn("font-medium truncate", isHigh && "text-red-600")}>{task.title}</h3>
-                                    <p className="text-xs text-gray-500 truncate">{task.meta || 'Keine Details'}</p>
-                                </div>
-                                {isHigh && <span className="w-2 h-2 bg-red-500 rounded-full" />}
-                            </div>
-                        );
-                    })
+                    <div className="divide-y divide-gray-100 dark:divide-gray-700">
+                        {myTasks.map((task, idx) => {
+                            const isEvent = task.type === 'event';
+                            const isMissedCall = task.type === 'missed_call';
+                            const isHighPrio = task.priority === 'high' || isMissedCall;
+                            
+                            return (
+                                <motion.div 
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ delay: idx * 0.05 }}
+                                    key={`${task.type}-${task.id}`} 
+                                    className={cn(
+                                        "p-4 flex items-center gap-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer group",
+                                        isHighPrio ? "bg-red-50/10" : ""
+                                    )}
+                                    onClick={() => {
+                                        if (isEvent) navigate('/general-calendar');
+                                        else if (isMissedCall) navigate('/calls?tab=live');
+                                        else navigate('/calls?tab=tasks');
+                                    }}
+                                >
+                                    {/* Icon Box */}
+                                    <div className={cn(
+                                        "w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-sm border border-white/50 dark:border-gray-700",
+                                        isEvent ? "bg-indigo-100 text-indigo-600" : 
+                                        isMissedCall ? "bg-red-100 text-red-600" : 
+                                        isHighPrio ? "bg-orange-100 text-orange-600" : "bg-emerald-100 text-emerald-600"
+                                    )}>
+                                        {isEvent ? <Briefcase className="w-5 h-5" /> : 
+                                         isMissedCall ? <Phone className="w-5 h-5" /> :
+                                         <Clock className="w-5 h-5" />}
+                                    </div>
+
+                                    {/* Content */}
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex justify-between items-start">
+                                            <h3 className={cn("font-bold text-base truncate pr-2", isHighPrio ? "text-red-600" : "text-gray-900 dark:text-white")}>
+                                                {task.title}
+                                            </h3>
+                                            <span className="text-xs font-mono text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded-lg shrink-0">
+                                                {format(task.time, 'HH:mm')}
+                                            </span>
+                                        </div>
+                                        <p className="text-sm text-gray-500 truncate mt-0.5 flex items-center gap-2">
+                                            {task.meta}
+                                            {isHighPrio && <span className="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Dringend</span>}
+                                        </p>
+                                    </div>
+                                    
+                                    <div className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-300">
+                                        &rarr;
+                                    </div>
+                                </motion.div>
+                            );
+                        })}
+                    </div>
                 )}
             </div>
         </div>
 
-        {/* RIGHT: CONTEXT (1/3) */}
-        <div className="flex flex-col gap-6 min-h-0">
-            {/* Team List (Flexible Height) */}
-            <div className="flex-1 bg-white dark:bg-gray-800 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm flex flex-col overflow-hidden min-h-[300px]">
-                <div className="p-4 border-b border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50">
-                    <h2 className="font-bold flex items-center gap-2 text-gray-900 dark:text-white">
-                        <Users className="w-4 h-4 text-gray-400" /> Team
-                    </h2>
-                </div>
-                <div className="flex-1 overflow-y-auto p-2 custom-scrollbar">
-                    {colleagues.map(c => (
-                        <div key={c.id} className="flex items-center gap-3 p-2 hover:bg-gray-50 dark:hover:bg-gray-700/30 rounded-xl transition-colors">
-                            <div className="relative">
-                                {c.avatar_url ? (
-                                    <img src={c.avatar_url} className="w-8 h-8 rounded-full object-cover" />
-                                ) : (
-                                    <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-xs font-bold">{c.full_name?.charAt(0)}</div>
-                                )}
-                                <span className={cn("absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-white dark:border-gray-800", 
-                                    c.current_status?.status === 'office' ? "bg-emerald-500" : 
-                                    c.current_status?.status === 'remote' ? "bg-blue-500" : "bg-gray-400"
-                                )} />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium truncate">{c.full_name}</p>
-                                <p className="text-[10px] text-gray-500 truncate">{c.current_status?.message || STATUS_CONFIG.find(s => s.value === c.current_status?.status)?.label || 'Abwesend'}</p>
-                            </div>
-                        </div>
-                    ))}
+        {/* RIGHT COLUMN: SIDEBAR (1/3 width) */}
+        <div className="space-y-6">
+            
+            {/* Team Widget */}
+            <div className="bg-white dark:bg-gray-800 rounded-3xl p-5 shadow-sm border border-gray-100 dark:border-gray-700">
+                <h3 className="font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                    <Users className="w-5 h-5 text-gray-400" /> Team Status
+                </h3>
+                <div className="space-y-3 max-h-[400px] overflow-y-auto custom-scrollbar pr-1">
+                     {colleagues.map((colleague) => {
+                        const status = colleague.current_status?.status || 'office';
+                        const note = colleague.current_status?.message;
+                        const isOnline = status !== 'off' && status !== 'vacation';
+                        
+                        return (
+                             <div key={colleague.id} className={cn("flex items-center gap-3 p-2 rounded-xl transition-colors", isOnline ? "hover:bg-gray-50 dark:hover:bg-gray-700/50" : "opacity-60 grayscale")}>
+                                 <div className="relative">
+                                     {colleague.avatar_url ? (
+                                         <img src={colleague.avatar_url} className="w-10 h-10 rounded-full object-cover" />
+                                     ) : (
+                                         <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center font-bold text-gray-400">{colleague.full_name?.charAt(0)}</div>
+                                     )}
+                                     {isOnline && <div className={cn("absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white dark:border-gray-800", 
+                                        status === 'office' ? "bg-emerald-500" : status === 'remote' ? "bg-blue-500" : "bg-amber-500"
+                                     )} />}
+                                 </div>
+                                 <div className="min-w-0">
+                                     <p className="text-sm font-bold text-gray-900 dark:text-white truncate">{colleague.full_name}</p>
+                                     <p className="text-xs text-gray-500 truncate">{note || (STATUS_CONFIG.find(s => s.value === status)?.label)}</p>
+                                 </div>
+                             </div>
+                        );
+                     })}
                 </div>
             </div>
 
-            {/* Chart (Fixed Height) */}
-            <div className="h-[200px] bg-white dark:bg-gray-800 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm p-4 flex flex-col">
-                 <div className="flex justify-between items-center mb-2">
-                    <span className="text-xs font-bold text-gray-500 uppercase">Trend</span>
-                    <span className="text-xs font-bold text-indigo-600">+12%</span>
-                 </div>
-                 <div className="flex-1 w-full min-h-0">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={revenueData}>
-                            <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                                {revenueData.map((entry, index) => (
-                                    <Cell key={`cell-${index}`} fill={entry.value > 0 ? '#6366f1' : '#e5e7eb'} />
-                                ))}
-                            </Bar>
-                        </BarChart>
-                    </ResponsiveContainer>
-                 </div>
+            {/* Quick Actions Grid */}
+            <div className="grid grid-cols-2 gap-3">
+                 <button onClick={() => navigate('/production')} className="p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-2xl flex flex-col items-center justify-center gap-2 hover:bg-indigo-100 dark:hover:bg-indigo-900/30 transition-colors text-indigo-700 dark:text-indigo-300">
+                    <TrendingUp className="w-6 h-6" />
+                    <span className="text-xs font-bold">Umsatz +</span>
+                 </button>
+                 <button onClick={() => navigate('/calls?tab=tasks')} className="p-4 bg-white border border-gray-100 dark:bg-gray-800 dark:border-gray-700 rounded-2xl flex flex-col items-center justify-center gap-2 hover:border-indigo-200 transition-colors">
+                    <Phone className="w-6 h-6 text-gray-400" />
+                    <span className="text-xs font-bold text-gray-600 dark:text-gray-300">Rückruf</span>
+                 </button>
             </div>
+
+            {/* Pinnwand Teaser */}
+             <div className="bg-gradient-to-br from-gray-50 to-white dark:from-gray-800 dark:to-gray-900 rounded-3xl p-5 shadow-sm border border-gray-100 dark:border-gray-700">
+                <div className="flex justify-between items-center mb-3">
+                    <h3 className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                        <MessageSquare className="w-4 h-4 text-gray-400" /> Pinnwand
+                    </h3>
+                    <span className="text-xs bg-gray-200 dark:bg-gray-700 px-2 py-0.5 rounded-full text-gray-600 dark:text-gray-300">{boardMessages.length}</span>
+                </div>
+                {boardMessages.length > 0 ? (
+                    <div className="bg-white dark:bg-gray-800 p-3 rounded-xl border border-gray-100 dark:border-gray-700/50 shadow-sm">
+                        <p className="text-xs font-bold text-indigo-600 mb-1">{boardMessages[0].profiles?.full_name}</p>
+                        <p className="text-xs text-gray-600 dark:text-gray-300 line-clamp-3 leading-relaxed">"{boardMessages[0].content}"</p>
+                    </div>
+                ) : (
+                    <p className="text-xs text-gray-400 italic">Alles ruhig heute.</p>
+                )}
+                <button onClick={() => navigate('/board')} className="w-full mt-3 text-xs text-center text-gray-500 hover:text-indigo-600 font-medium">Zur Pinnwand &rarr;</button>
+             </div>
+
         </div>
 
       </div>
