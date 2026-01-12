@@ -270,383 +270,179 @@ export const Dashboard = () => {
   );
 
   return (
-    <div className="max-w-[1600px] mx-auto space-y-8 pb-12">
+    <div className="max-w-full mx-auto space-y-6 pb-6 px-4 md:px-8 lg:px-12 h-[calc(100vh-6rem)] overflow-hidden flex flex-col">
       
-      {/* 1. HERO SECTION (Personal HUD) */}
-      <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 relative overflow-hidden">
-         <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-900/10 dark:to-purple-900/10 rounded-bl-[100px] -mr-10 -mt-10 pointer-events-none" />
-         
-         <div className="relative z-10 flex flex-col xl:flex-row gap-8 items-start xl:items-center justify-between">
-            {/* Greeting & Status Input */}
-            <div className="flex-1 w-full xl:w-auto">
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-                    Moin, {profile?.full_name?.split(' ')[0]}! 👋
-                </h1>
-                <div className="flex flex-col gap-4 bg-white dark:bg-gray-800 p-4 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm max-w-4xl">
-                    <div className="w-full">
-                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block">Deine Nachricht</label>
-                        <input 
-                            type="text" 
-                            placeholder="Was machst du gerade? (z.B. 'Kundenmeeting')" 
-                            className="w-full rounded-xl border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500 dark:placeholder-gray-500"
-                            value={statusMessage}
-                            onChange={e => setStatusMessage(e.target.value)}
-                            onKeyDown={e => e.key === 'Enter' && handleStatusUpdate(myCurrentStatus?.status || 'office')}
-                        />
+      {/* 1. TOP BAR (KPIs & Status) */}
+      <div className="flex flex-col xl:flex-row gap-4 xl:items-center justify-between shrink-0">
+         <div>
+            <h1 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                Moin, {profile?.full_name?.split(' ')[0]}! 👋
+            </h1>
+            <div className="flex items-center gap-2 mt-1">
+                <div className="relative group">
+                    <input 
+                        type="text" 
+                        placeholder="Status setzen..." 
+                        className="bg-transparent border-none text-sm text-gray-500 focus:ring-0 p-0 w-48 placeholder-gray-400"
+                        value={statusMessage}
+                        onChange={e => setStatusMessage(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && handleStatusUpdate(myCurrentStatus?.status || 'office')}
+                    />
+                    <div className="hidden group-hover:flex absolute top-full left-0 bg-white dark:bg-gray-800 shadow-xl rounded-xl p-2 gap-1 z-50 border border-gray-100 dark:border-gray-700 mt-2">
+                        {STATUS_CONFIG.map(s => {
+                            const Icon = s.icon;
+                            return (
+                                <button key={s.value} onClick={() => handleStatusUpdate(s.value)} className={cn("p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700", myCurrentStatus?.status === s.value && "bg-indigo-50 text-indigo-600")} title={s.label}>
+                                    <Icon className="w-4 h-4" />
+                                </button>
+                            )
+                        })}
                     </div>
-                    <div className="w-full">
-                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">Dein Status</label>
-                        <div className="grid grid-cols-2 sm:grid-cols-4 md:flex gap-2 pb-1 flex-wrap">
-                            {STATUS_CONFIG.map(s => {
-                                const Icon = s.icon;
-                                const active = myCurrentStatus?.status === s.value;
-                                return (
-                                    <button
-                                        key={s.value}
-                                        onClick={() => handleStatusUpdate(s.value)}
-                                        className={cn(
-                                            "px-3 py-2 rounded-xl transition-all flex items-center gap-2",
-                                            active 
-                                                ? cn("shadow-md ring-2 ring-offset-1 ring-offset-white dark:ring-offset-gray-900 ring-indigo-500 font-bold transform scale-105", s.className) 
-                                                : "bg-gray-50 dark:bg-gray-900/50 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 border border-transparent hover:border-gray-200 dark:hover:border-gray-600"
-                                        )}
-                                        title={s.label}
-                                    >
-                                        <Icon className={cn("w-4 h-4", active ? "scale-110" : "")} />
-                                        <span className="text-xs whitespace-nowrap">{s.label}</span>
-                                    </button>
-                                )
-                            })}
-                        </div>
-                    </div>
+                </div>
+                <span className={cn("w-2 h-2 rounded-full", myCurrentStatus?.status === 'office' ? "bg-emerald-500" : "bg-gray-400")} />
+            </div>
+         </div>
+
+         <div className="flex gap-4 overflow-x-auto pb-2 xl:pb-0">
+            <div className="bg-white dark:bg-gray-800 px-4 py-3 rounded-2xl border border-gray-100 dark:border-gray-700 flex items-center gap-3 min-w-[140px] shadow-sm">
+                <div className="w-8 h-8 rounded-full bg-indigo-50 dark:bg-indigo-900/20 flex items-center justify-center text-indigo-600">
+                    <TrendingUp className="w-4 h-4" />
+                </div>
+                <div>
+                    <p className="text-[10px] text-gray-500 font-bold uppercase">Umsatz</p>
+                    <p className="text-sm font-bold text-gray-900 dark:text-white">{new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(stats.monthlyCommission)}</p>
+                </div>
+            </div>
+            
+            <div className="bg-white dark:bg-gray-800 px-4 py-3 rounded-2xl border border-gray-100 dark:border-gray-700 flex items-center gap-3 min-w-[140px] shadow-sm">
+                <div className="w-8 h-8 rounded-full bg-red-50 dark:bg-red-900/20 flex items-center justify-center text-red-600">
+                    <Phone className="w-4 h-4" />
+                </div>
+                <div>
+                    <p className="text-[10px] text-gray-500 font-bold uppercase">Offen</p>
+                    <p className="text-sm font-bold text-gray-900 dark:text-white">{stats.openCallbacks} Tasks</p>
                 </div>
             </div>
 
-            {/* Quick KPIs */}
-            <div className="flex gap-4 sm:gap-8">
-                <div className="text-right">
-                    <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Umsatz (Monat)</p>
-                    <p className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
-                        {new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(stats.monthlyCommission)}
-                    </p>
+            <div className="bg-white dark:bg-gray-800 px-4 py-3 rounded-2xl border border-gray-100 dark:border-gray-700 flex items-center gap-3 min-w-[140px] shadow-sm">
+                <div className="w-8 h-8 rounded-full bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center text-blue-600">
+                    <Package className="w-4 h-4" />
                 </div>
-                <div className="w-px bg-gray-200 dark:bg-gray-700 h-10 self-center hidden sm:block" />
-                <div className="text-right">
-                    <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Offene Tasks</p>
-                    <div className="flex items-center justify-end gap-2">
-                        <span className="text-2xl font-bold text-gray-900 dark:text-white">{stats.openCallbacks}</span>
-                        {stats.openCallbacks > 0 && <span className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse" />}
-                    </div>
+                <div>
+                    <p className="text-[10px] text-gray-500 font-bold uppercase">Pakete</p>
+                    <p className="text-sm font-bold text-gray-900 dark:text-white">{stats.pendingParcels} im Büro</p>
                 </div>
             </div>
          </div>
       </div>
 
-      {/* 2. MAIN GRID */}
-      <div className="grid grid-cols-1 xx:grid-cols-12 gap-8">
+      {/* 2. MAIN SPLIT VIEW (Full Height) */}
+      <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-6 min-h-0">
         
-        {/* LEFT COLUMN: TIMELINE & TASKS (5 cols) */}
-        <div className="lg:col-span-5 space-y-6">
-            <div className="flex items-center justify-between">
-                <h2 className="text-lg font-bold flex items-center gap-2">
-                    <Clock className="w-5 h-5 text-gray-400" />
-                    Mein Fokus heute
-                    <span className="text-[10px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded-md uppercase tracking-wider font-bold">Neu</span>
+        {/* LEFT: WORKSPACE (2/3) */}
+        <div className="lg:col-span-2 bg-white dark:bg-gray-800 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm flex flex-col overflow-hidden">
+            <div className="p-4 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center bg-gray-50/50 dark:bg-gray-800/50">
+                <h2 className="font-bold flex items-center gap-2 text-gray-900 dark:text-white">
+                    <Briefcase className="w-4 h-4 text-gray-400" />
+                    Mein Schreibtisch
                 </h2>
+                <div className="flex gap-2">
+                    <button onClick={() => navigate('/calls?tab=tasks')} className="text-xs bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 px-3 py-1.5 rounded-lg font-medium hover:text-indigo-600 transition-colors">
+                        + Aufgabe
+                    </button>
+                </div>
             </div>
-
-            <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 min-h-[500px]">
+            
+            <div className="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar">
                 {myTasks.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-64 text-center text-gray-400">
-                        <div className="w-16 h-16 bg-gray-50 dark:bg-gray-900 rounded-full flex items-center justify-center mb-4">
-                            <Coffee className="w-8 h-8 text-gray-300" />
-                        </div>
-                        <p>Nichts Dringendes anstehend.</p>
-                        <p className="text-xs mt-1">Genieß den Kaffee!</p>
-                    </div>
+                     <div className="h-full flex flex-col items-center justify-center text-gray-400">
+                        <Coffee className="w-12 h-12 mb-2 opacity-20" />
+                        <p className="text-sm">Alles erledigt.</p>
+                     </div>
                 ) : (
-                    <div className="space-y-6 relative before:absolute before:inset-y-0 before:left-[27px] before:w-0.5 before:bg-gray-100 dark:before:bg-gray-700">
-                        {myTasks.map((task, idx) => {
-                            const isEvent = task.type === 'event';
-                            const isMissedCall = task.type === 'missed_call';
-                            const isHighPrio = task.priority === 'high' || isMissedCall;
-                            
-                            return (
-                                <motion.div 
-                                    initial={{ opacity: 0, x: -10 }}
-                                    animate={{ opacity: 1, x: 0 }}
-                                    transition={{ delay: idx * 0.1 }}
-                                    key={`${task.type}-${task.id}`} 
-                                    className="relative pl-16 group"
-                                >
-                                    {/* Time Bubble */}
-                                    <div className={cn(
-                                        "absolute left-0 top-0 w-14 text-xs font-bold text-right pr-4 pt-1",
-                                        isHighPrio ? "text-red-500" : "text-gray-400"
-                                    )}>
-                                        {isEvent ? format(task.time, 'HH:mm') : (isMissedCall ? 'Anruf' : 'Todo')}
-                                    </div>
-                                    
-                                    {/* Dot */}
-                                    <div className={cn(
-                                        "absolute left-[21px] top-1.5 w-3.5 h-3.5 rounded-full border-2 border-white dark:border-gray-800 z-10",
-                                        isEvent ? "bg-indigo-500" : (isHighPrio ? "bg-red-500 animate-pulse" : "bg-emerald-500")
-                                    )} />
-
-                                    {/* Content Card */}
-                                    <div className={cn(
-                                        "p-3 rounded-xl border transition-all hover:shadow-sm cursor-pointer flex items-center justify-between gap-3",
-                                        isHighPrio 
-                                            ? "bg-white dark:bg-gray-800 border-red-100 dark:border-red-900/30 shadow-red-100/50" 
-                                            : "bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700/50"
-                                    )} onClick={() => {
-                                        if (isEvent) navigate('/general-calendar');
-                                        else if (isMissedCall) navigate('/calls?tab=live');
-                                        else navigate('/calls?tab=tasks');
-                                    }}>
-                                        <div className="flex flex-col gap-0.5 overflow-hidden">
-                                            <h3 className={cn("font-bold text-sm truncate", isHighPrio ? "text-red-600 dark:text-red-400" : "text-gray-900 dark:text-white")}>
-                                                {task.title}
-                                            </h3>
-                                            <p className="text-xs text-gray-500 flex items-center gap-1.5 truncate">
-                                                {isEvent ? (
-                                                    <span className="bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide font-medium">{task.meta || 'Allgemein'}</span>
-                                                ) : (
-                                                    <span className="flex items-center gap-1 text-indigo-500">
-                                                        <Phone className="w-3 h-3" /> {task.meta}
-                                                    </span>
-                                                )}
-                                            </p>
-                                        </div>
-                                        
-                                        {isHighPrio && (
-                                            <div className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
-                                        )}
-                                    </div>
-                                </motion.div>
-                            );
-                        })}
-                    </div>
+                    myTasks.map((task) => {
+                        const isHigh = task.priority === 'high' || task.type === 'missed_call';
+                        return (
+                            <div 
+                                key={`${task.type}-${task.id}`}
+                                onClick={() => {
+                                    if (task.type === 'event') navigate('/general-calendar');
+                                    else navigate('/calls?tab=tasks');
+                                }}
+                                className={cn(
+                                    "p-3 rounded-xl border flex items-center gap-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors group",
+                                    isHigh ? "bg-red-50/30 border-red-100 dark:border-red-900/30" : "border-gray-100 dark:border-gray-700/50"
+                                )}
+                            >
+                                <div className={cn(
+                                    "w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold shrink-0",
+                                    task.type === 'missed_call' ? "bg-red-100 text-red-600" :
+                                    task.type === 'event' ? "bg-indigo-100 text-indigo-600" : "bg-emerald-100 text-emerald-600"
+                                )}>
+                                    {format(task.time, 'HH:mm')}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <h3 className={cn("font-medium truncate", isHigh && "text-red-600")}>{task.title}</h3>
+                                    <p className="text-xs text-gray-500 truncate">{task.meta || 'Keine Details'}</p>
+                                </div>
+                                {isHigh && <span className="w-2 h-2 bg-red-500 rounded-full" />}
+                            </div>
+                        );
+                    })
                 )}
             </div>
         </div>
 
-        {/* MIDDLE COLUMN: TEAM & BOARD (4 cols) */}
-        <div className="lg:col-span-4 space-y-6">
-            <h2 className="text-lg font-bold flex items-center gap-2">
-                <Users className="w-5 h-5 text-gray-400" />
-                Team Status
-            </h2>
-
-            <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden flex flex-col max-h-[600px]">
-                <div className="p-2 overflow-y-auto flex-1 space-y-1 custom-scrollbar">
-                        {colleagues.map((colleague) => {
-                            const status = colleague.current_status?.status || 'office';
-                            const note = colleague.current_status?.message;
-                            
-                            const getStatusColor = (s: string) => {
-                                switch(s) {
-                                    case 'office': return 'bg-emerald-500 shadow-emerald-500/50';
-                                    case 'remote': return 'bg-blue-500 shadow-blue-500/50';
-                                    case 'break': return 'bg-amber-500 shadow-amber-500/50';
-                                    case 'vacation': return 'bg-purple-500 shadow-purple-500/50';
-                                    case 'sick': return 'bg-red-500 shadow-red-500/50';
-                                    default: return 'bg-gray-400';
-                                }
-                            };
-
-                            const getStatusText = (s: string) => {
-                                switch(s) {
-                                    case 'office': return 'Im Büro';
-                                    case 'remote': return 'Home Office';
-                                    case 'break': return 'Pause';
-                                    case 'vacation': return 'Urlaub';
-                                    case 'sick': return 'Krank';
-                                    default: return 'Abwesend';
-                                }
-                            };
-
-                            return (
-                                 <div key={colleague.id} className="group relative flex items-center justify-between p-3 rounded-2xl hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-all duration-300">
-                                     <div className="flex items-center gap-4">
-                                         <div className="relative">
-                                             {colleague.avatar_url ? (
-                                                 <img src={colleague.avatar_url} alt={colleague.full_name} className="w-12 h-12 rounded-full object-cover ring-2 ring-white dark:ring-gray-800 shadow-sm group-hover:scale-105 transition-transform" />
-                                             ) : (
-                                                 <div className="w-12 h-12 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-600 flex items-center justify-center ring-2 ring-white dark:ring-gray-800 shadow-sm group-hover:scale-105 transition-transform">
-                                                     <span className="text-gray-500 dark:text-gray-300 font-bold text-lg">{colleague.full_name?.charAt(0)}</span>
-                                                 </div>
-                                             )}
-                                             <div className={cn(
-                                                 "absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full border-2 border-white dark:border-gray-800 shadow-sm transition-colors duration-300",
-                                                 getStatusColor(status)
-                                             )} />
-                                         </div>
-                                         
-                                         <div>
-                                             <h3 className="font-bold text-gray-900 dark:text-white leading-tight group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
-                                                 {colleague.full_name}
-                                             </h3>
-                                             <p className="text-xs text-gray-500 font-medium flex items-center gap-1.5 mt-0.5">
-                                                 <span className={cn("w-1.5 h-1.5 rounded-full opacity-60", getStatusColor(status).split(' ')[0])}></span>
-                                                 {getStatusText(status)}
-                                             </p>
-                                         </div>
-                                     </div>
-
-                                     {note && (
-                                         <div className="hidden sm:flex items-center gap-1.5 text-xs text-gray-400 bg-gray-50 dark:bg-gray-800/50 px-2.5 py-1.5 rounded-lg max-w-[120px] truncate border border-gray-100 dark:border-gray-700/50">
-                                             <span>💬 {note}</span>
-                                         </div>
-                                     )}
-                                 </div>
-                             );
-                         })}
-                 </div>
-             </div>
-
-            {/* Board Teaser */}
-            <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
-                <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-lg font-bold flex items-center gap-2 text-gray-900 dark:text-white">
-                        <MessageSquare className="w-5 h-5 text-gray-400" /> 
-                        Pinnwand
-                    </h3>
-                    <button onClick={() => navigate('/board')} className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline transition-colors">Alle</button>
+        {/* RIGHT: CONTEXT (1/3) */}
+        <div className="flex flex-col gap-6 min-h-0">
+            {/* Team List (Flexible Height) */}
+            <div className="flex-1 bg-white dark:bg-gray-800 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm flex flex-col overflow-hidden min-h-[300px]">
+                <div className="p-4 border-b border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50">
+                    <h2 className="font-bold flex items-center gap-2 text-gray-900 dark:text-white">
+                        <Users className="w-4 h-4 text-gray-400" /> Team
+                    </h2>
                 </div>
-                <div className="space-y-4">
-                    {boardMessages.length === 0 ? (
-                        <p className="text-sm text-gray-400 italic">Keine Nachrichten.</p>
-                    ) : (
-                        boardMessages.slice(0, 2).map(msg => (
-                            <div key={msg.id} className="bg-gray-50 dark:bg-gray-900/50 rounded-xl p-3 border border-gray-100 dark:border-gray-700/50">
-                                <p className="text-xs text-indigo-600 dark:text-indigo-400 mb-1 flex justify-between">
-                                    <span className="font-medium">{msg.profiles?.full_name}</span>
-                                    <span className="text-gray-400">{formatDistanceToNow(new Date(msg.created_at), { locale: de, addSuffix: true })}</span>
-                                </p>
-                                <p className="text-sm text-gray-600 dark:text-gray-300 line-clamp-2">{msg.content}</p>
+                <div className="flex-1 overflow-y-auto p-2 custom-scrollbar">
+                    {colleagues.map(c => (
+                        <div key={c.id} className="flex items-center gap-3 p-2 hover:bg-gray-50 dark:hover:bg-gray-700/30 rounded-xl transition-colors">
+                            <div className="relative">
+                                {c.avatar_url ? (
+                                    <img src={c.avatar_url} className="w-8 h-8 rounded-full object-cover" />
+                                ) : (
+                                    <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-xs font-bold">{c.full_name?.charAt(0)}</div>
+                                )}
+                                <span className={cn("absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-white dark:border-gray-800", 
+                                    c.current_status?.status === 'office' ? "bg-emerald-500" : 
+                                    c.current_status?.status === 'remote' ? "bg-blue-500" : "bg-gray-400"
+                                )} />
                             </div>
-                        ))
-                    )}
+                            <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium truncate">{c.full_name}</p>
+                                <p className="text-[10px] text-gray-500 truncate">{c.current_status?.message || STATUS_CONFIG.find(s => s.value === c.current_status?.status)?.label || 'Abwesend'}</p>
+                            </div>
+                        </div>
+                    ))}
                 </div>
             </div>
-        </div>
 
-        {/* RIGHT COLUMN: ASSETS & TOOLS (3 cols) */}
-        <div className="xl:col-span-3 space-y-6">
-            g
-            {/* NEW: Revenue Trend Chart Widget */}
-            <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
-                <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-lg font-bold flex items-center gap-2">
-                        <BarChartIcon className="w-5 h-5 text-gray-400" />
-                        Trend
-                    </h2>
-                    <span className="text-xs font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 px-2 py-1 rounded-lg">6 Monate</span>
-                </div>
-                
-                <div className="h-[150px] w-full">
-                     <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={revenueData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
-                            <XAxis 
-                                dataKey="name" 
-                                axisLine={false} 
-                                tickLine={false} 
-                                tick={{ fill: '#9CA3AF', fontSize: 10 }} 
-                                dy={5}
-                                interval={1} // Show every 2nd label if tight
-                            />
-                            <Tooltip 
-                                cursor={{ fill: '#EEF2FF', opacity: 0.5 }}
-                                contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)', fontSize: '12px' }}
-                                formatter={(value: number) => [new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(value), '']}
-                                labelStyle={{ display: 'none' }}
-                            />
-                            <Bar 
-                                dataKey="value" 
-                                radius={[4, 4, 0, 0]} 
-                                barSize={20}
-                            >
+            {/* Chart (Fixed Height) */}
+            <div className="h-[200px] bg-white dark:bg-gray-800 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm p-4 flex flex-col">
+                 <div className="flex justify-between items-center mb-2">
+                    <span className="text-xs font-bold text-gray-500 uppercase">Trend</span>
+                    <span className="text-xs font-bold text-indigo-600">+12%</span>
+                 </div>
+                 <div className="flex-1 w-full min-h-0">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={revenueData}>
+                            <Bar dataKey="value" radius={[4, 4, 0, 0]}>
                                 {revenueData.map((entry, index) => (
                                     <Cell key={`cell-${index}`} fill={entry.value > 0 ? '#6366f1' : '#e5e7eb'} />
                                 ))}
                             </Bar>
                         </BarChart>
                     </ResponsiveContainer>
-                </div>
-                <div className="mt-4 flex justify-between items-end">
-                    <div>
-                        <p className="text-xs text-gray-500">Ø Umsatz (6M)</p>
-                        <p className="text-lg font-bold text-gray-900 dark:text-white">
-                            {new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(
-                                revenueData.reduce((acc, curr) => acc + curr.value, 0) / (revenueData.length || 1)
-                            )}
-                        </p>
-                    </div>
-                    <button onClick={() => navigate('/production')} className="text-xs font-bold text-indigo-600 hover:text-indigo-700 transition-colors">
-                        Details &rarr;
-                    </button>
-                </div>
+                 </div>
             </div>
-
-            <h2 className="text-lg font-bold flex items-center gap-2">
-                <Package className="w-5 h-5 text-gray-400" />
-                Logistik
-            </h2>
-
-            {/* Parcels Card */}
-            <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
-                <div className="flex items-center justify-between mb-6">
-                    <div>
-                        <p className="text-3xl font-bold text-gray-900 dark:text-white">{stats.pendingParcels}</p>
-                        <p className="text-xs text-gray-500">Pakete im Büro</p>
-                    </div>
-                    <div className="w-12 h-12 bg-blue-50 dark:bg-blue-900/20 rounded-2xl flex items-center justify-center text-blue-600">
-                        <Package className="w-6 h-6" />
-                    </div>
-                </div>
-                
-                <div className="space-y-3">
-                    {parcels.slice(0, 3).map(p => (
-                        <div key={p.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-900/50 rounded-xl">
-                            <div className="flex items-center gap-3">
-                                <div className="w-2 h-2 rounded-full bg-blue-500" />
-                                <div>
-                                    <p className="text-sm font-medium text-gray-900 dark:text-white truncate max-w-[100px]">{p.recipient_name}</p>
-                                    <p className="text-[10px] text-gray-500">{p.carrier}</p>
-                                </div>
-                            </div>
-                            <span className="text-[10px] text-gray-400">{format(new Date(p.created_at), 'dd.MM')}</span>
-                        </div>
-                    ))}
-                    {parcels.length > 3 && (
-                         <button onClick={() => navigate('/parcels')} className="w-full text-center text-xs text-indigo-600 font-medium py-2 hover:underline">
-                             + {parcels.length - 3} weitere
-                         </button>
-                    )}
-                    {parcels.length === 0 && (
-                        <div className="text-center py-4">
-                            <p className="text-xs text-gray-400">Alles ausgeliefert ✅</p>
-                        </div>
-                    )}
-                </div>
-                <button onClick={() => navigate('/parcels')} className="w-full mt-4 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 py-2 rounded-xl text-sm font-medium hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors">
-                    Zur Paketliste
-                </button>
-            </div>
-
-            {/* Quick Actions / Tools */}
-            <div className="grid grid-cols-2 gap-4">
-                <button onClick={() => navigate('/production')} className="bg-indigo-600 hover:bg-indigo-700 text-white p-4 rounded-3xl shadow-lg shadow-indigo-200 dark:shadow-none flex flex-col items-center justify-center gap-2 transition-transform hover:scale-[1.02]">
-                    <TrendingUp className="w-6 h-6" />
-                    <span className="text-sm font-bold">Umsatz +</span>
-                </button>
-                <button onClick={() => navigate('/calls?tab=tasks')} className="bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 hover:border-indigo-200 dark:hover:border-indigo-800 p-4 rounded-3xl flex flex-col items-center justify-center gap-2 transition-all hover:scale-[1.02] group">
-                    <Phone className="w-6 h-6 text-gray-400 group-hover:text-indigo-500 transition-colors" />
-                    <span className="text-sm font-medium text-gray-600 dark:text-gray-300 group-hover:text-indigo-600 dark:group-hover:text-indigo-400">Rückruf</span>
-                </button>
-            </div>
-            
         </div>
 
       </div>
