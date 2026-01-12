@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+// Bento Grid Dashboard Layout
 import { supabase } from '@/lib/supabase';
 import { useStore } from '@/store/useStore';
 import { Profile, UserStatus } from '@/types';
