@@ -4,7 +4,7 @@ import { Absence, Profile } from '@/types';
 import { useStore } from '@/store/useStore';
 import { format, parseISO, isAfter, startOfDay } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { Plus, Check, X, Clock, Calendar as CalendarIcon, Trash2, Download, Palmtree, ThermometerSun, HelpCircle } from 'lucide-react';
+import { Plus, Check, X, Clock, Calendar as CalendarIcon, Trash2, Download, Palmtree, ThermometerSun, HelpCircle, GraduationCap, Repeat } from 'lucide-react';
 import { Modal } from '@/components/Modal';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { cn } from '@/utils/cn';
@@ -25,6 +25,9 @@ export const Calendar = () => {
     type: 'vacation',
     start_date: '',
     end_date: '',
+    note: '',
+    is_recurring: false,
+    recurrence_interval: 'weekly'
   });
 
   const fetchAbsences = async () => {
@@ -64,21 +67,45 @@ export const Calendar = () => {
 
     setSubmitting(true);
     try {
-      // For sick leave, auto-approve. For others, set to pending.
-      const status = formData.type === 'sick_leave' ? 'approved' : 'pending';
+      // Auto-approve sick leave and seminar. Others pending.
+      // School is also auto-approved usually? User didn't specify, but let's assume school is a schedule thing, so maybe auto-approve or pending?
+      // User said "Seminar... keine genehmigung notwendig".
+      // School: "Serie...". Let's assume auto-approve for school too as it's a fixed schedule.
+      let status = 'pending';
+      if (['sick_leave', 'seminar', 'school'].includes(formData.type)) {
+          status = 'approved';
+      }
 
-      const { error } = await supabase.from('absences').insert({
+      const payload: any = {
         user_id: user.id,
         type: formData.type,
         start_date: formData.start_date,
         end_date: formData.end_date,
         status: status,
-      });
+        note: formData.note
+      };
+
+      if (formData.type === 'school' && formData.is_recurring) {
+          payload.is_recurring = true;
+          payload.recurrence_interval = formData.recurrence_interval;
+          // For recurring events, end_date might be the end of the series or just the first day?
+          // Usually a series has a start and end date for the whole series.
+          // Let's assume start_date is the first occurrence.
+      }
+
+      const { error } = await supabase.from('absences').insert(payload);
 
       if (error) throw error;
 
       setIsModalOpen(false);
-      setFormData({ type: 'vacation', start_date: '', end_date: '' });
+      setFormData({ 
+          type: 'vacation', 
+          start_date: '', 
+          end_date: '', 
+          note: '',
+          is_recurring: false,
+          recurrence_interval: 'weekly'
+      });
       fetchAbsences();
     } catch (error) {
       console.error('Error creating absence:', error);
@@ -108,6 +135,29 @@ export const Calendar = () => {
   // Show future or current absences (end_date >= today)
   const approvedAbsences = absences.filter((a) => {
     if (a.status !== 'approved') return false;
+    
+    // Logic for School Series: Only show if TODAY is one of the recurring days
+    if (a.type === 'school' && a.is_recurring) {
+        const today = startOfDay(new Date());
+        const start = parseISO(a.start_date);
+        
+        // If today is before start date, don't show
+        if (isAfter(start, today)) return false;
+
+        // Calculate if today matches the interval
+        const diffInDays = Math.floor((today.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+        
+        if (a.recurrence_interval === 'weekly') {
+            return diffInDays % 7 === 0;
+        } else if (a.recurrence_interval === 'biweekly') {
+            return diffInDays % 14 === 0;
+        } else if (a.recurrence_interval === 'monthly') {
+            // Simple monthly check (same day of month)
+            return today.getDate() === start.getDate();
+        }
+        return false;
+    }
+
     const end = parseISO(a.end_date);
     return isAfter(end, startOfDay(new Date())) || end.getTime() === startOfDay(new Date()).getTime();
   });
@@ -153,6 +203,8 @@ export const Calendar = () => {
     switch (type) {
       case 'vacation': return 'Urlaub';
       case 'sick_leave': return 'Krankheit';
+      case 'seminar': return 'Seminar';
+      case 'school': return 'Schule';
       case 'other': return 'Sonstiges';
       default: return type;
     }
@@ -162,6 +214,8 @@ export const Calendar = () => {
       switch (type) {
           case 'vacation': return Palmtree;
           case 'sick_leave': return ThermometerSun;
+          case 'seminar': return GraduationCap;
+          case 'school': return GraduationCap;
           default: return HelpCircle;
       }
   };
@@ -170,6 +224,8 @@ export const Calendar = () => {
     switch (type) {
       case 'vacation': return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300 ring-emerald-500/20';
       case 'sick_leave': return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300 ring-red-500/20';
+      case 'seminar': return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 ring-blue-500/20';
+      case 'school': return 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300 ring-purple-500/20';
       default: return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300 ring-gray-500/20';
     }
   };
@@ -261,12 +317,17 @@ export const Calendar = () => {
                                     </div>
                                 </div>
                                 <div>
-                                    <p className="font-bold text-gray-900 dark:text-white text-lg">{absence.profiles?.full_name}</p>
-                                    <p className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-2 mt-1">
-                                        <span className={cn("w-2 h-2 rounded-full", absence.type === 'sick_leave' ? 'bg-red-400' : 'bg-emerald-400')} />
-                                        {format(parseISO(absence.start_date), 'dd. MMM', { locale: de })} - {format(parseISO(absence.end_date), 'dd. MMM yyyy', { locale: de })}
-                                    </p>
-                                </div>
+                            <p className="font-bold text-gray-900 dark:text-white text-lg">{absence.profiles?.full_name}</p>
+                            <p className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-2 mt-1">
+                                <span className={cn("w-2 h-2 rounded-full", absence.type === 'sick_leave' ? 'bg-red-400' : 'bg-emerald-400')} />
+                                {format(parseISO(absence.start_date), 'dd. MMM', { locale: de })} - {format(parseISO(absence.end_date), 'dd. MMM yyyy', { locale: de })}
+                            </p>
+                            {absence.note && (
+                                <p className="text-xs text-gray-400 mt-1 italic max-w-[200px] truncate">
+                                    "{absence.note}"
+                                </p>
+                            )}
+                            </div>
                             </div>
                             
                             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity absolute top-4 right-4 bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm p-1.5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
@@ -428,10 +489,12 @@ export const Calendar = () => {
             <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
               Art der Abwesenheit
             </label>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
                 {[
                     { val: 'vacation', label: 'Urlaub', icon: Palmtree },
                     { val: 'sick_leave', label: 'Krank', icon: ThermometerSun },
+                    { val: 'seminar', label: 'Seminar', icon: GraduationCap },
+                    { val: 'school', label: 'Schule', icon: GraduationCap },
                     { val: 'other', label: 'Sonstiges', icon: HelpCircle }
                 ].map(opt => {
                     const Icon = opt.icon;
@@ -442,19 +505,88 @@ export const Calendar = () => {
                             type="button"
                             onClick={() => setFormData({ ...formData, type: opt.val })}
                             className={cn(
-                                "flex flex-col items-center justify-center gap-2 p-4 rounded-xl border transition-all",
+                                "flex flex-col items-center justify-center gap-2 p-3 rounded-xl border transition-all h-24",
                                 active 
                                     ? "bg-indigo-50 border-indigo-500 text-indigo-700 ring-1 ring-indigo-500 dark:bg-indigo-900/20 dark:border-indigo-400 dark:text-indigo-300 shadow-sm" 
                                     : "bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-gray-300"
                             )}
                         >
-                            <Icon className="w-6 h-6" />
-                            <span className="text-xs font-bold">{opt.label}</span>
+                            <Icon className="w-5 h-5" />
+                            <span className="text-[10px] font-bold text-center leading-tight">{opt.label}</span>
                         </button>
                     )
                 })}
             </div>
           </div>
+
+          {formData.type === 'other' && (
+              <div className="animate-in fade-in slide-in-from-top-2">
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Grund</label>
+                  <input 
+                      type="text" 
+                      value={formData.note} 
+                      onChange={e => setFormData({...formData, note: e.target.value})} 
+                      placeholder="Bitte Grund angeben..."
+                      className="w-full rounded-xl border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all"
+                  />
+              </div>
+          )}
+
+          {formData.type === 'school' && (
+              <div className="bg-purple-50 dark:bg-purple-900/10 p-4 rounded-xl border border-purple-100 dark:border-purple-900/30 space-y-4 animate-in fade-in slide-in-from-top-2">
+                  <div className="flex items-center justify-between">
+                      <label className="text-sm font-bold text-purple-900 dark:text-purple-300 flex items-center gap-2">
+                          <Repeat className="w-4 h-4" /> Wiederkehrend?
+                      </label>
+                      <input 
+                          type="checkbox" 
+                          checked={formData.is_recurring} 
+                          onChange={e => setFormData({...formData, is_recurring: e.target.checked})}
+                          className="w-5 h-5 rounded-lg border-purple-300 text-purple-600 focus:ring-purple-500"
+                      />
+                  </div>
+                  
+                  {formData.is_recurring && (
+                      <div>
+                          <label className="block text-xs font-bold text-purple-700 dark:text-purple-400 uppercase tracking-wider mb-2">Intervall</label>
+                          <div className="grid grid-cols-3 gap-2">
+                              {[
+                                  { val: 'weekly', label: 'Wöchentlich' },
+                                  { val: 'biweekly', label: 'Alle 2 Wochen' },
+                                  { val: 'monthly', label: 'Monatlich' }
+                              ].map(int => (
+                                  <button
+                                      key={int.val}
+                                      type="button"
+                                      onClick={() => setFormData({...formData, recurrence_interval: int.val})}
+                                      className={cn(
+                                          "px-3 py-2 rounded-lg text-xs font-bold transition-all",
+                                          formData.recurrence_interval === int.val 
+                                              ? "bg-purple-200 text-purple-800 dark:bg-purple-800 dark:text-purple-200" 
+                                              : "bg-white dark:bg-gray-800 text-gray-600 hover:bg-purple-100"
+                                      )}
+                                  >
+                                      {int.label}
+                                  </button>
+                              ))}
+                          </div>
+                      </div>
+                  )}
+              </div>
+          )}
+
+          {formData.type !== 'other' && (
+              <div className="animate-in fade-in slide-in-from-top-2">
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Notiz</label>
+                  <input 
+                      type="text" 
+                      value={formData.note} 
+                      onChange={e => setFormData({...formData, note: e.target.value})} 
+                      placeholder="Optionale Notiz..."
+                      className="w-full rounded-xl border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all"
+                  />
+              </div>
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <div>

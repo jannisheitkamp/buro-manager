@@ -64,12 +64,15 @@ export type Booking = {
 export type Absence = {
   id: string;
   user_id: string;
-  type: 'vacation' | 'sick_leave' | 'other';
+  type: 'vacation' | 'sick_leave' | 'other' | 'seminar' | 'school';
   start_date: string;
   end_date: string;
   status: 'pending' | 'approved' | 'rejected';
   created_at: string;
   profiles?: Profile;
+  note?: string; // New: Reason for 'other'
+  is_recurring?: boolean; // New: For 'school'
+  recurrence_interval?: 'weekly' | 'biweekly' | 'monthly'; // New
 };
 
 export type Post = {
