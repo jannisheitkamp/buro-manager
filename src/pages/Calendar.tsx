@@ -76,6 +76,7 @@ export const Calendar = () => {
           status = 'approved';
       }
 
+      // Explicitly type the payload to match DB schema or cast to any if types are strict
       const payload: any = {
         user_id: user.id,
         type: formData.type,
@@ -88,9 +89,10 @@ export const Calendar = () => {
       if (formData.type === 'school' && formData.is_recurring) {
           payload.is_recurring = true;
           payload.recurrence_interval = formData.recurrence_interval;
-          // For recurring events, end_date might be the end of the series or just the first day?
-          // Usually a series has a start and end date for the whole series.
-          // Let's assume start_date is the first occurrence.
+      } else {
+          // Ensure these are explicitly null or false for non-school types to avoid issues if column defaults are tricky
+          payload.is_recurring = false;
+          payload.recurrence_interval = null;
       }
 
       const { error } = await supabase.from('absences').insert(payload);
@@ -107,6 +109,7 @@ export const Calendar = () => {
           recurrence_interval: 'weekly'
       });
       fetchAbsences();
+      toast.success('Abwesenheit erfolgreich erstellt.');
     } catch (error) {
       console.error('Error creating absence:', error);
       toast.error('Fehler beim Erstellen der Anfrage.');
