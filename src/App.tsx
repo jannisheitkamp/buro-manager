@@ -1,37 +1,46 @@
-import { useEffect } from 'react';
+import { useEffect, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { useStore } from '@/store/useStore';
 import { Layout } from '@/components/Layout';
-import { Login } from '@/pages/Login';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
-
-import { Dashboard } from '@/pages/Dashboard';
-import { Leads } from '@/pages/Leads';
-import { Calendar } from '@/pages/Calendar';
-import { Bookings } from '@/pages/Bookings';
-import { Board } from '@/pages/Board';
-import { Polls } from '@/pages/Polls';
-import { Parcels } from '@/pages/Parcels';
-import { Directory } from '@/pages/Directory';
-import { Documents } from '@/pages/Documents';
-import { ProfilePage } from '@/pages/Profile';
-import { Toaster } from 'react-hot-toast';
-
 import { PageTransition } from '@/components/PageTransition';
-
-import { GeneralCalendar } from '@/pages/GeneralCalendar';
-
-import { Production } from '@/pages/Production';
-import { Admin } from '@/pages/Admin';
-import { Onboarding } from '@/pages/Onboarding';
 import { OnboardingCheck } from '@/components/OnboardingCheck';
-import { MfaSetup } from '@/pages/MfaSetup';
-import { MfaVerify } from '@/pages/MfaVerify';
 import { MfaCheck } from '@/components/MfaCheck';
-import { PhoneCalls } from '@/pages/PhoneCalls';
-import { IncomingCallHandler } from '@/pages/IncomingCallHandler';
-import { Phone } from 'lucide-react';
+import { Toaster } from 'react-hot-toast';
+import { Loader2 } from 'lucide-react';
+
+// Lazy load pages
+const Login = lazy(() => import('@/pages/Login').then(module => ({ default: module.Login })));
+const Dashboard = lazy(() => import('@/pages/Dashboard').then(module => ({ default: module.Dashboard })));
+const Leads = lazy(() => import('@/pages/Leads').then(module => ({ default: module.Leads })));
+const Calendar = lazy(() => import('@/pages/Calendar').then(module => ({ default: module.Calendar })));
+const Bookings = lazy(() => import('@/pages/Bookings').then(module => ({ default: module.Bookings })));
+const Board = lazy(() => import('@/pages/Board').then(module => ({ default: module.Board })));
+const Polls = lazy(() => import('@/pages/Polls').then(module => ({ default: module.Polls })));
+const Parcels = lazy(() => import('@/pages/Parcels').then(module => ({ default: module.Parcels })));
+const Directory = lazy(() => import('@/pages/Directory').then(module => ({ default: module.Directory })));
+const Documents = lazy(() => import('@/pages/Documents').then(module => ({ default: module.Documents })));
+const ProfilePage = lazy(() => import('@/pages/Profile').then(module => ({ default: module.ProfilePage })));
+const GeneralCalendar = lazy(() => import('@/pages/GeneralCalendar').then(module => ({ default: module.GeneralCalendar })));
+const Production = lazy(() => import('@/pages/Production').then(module => ({ default: module.Production })));
+const Admin = lazy(() => import('@/pages/Admin').then(module => ({ default: module.Admin })));
+const Onboarding = lazy(() => import('@/pages/Onboarding').then(module => ({ default: module.Onboarding })));
+const MfaSetup = lazy(() => import('@/pages/MfaSetup').then(module => ({ default: module.MfaSetup })));
+const MfaVerify = lazy(() => import('@/pages/MfaVerify').then(module => ({ default: module.MfaVerify })));
+const PhoneCalls = lazy(() => import('@/pages/PhoneCalls').then(module => ({ default: module.PhoneCalls })));
+const IncomingCallHandler = lazy(() => import('@/pages/IncomingCallHandler').then(module => ({ default: module.IncomingCallHandler })));
+
+function PageLoader() {
+  return (
+    <div className="flex items-center justify-center min-h-screen bg-gray-50">
+      <div className="flex flex-col items-center gap-4">
+        <Loader2 className="w-10 h-10 animate-spin text-indigo-600" />
+        <p className="text-sm text-gray-500 font-medium">Laden...</p>
+      </div>
+    </div>
+  );
+}
 
 function App() {
   const setUser = useStore((state) => state.setUser);
@@ -67,37 +76,39 @@ function App() {
   return (
     <BrowserRouter>
       <Toaster position="top-right" />
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/incoming-call" element={<IncomingCallHandler />} />
-        
-        <Route element={<ProtectedRoute />}>
-          <Route path="/mfa-setup" element={<MfaSetup />} />
-          <Route path="/mfa-verify" element={<MfaVerify />} />
+      <Suspense fallback={<PageLoader />}>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/incoming-call" element={<IncomingCallHandler />} />
           
-          <Route element={<MfaCheck />}>
-            <Route path="/onboarding" element={<Onboarding />} />
-            <Route element={<OnboardingCheck />}>
-              <Route path="/" element={<Layout><PageTransition><Dashboard /></PageTransition></Layout>} />
-              <Route path="/leads" element={<Layout><PageTransition><Leads /></PageTransition></Layout>} />
-              <Route path="/general-calendar" element={<Layout><PageTransition><GeneralCalendar /></PageTransition></Layout>} />
-              <Route path="/calendar" element={<Layout><PageTransition><Calendar /></PageTransition></Layout>} />
-              <Route path="/bookings" element={<Layout><PageTransition><Bookings /></PageTransition></Layout>} />
-              <Route path="/production" element={<Layout><PageTransition><Production /></PageTransition></Layout>} />
-              <Route path="/board" element={<Layout><PageTransition><Board /></PageTransition></Layout>} />
-              <Route path="/polls" element={<Layout><PageTransition><Polls /></PageTransition></Layout>} />
-              <Route path="/parcels" element={<Layout><PageTransition><Parcels /></PageTransition></Layout>} />
-              <Route path="/directory" element={<Layout><PageTransition><Directory /></PageTransition></Layout>} />
-              <Route path="/admin" element={<Layout><PageTransition><Admin /></PageTransition></Layout>} />
-              <Route path="/documents" element={<Layout><PageTransition><Documents /></PageTransition></Layout>} />
-              <Route path="/calls" element={<Layout><PageTransition><PhoneCalls /></PageTransition></Layout>} />
-              <Route path="/profile" element={<Layout><PageTransition><ProfilePage /></PageTransition></Layout>} />
+          <Route element={<ProtectedRoute />}>
+            <Route path="/mfa-setup" element={<MfaSetup />} />
+            <Route path="/mfa-verify" element={<MfaVerify />} />
+            
+            <Route element={<MfaCheck />}>
+              <Route path="/onboarding" element={<Onboarding />} />
+              <Route element={<OnboardingCheck />}>
+                <Route path="/" element={<Layout><PageTransition><Dashboard /></PageTransition></Layout>} />
+                <Route path="/leads" element={<Layout><PageTransition><Leads /></PageTransition></Layout>} />
+                <Route path="/general-calendar" element={<Layout><PageTransition><GeneralCalendar /></PageTransition></Layout>} />
+                <Route path="/calendar" element={<Layout><PageTransition><Calendar /></PageTransition></Layout>} />
+                <Route path="/bookings" element={<Layout><PageTransition><Bookings /></PageTransition></Layout>} />
+                <Route path="/production" element={<Layout><PageTransition><Production /></PageTransition></Layout>} />
+                <Route path="/board" element={<Layout><PageTransition><Board /></PageTransition></Layout>} />
+                <Route path="/polls" element={<Layout><PageTransition><Polls /></PageTransition></Layout>} />
+                <Route path="/parcels" element={<Layout><PageTransition><Parcels /></PageTransition></Layout>} />
+                <Route path="/directory" element={<Layout><PageTransition><Directory /></PageTransition></Layout>} />
+                <Route path="/admin" element={<Layout><PageTransition><Admin /></PageTransition></Layout>} />
+                <Route path="/documents" element={<Layout><PageTransition><Documents /></PageTransition></Layout>} />
+                <Route path="/calls" element={<Layout><PageTransition><PhoneCalls /></PageTransition></Layout>} />
+                <Route path="/profile" element={<Layout><PageTransition><ProfilePage /></PageTransition></Layout>} />
+              </Route>
             </Route>
           </Route>
-        </Route>
 
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Suspense>
     </BrowserRouter>
   );
 }

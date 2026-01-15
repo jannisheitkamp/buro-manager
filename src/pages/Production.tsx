@@ -453,7 +453,18 @@ export const Production = () => {
   const COLORS = ['#4F46E5', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
 
   const handleExport = () => {
-      if (filteredEntries.length === 0) return;
+      // Filter entries for export: ALWAYS restrict to current user
+      const exportEntries = entries.filter(e => {
+          if (e.user_id !== user?.id) return false;
+          if (filterCategory !== 'all' && e.category !== filterCategory) return false;
+          const search = searchQuery.toLowerCase();
+          return (
+              e.customer_name?.toLowerCase().includes(search) ||
+              e.policy_number?.toLowerCase().includes(search)
+          );
+      });
+
+      if (exportEntries.length === 0) return;
       
       const headers = [
           'Status',
@@ -494,7 +505,7 @@ export const Production = () => {
 
       const csvContent = [
           '\uFEFF' + headers.join(';'), // Add BOM for Excel
-          ...filteredEntries.map(e => {
+          ...exportEntries.map(e => {
               // Find manager name if possible (not joined in current select, need to check fetch)
               // We fetched profiles(full_name) for user_id. We might need managed_by join too.
               // For now, let's just use what we have or skip name if not joined.
@@ -523,22 +534,47 @@ export const Production = () => {
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const link = document.createElement('a');
       link.href = URL.createObjectURL(blob);
-      link.download = `Produktion_Export_${format(new Date(), 'yyyy-MM-dd')}.csv`;
+      link.download = `Produktion_Export_Personal_${format(new Date(), 'yyyy-MM-dd')}.csv`;
       link.click();
   };
 
   const handleExportPDF = () => {
-      if (filteredEntries.length === 0) return;
+      // Filter entries for export: ALWAYS restrict to current user
+      const exportEntries = entries.filter(e => {
+          // 1. Strict ownership check
+          if (e.user_id !== user?.id) return false;
+          
+          // 2. Respect active filters
+          if (filterCategory !== 'all' && e.category !== filterCategory) return false;
+          const search = searchQuery.toLowerCase();
+          return (
+              e.customer_name?.toLowerCase().includes(search) ||
+              e.policy_number?.toLowerCase().includes(search)
+          );
+      });
+
+      if (exportEntries.length === 0) {
+          toast.error('Keine eigenen Einträge gefunden.');
+          return;
+      }
+      
+      toast.success('PDF wird erstellt...');
+
       const doc = new jsPDF();
       
+      // Recalculate totals for the PDF based on exportEntries
+      const exportTotalCommission = exportEntries.reduce((acc, curr) => acc + (curr.commission_amount || 0), 0);
+      const exportTotalLiability = exportEntries.reduce((acc, curr) => acc + ((curr.commission_amount || 0) * (curr.liability_rate || 0) / 100), 0);
+      
       doc.setFontSize(18);
-      doc.text('Produktionsnachweis', 14, 20);
+      doc.text('Produktionsnachweis (Persönlich)', 14, 20);
       
       doc.setFontSize(10);
       doc.text(`Erstellt: ${new Date().toLocaleDateString('de-DE')}`, 14, 28);
       doc.text(`Zeitraum: ${filterCategory === 'all' ? 'Alle' : filterCategory}`, 14, 33);
+      doc.text(`Mitarbeiter: ${user?.user_metadata?.full_name || user?.email || 'Ich'}`, 14, 38);
 
-      const tableData = filteredEntries.map(e => [
+      const tableData = exportEntries.map(e => [
           format(new Date(e.submission_date), 'dd.MM.yy'),
           e.policing_date ? format(new Date(e.policing_date), 'dd.MM.yy') : '-',
           `${e.customer_name}, ${e.customer_firstname}`,
@@ -549,21 +585,21 @@ export const Production = () => {
       ]);
 
       autoTable(doc, {
-          startY: 40,
+          startY: 45,
           head: [['Eingereicht', 'Policiert', 'Kunde', 'Sparte', 'Status', 'Bewertung', 'Provision']],
           body: tableData,
-          foot: [['', '', '', '', 'Summe:', '', formatCurrency(totalCommission)]],
+          foot: [['', '', '', '', 'Summe:', '', formatCurrency(exportTotalCommission)]],
           theme: 'grid',
           headStyles: { fillColor: [79, 70, 229] }, // Indigo 600
           footStyles: { fillColor: [243, 244, 246], textColor: [0, 0, 0], fontStyle: 'bold' } // Gray 100
       });
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const finalY = (doc as any).lastAutoTable.finalY || 40;
+      const finalY = (doc as any).lastAutoTable.finalY || 45;
       
-      doc.text(`Haftungsreserve (Total): ${formatCurrency(totalLiability)}`, 14, finalY + 10);
+      doc.text(`Haftungsreserve (Total): ${formatCurrency(exportTotalLiability)}`, 14, finalY + 10);
       
-      doc.save(`Produktion_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
+      doc.save(`Produktion_Personal_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
   };
 
   return (

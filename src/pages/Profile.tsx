@@ -52,14 +52,13 @@ export const ProfilePage = () => {
         const { data } = await supabase.from('user_commission_settings').select('*').eq('user_id', user.id);
         
         if (data && data.length > 0) {
-            const newRates = { ...rates };
+            const newRates: Record<string, number> = { ...rates };
             data.forEach((row: any) => {
                 if (row.sub_category && newRates.hasOwnProperty(row.sub_category)) {
-                    // @ts-ignore
                     newRates[row.sub_category] = Number(row.rate_value);
                 }
             });
-            setRates(newRates);
+            setRates(newRates as any);
         }
     };
 

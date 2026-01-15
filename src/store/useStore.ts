@@ -1,21 +1,17 @@
 import { create } from 'zustand';
 import { supabase } from '@/lib/supabase';
 import { Profile } from '@/types';
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type User = any;
+import { User as SupabaseUser } from '@supabase/supabase-js';
 
 export interface StoreState {
-  user: User | null;
+  user: SupabaseUser | null;
   profile: Profile | null;
   loading: boolean;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  setUser: (user: any) => void;
+  setUser: (user: SupabaseUser | null) => void;
   setLoading: (loading: boolean) => void;
   setProfile: (profile: Profile | null) => void;
   fetchProfile: () => Promise<void>;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  signOut: () => Promise<any>;
+  signOut: () => Promise<void>;
 }
 
 export const useStore = create<StoreState>((set, get) => ({
@@ -33,7 +29,7 @@ export const useStore = create<StoreState>((set, get) => ({
       .from('profiles')
       .select('*')
       .eq('id', user.id)
-      .single();
+      .maybeSingle(); // Changed to maybeSingle to prevent errors if profile doesn't exist yet
 
     if (error) {
       console.error('Error fetching profile:', error);

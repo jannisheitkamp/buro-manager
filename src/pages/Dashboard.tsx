@@ -90,9 +90,11 @@ export const Dashboard = () => {
   // UI State
   const [statusMessage, setStatusMessage] = useState('');
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchData = async () => {
     if (!user) return;
+    setError(null);
 
     const now = new Date();
     const startMonth = startOfMonth(now).toISOString();
@@ -106,6 +108,26 @@ export const Dashboard = () => {
     const todayEnd = new Date(now.setHours(23,59,59,999)).toISOString();
 
     // 1. Parallel Fetching for Speed
+    let results;
+    try {
+      results = await Promise.all([
+        supabase.from('user_status').select('*').order('updated_at', { ascending: false }),
+        supabase.from('profiles').select('*'),
+        supabase.from('callbacks').select('*').neq('status', 'done').or(`assigned_to.eq.${user.id},assigned_to.is.null`),
+        supabase.from('parcels').select('*').eq('status', 'pending').order('created_at', { ascending: false }),
+        // Fetch 6 months of production data
+        supabase.from('production_entries').select('commission_amount, submission_date').eq('user_id', user.id).gte('submission_date', startSixMonthsAgo),
+        supabase.from('calendar_events').select('*').gte('start_time', todayStart).lte('start_time', todayEnd).order('start_time', { ascending: true }),
+        supabase.from('board_messages').select('*, profiles(full_name)').order('created_at', { ascending: false }).limit(3),
+        supabase.from('phone_calls').select('*').eq('status', 'missed').order('created_at', { ascending: false }) // New: Live Calls
+      ]);
+    } catch (e) {
+      console.error('Unexpected error fetching dashboard data:', e);
+      setError('Ein unerwarteter Fehler ist aufgetreten.');
+      setLoading(false);
+      return;
+    }
+
     const [
       statusRes, 
       profilesRes, 
@@ -114,22 +136,22 @@ export const Dashboard = () => {
       prodRes,
       eventsRes,
       boardRes,
-      callsRes // Add this!
-    ] = await Promise.all([
-      supabase.from('user_status').select('*').order('updated_at', { ascending: false }),
-      supabase.from('profiles').select('*'),
-      supabase.from('callbacks').select('*').neq('status', 'done').or(`assigned_to.eq.${user.id},assigned_to.is.null`),
-      supabase.from('parcels').select('*').eq('status', 'pending').order('created_at', { ascending: false }),
-      // Fetch 6 months of production data
-      supabase.from('production_entries').select('commission_amount, submission_date').eq('user_id', user.id).gte('submission_date', startSixMonthsAgo),
-      supabase.from('calendar_events').select('*').gte('start_time', todayStart).lte('start_time', todayEnd).order('start_time', { ascending: true }),
-      supabase.from('board_messages').select('*, profiles(full_name)').order('created_at', { ascending: false }).limit(3),
-      supabase.from('phone_calls').select('*').eq('status', 'missed').order('created_at', { ascending: false }) // New: Live Calls
-    ]);
+      callsRes
+    ] = results;
+
+    if (profilesRes.error) {
+      console.error('Critical error loading profiles:', profilesRes.error);
+      setError('Benutzerprofile konnten nicht geladen werden.');
+      setLoading(false);
+      return;
+    }
 
     // 2. Process Colleagues
     const latestStatuses = statusRes.data || [];
     const profiles = profilesRes.data || [];
+    const myProfile = profiles.find(p => p.id === user.id);
+    const isAdmin = myProfile?.roles?.includes('admin');
+
     const mergedColleagues = profiles.map(p => ({
       ...p,
       current_status: latestStatuses.find(s => s.user_id === p.id)
@@ -143,6 +165,9 @@ export const Dashboard = () => {
     });
     setColleagues(mergedColleagues);
 
+    // Show ALL parcels for EVERYONE
+    const allParcels = parcelsRes.data || [];
+    
     // 3. Process Tasks (Timeline)
     const callbacks = callbacksRes.data || [];
     const events = eventsRes.data || [];
@@ -221,7 +246,7 @@ export const Dashboard = () => {
     setStats({
       monthlyCommission: monthlyComm,
       openCallbacks: callbacks.length,
-      pendingParcels: parcelsRes.data?.length || 0
+      pendingParcels: allParcels.length
     });
     setParcels(parcelsRes.data || []);
     setBoardMessages(boardRes.data || []);
@@ -266,6 +291,21 @@ export const Dashboard = () => {
   if (loading) return (
     <div className="flex items-center justify-center h-96">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+    </div>
+  );
+
+  if (error) return (
+    <div className="flex flex-col items-center justify-center h-96 gap-4">
+        <div className="p-4 bg-red-50 text-red-700 rounded-lg flex items-center gap-2">
+            <LogOut className="w-5 h-5 rotate-180" /> {/* Using LogOut as error icon alternative or AlertTriangle if available */}
+            <span className="font-medium">{error}</span>
+        </div>
+        <button 
+            onClick={() => fetchData()} 
+            className="px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors font-medium text-sm shadow-sm"
+        >
+            Erneut versuchen
+        </button>
     </div>
   );
 
