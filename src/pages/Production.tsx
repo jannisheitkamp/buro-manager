@@ -22,7 +22,9 @@ import {
   PieChart as RechartsPieChart,
   Pie,
   Cell,
-  Legend
+  Legend,
+  AreaChart,
+  Area
 } from 'recharts';
 
 // Helper to format currency safely
@@ -42,6 +44,7 @@ export const Production = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'personal' | 'leaderboard'>('personal');
+  const [chartMode, setChartMode] = useState<'revenue' | 'life_values'>('revenue'); // New: Toggle Charts
 
   // --- Config ---
   // Define insurance types and subcategories
@@ -427,6 +430,7 @@ export const Production = () => {
   });
 
   const totalCommission = filteredEntries.reduce((acc, curr) => acc + (curr.commission_amount || 0), 0);
+  const totalLifeValues = filteredEntries.reduce((acc, curr) => acc + (curr.life_values || 0), 0); // New Total
   const totalLiability = filteredEntries.reduce((acc, curr) => acc + ((curr.commission_amount || 0) * (curr.liability_rate || 0) / 100), 0);
 
   // --- LEADERBOARD CALCULATION ---
@@ -472,7 +476,11 @@ export const Production = () => {
             .filter(e => e.submission_date.startsWith(monthKey))
             .reduce((acc, curr) => acc + (curr.commission_amount || 0), 0);
             
-          return { name: monthLabel, value: total };
+          const totalLifeValues = filteredEntries
+            .filter(e => e.submission_date.startsWith(monthKey))
+            .reduce((acc, curr) => acc + (curr.life_values || 0), 0);
+
+          return { name: monthLabel, value: total, life_values: totalLifeValues };
       });
   };
   
@@ -774,7 +782,7 @@ export const Production = () => {
         ) : (
             <>
                 {/* Stats Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <motion.div 
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -785,7 +793,22 @@ export const Production = () => {
                             <Euro className="w-24 h-24 text-indigo-600" />
                         </div>
                         <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Gesamtprovision (Liste)</p>
-                        <p className="text-4xl font-black text-indigo-600 dark:text-indigo-400 mt-2">{formatCurrency(totalCommission)}</p>
+                        <p className="text-3xl font-black text-indigo-600 dark:text-indigo-400 mt-2">{formatCurrency(totalCommission)}</p>
+                    </motion.div>
+
+                    <motion.div 
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.35 }}
+                    className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-3xl p-6 border border-white/20 shadow-xl relative overflow-hidden group"
+                    >
+                        <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                            <TrendingUp className="w-24 h-24 text-emerald-500" />
+                        </div>
+                        <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Lebenswerte (Gesamt)</p>
+                        <p className="text-3xl font-black text-emerald-500 dark:text-emerald-400 mt-2">
+                            {new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 }).format(totalLifeValues)}
+                        </p>
                     </motion.div>
 
                     <motion.div 
@@ -798,7 +821,7 @@ export const Production = () => {
                             <TrendingUp className="w-24 h-24 text-orange-500" />
                         </div>
                         <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Haftungsreserve (Total)</p>
-                        <p className="text-4xl font-black text-orange-500 dark:text-orange-400 mt-2">{formatCurrency(totalLiability)}</p>
+                        <p className="text-3xl font-black text-orange-500 dark:text-orange-400 mt-2">{formatCurrency(totalLiability)}</p>
                     </motion.div>
                 </div>
 
@@ -812,46 +835,107 @@ export const Production = () => {
                             transition={{ delay: 0.45 }}
                             className="lg:col-span-2 bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-3xl p-6 border border-white/20 shadow-xl"
                         >
-                            <div className="flex items-center gap-3 mb-6">
-                                <div className="p-2 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg">
-                                    <BarChartIcon className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                            <div className="flex items-center justify-between mb-6">
+                                <div className="flex items-center gap-3">
+                                    <div className={cn("p-2 rounded-lg", chartMode === 'revenue' ? "bg-indigo-100 dark:bg-indigo-900/30" : "bg-emerald-100 dark:bg-emerald-900/30")}>
+                                        <BarChartIcon className={cn("w-5 h-5", chartMode === 'revenue' ? "text-indigo-600 dark:text-indigo-400" : "text-emerald-600 dark:text-emerald-400")} />
+                                    </div>
+                                    <h3 className="font-bold text-gray-900 dark:text-white">
+                                        {chartMode === 'revenue' ? 'Umsatzentwicklung (6 Monate)' : 'Lebenswerte Entwicklung'}
+                                    </h3>
                                 </div>
-                                <h3 className="font-bold text-gray-900 dark:text-white">Umsatzentwicklung (letzte 6 Monate)</h3>
+                                <div className="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+                                    <button
+                                        onClick={() => setChartMode('revenue')}
+                                        className={cn(
+                                            "px-3 py-1 rounded-md text-xs font-medium transition-all",
+                                            chartMode === 'revenue' ? "bg-white dark:bg-gray-600 text-indigo-600 shadow-sm" : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                                        )}
+                                    >
+                                        Umsatz
+                                    </button>
+                                    <button
+                                        onClick={() => setChartMode('life_values')}
+                                        className={cn(
+                                            "px-3 py-1 rounded-md text-xs font-medium transition-all",
+                                            chartMode === 'life_values' ? "bg-white dark:bg-gray-600 text-emerald-600 shadow-sm" : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                                        )}
+                                    >
+                                        Lebenswerte
+                                    </button>
+                                </div>
                             </div>
                             <div className="h-[300px] w-full">
                                 <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={monthlyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                                        <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.1} />
-                                        <XAxis 
-                                            dataKey="name" 
-                                            axisLine={false} 
-                                            tickLine={false} 
-                                            tick={{ fill: '#9CA3AF', fontSize: 12 }} 
-                                            dy={10}
-                                        />
-                                        <YAxis 
-                                            axisLine={false} 
-                                            tickLine={false} 
-                                            tick={{ fill: '#9CA3AF', fontSize: 12 }}
-                                            tickFormatter={(val) => `€${val}`}
-                                        />
-                                        <Tooltip 
-                                            cursor={{ fill: '#EEF2FF', opacity: 0.5 }}
-                                            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
-                                            formatter={(value: number) => [formatCurrency(value), 'Umsatz']}
-                                        />
-                                        <Bar 
-                                            dataKey="value" 
-                                            fill="#6366f1" 
-                                            radius={[6, 6, 0, 0]} 
-                                            barSize={40}
-                                            animationDuration={1500}
-                                        >
-                                            {monthlyData.map((entry, index) => (
-                                                <Cell key={`cell-${index}`} fill={entry.value > 0 ? '#6366f1' : '#e5e7eb'} />
-                                            ))}
-                                        </Bar>
-                                    </BarChart>
+                                    {chartMode === 'revenue' ? (
+                                        <BarChart data={monthlyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                                            <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.1} />
+                                            <XAxis 
+                                                dataKey="name" 
+                                                axisLine={false} 
+                                                tickLine={false} 
+                                                tick={{ fill: '#9CA3AF', fontSize: 12 }} 
+                                                dy={10}
+                                            />
+                                            <YAxis 
+                                                axisLine={false} 
+                                                tickLine={false} 
+                                                tick={{ fill: '#9CA3AF', fontSize: 12 }}
+                                                tickFormatter={(val) => `€${val}`}
+                                            />
+                                            <Tooltip 
+                                                cursor={{ fill: '#EEF2FF', opacity: 0.5 }}
+                                                contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
+                                                formatter={(value: number) => [formatCurrency(value), 'Umsatz']}
+                                            />
+                                            <Bar 
+                                                dataKey="value" 
+                                                fill="#6366f1" 
+                                                radius={[6, 6, 0, 0]} 
+                                                barSize={40}
+                                                animationDuration={1500}
+                                            >
+                                                {monthlyData.map((entry, index) => (
+                                                    <Cell key={`cell-${index}`} fill={entry.value > 0 ? '#6366f1' : '#e5e7eb'} />
+                                                ))}
+                                            </Bar>
+                                        </BarChart>
+                                    ) : (
+                                        <AreaChart data={monthlyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                                            <defs>
+                                                <linearGradient id="colorLv" x1="0" y1="0" x2="0" y2="1">
+                                                    <stop offset="5%" stopColor="#10B981" stopOpacity={0.3}/>
+                                                    <stop offset="95%" stopColor="#10B981" stopOpacity={0}/>
+                                                </linearGradient>
+                                            </defs>
+                                            <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.1} />
+                                            <XAxis 
+                                                dataKey="name" 
+                                                axisLine={false} 
+                                                tickLine={false} 
+                                                tick={{ fill: '#9CA3AF', fontSize: 12 }} 
+                                                dy={10}
+                                            />
+                                            <YAxis 
+                                                axisLine={false} 
+                                                tickLine={false} 
+                                                tick={{ fill: '#9CA3AF', fontSize: 12 }}
+                                                tickFormatter={(val) => `${val}`}
+                                            />
+                                            <Tooltip 
+                                                contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
+                                                formatter={(value: number) => [new Intl.NumberFormat('de-DE').format(value), 'Lebenswerte']}
+                                            />
+                                            <Area 
+                                                type="monotone" 
+                                                dataKey="life_values" 
+                                                stroke="#10B981" 
+                                                fillOpacity={1} 
+                                                fill="url(#colorLv)" 
+                                                strokeWidth={3}
+                                            />
+                                        </AreaChart>
+                                    )}
                                 </ResponsiveContainer>
                             </div>
                         </motion.div>

@@ -82,6 +82,7 @@ export const Dashboard = () => {
   const [boardMessages, setBoardMessages] = useState<any[]>([]);
   const [stats, setStats] = useState({
     monthlyCommission: 0,
+    monthlyLifeValues: 0,
     openCallbacks: 0,
     pendingParcels: 0
   });
@@ -116,7 +117,7 @@ export const Dashboard = () => {
         supabase.from('callbacks').select('*').neq('status', 'done').or(`assigned_to.eq.${user.id},assigned_to.is.null`),
         supabase.from('parcels').select('*').eq('status', 'pending').order('created_at', { ascending: false }),
         // Fetch 6 months of production data
-        supabase.from('production_entries').select('commission_amount, submission_date').eq('user_id', user.id).gte('submission_date', startSixMonthsAgo),
+        supabase.from('production_entries').select('commission_amount, life_values, submission_date').eq('user_id', user.id).gte('submission_date', startSixMonthsAgo),
         supabase.from('calendar_events').select('*').gte('start_time', todayStart).lte('start_time', todayEnd).order('start_time', { ascending: true }),
         supabase.from('board_messages').select('*, profiles(full_name)').order('created_at', { ascending: false }).limit(3),
         supabase.from('phone_calls').select('*').eq('status', 'missed').order('created_at', { ascending: false }) // New: Live Calls
@@ -223,6 +224,10 @@ export const Dashboard = () => {
         .filter(e => e.submission_date.startsWith(currentMonthKey))
         .reduce((sum, e) => sum + (e.commission_amount || 0), 0);
 
+    const monthlyLifeValues = allProd
+        .filter(e => e.submission_date.startsWith(currentMonthKey))
+        .reduce((sum, e) => sum + (e.life_values || 0), 0);
+
     // Calculate Chart Data (Last 6 Months)
     const last6Months = Array.from({ length: 6 }, (_, i) => {
         const d = new Date();
@@ -245,6 +250,7 @@ export const Dashboard = () => {
 
     setStats({
       monthlyCommission: monthlyComm,
+      monthlyLifeValues: monthlyLifeValues,
       openCallbacks: callbacks.length,
       pendingParcels: allParcels.length
     });
@@ -368,6 +374,13 @@ export const Dashboard = () => {
                     <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Umsatz</p>
                     <p className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
                         {new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(stats.monthlyCommission)}
+                    </p>
+                </div>
+                <div className="w-px bg-gray-200 dark:bg-gray-700 h-10 self-center hidden sm:block" />
+                <div className="text-right">
+                    <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Lebenswerte</p>
+                    <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+                        {new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 }).format(stats.monthlyLifeValues)}
                     </p>
                 </div>
                 <div className="w-px bg-gray-200 dark:bg-gray-700 h-10 self-center hidden sm:block" />
