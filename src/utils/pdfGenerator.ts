@@ -103,7 +103,7 @@ export const generateVacationRequestPDF = (absence: Absence, profile: Profile) =
   
   y += 6;
   const isVacation = absence.type === 'vacation';
-  const isSpecial = absence.type === 'other' || absence.type === 'sick_leave'; 
+  const isSpecial = ['other', 'sick_leave', 'seminar', 'school'].includes(absence.type);
   
   doc.rect(25, y - 4, 4, 4);
   if (isVacation) {
@@ -122,8 +122,20 @@ export const generateVacationRequestPDF = (absence: Absence, profile: Profile) =
   }
   doc.text('Sonderurlaub wegen', 35, y);
   doc.line(75, y, 180, y);
-  if (isSpecial && absence.type === 'sick_leave') {
-      doc.text('Krankheit', 80, y - 1);
+  
+  let specialReason = '';
+  if (absence.type === 'sick_leave') specialReason = 'Krankheit';
+  else if (absence.type === 'seminar') specialReason = 'Seminar';
+  else if (absence.type === 'school') specialReason = 'Schule';
+  else if (absence.type === 'other') specialReason = absence.note || 'Sonstiges';
+
+  // Append note for others if available
+  if (['seminar', 'school'].includes(absence.type) && absence.note) {
+      specialReason += ` (${absence.note})`;
+  }
+  
+  if (isSpecial && specialReason) {
+      doc.text(specialReason, 80, y - 1);
   }
   
   y += 10;
