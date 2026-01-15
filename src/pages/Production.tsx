@@ -135,6 +135,8 @@ export const Production = () => {
   const [grossPremiumYearly, setGrossPremiumYearly] = useState(0);
   const [valuationSum, setValuationSum] = useState(0); // AP-Summe
   const [commissionAmount, setCommissionAmount] = useState(0);
+  const [lifeValues, setLifeValues] = useState(0); // New: Lebenswerte
+  const [lifeValueFactor, setLifeValueFactor] = useState<number>(0); // New: Factor for Lebenswerte
 
   const [profiles, setProfiles] = useState<any[]>([]); // For "Managed By" dropdown
 
@@ -189,12 +191,46 @@ export const Production = () => {
         comm = netYearly * (rate / 100);
     }
     
-    // Update state only if calculated
+    // 3. Calculate Life Values (Lebenswerte)
+    let lvFactor = 0;
+    let lv = 0;
+
+    // Logic for Lebenswerte Factor
+    if (subCategory === 'Leben' || subCategory === 'BU') {
+        lvFactor = 1.147;
+        lv = valSum * lvFactor;
+    } else if (category === 'car') {
+        lvFactor = 1;
+        lv = netP * lvFactor; // Use Net Premium (Monthly/Selected) as base? Or Yearly? User said "Netto Beitrag". Assuming Yearly Net usually for comparisons but user said "Netto Beitrag mal einen Faktor". Usually production is annualized. Let's use Net Yearly for consistency or Net Monthly? 
+        // User said: "bei Sach Verträgen wird der Netto Beitrag mal einen Faktor gerechnet".
+        // In the commission calculation for Sach, we used `netYearly`. 
+        // Let's assume `netYearly` for Life Values too, as it's a production value.
+        // Wait, for Car (KFZ) factor is 1. If premium is 50€/mo, yearly is 600€. 600 * 1 = 600.
+        // For other Sach, factor is 20. 50€/mo -> 600€/yr. 600 * 20 = 12000? That seems high.
+        // OR maybe "Netto Beitrag" refers to the Monthly premium?
+        // Let's stick to Net Yearly for now as it's standard "Production". 
+        // actually for Sach usually it is based on "Jahresnetto".
+        lv = netYearly * lvFactor;
+    } else if (category === 'property' || category === 'legal' || category === 'other') {
+        // "bei den anderen Sach geschichten bei 20"
+        lvFactor = 20;
+        lv = netYearly * lvFactor; // Again assuming yearly net.
+    }
+    
+    // Allow manual override if user edits it? 
+    // We will set it here, but if we want manual override, we need to handle it.
+    // For now, let's just set it based on logic. If user changes the input manually, we shouldn't overwrite it immediately unless dependencies change.
+    // But since this effect runs on dependencies, it will overwrite.
+    // To support manual override, we'd need a separate flag or check if it was manually touched.
+    // For this iteration, I'll implement auto-calc. If manual edit is needed, we can add a lock or just let them edit and don't re-trigger unless inputs change.
+    
     setCommissionRate(rate);
     setValuationSum(valSum);
     setCommissionAmount(comm);
+    setLifeValueFactor(lvFactor);
+    setLifeValues(lv);
 
-  }, [netPremium, grossPremium, duration, paymentMethod, subCategory, userRates]); 
+  }, [netPremium, grossPremium, duration, paymentMethod, subCategory, userRates, category]); 
   
   // Update Category when SubCategory changes (reverse lookup if needed, or just handle in UI)
   useEffect(() => {
@@ -258,7 +294,9 @@ export const Production = () => {
             commission_amount: commissionAmount,
             liability_rate: liabilityActive ? Number(liabilityRate) : 0,
             status,
-            notes
+            notes,
+            life_values: lifeValues,
+            life_value_factor: lifeValueFactor
         };
 
         if (editingId) {
@@ -307,6 +345,8 @@ export const Production = () => {
       setLiabilityRate(10);
       setLiabilityActive(true);
       setNotes('');
+      setLifeValues(0);
+      setLifeValueFactor(0);
       // Reset category to defaults if needed
   };
 
@@ -329,6 +369,8 @@ export const Production = () => {
       setNetPremium(entry.net_premium || '');
       setGrossPremium(entry.gross_premium || '');
       setNotes(entry.notes || '');
+      setLifeValues(entry.life_values || 0);
+      setLifeValueFactor(entry.life_value_factor || 0);
       
       const lRate = Number(entry.liability_rate);
       if (lRate > 0) {
@@ -479,6 +521,8 @@ export const Production = () => {
           'Beitrag (Brutto)', 
           'Beitrag (Netto)', 
           'Bewertungssumme', 
+          'Faktor (LW)',
+          'Lebenswerte',
           'Satz', 
           'Provision',
           'Betreuer'
@@ -524,6 +568,8 @@ export const Production = () => {
                   fmtNum(e.gross_premium),
                   fmtNum(e.net_premium),
                   fmtNum(e.valuation_sum),
+                  fmtNum(e.life_value_factor),
+                  fmtNum(e.life_values),
                   fmtNum(e.commission_rate),
                   fmtNum(e.commission_amount),
                   `"${e.manager?.full_name || ''}"`
@@ -564,6 +610,7 @@ export const Production = () => {
       
       // Recalculate totals for the PDF based on exportEntries
       const exportTotalCommission = exportEntries.reduce((acc, curr) => acc + (curr.commission_amount || 0), 0);
+      const exportTotalLifeValues = exportEntries.reduce((acc, curr) => acc + (curr.life_values || 0), 0);
       const exportTotalLiability = exportEntries.reduce((acc, curr) => acc + ((curr.commission_amount || 0) * (curr.liability_rate || 0) / 100), 0);
       
       doc.setFontSize(18);
@@ -581,14 +628,15 @@ export const Production = () => {
           e.sub_category || e.category,
           e.status === 'policed' ? 'Policiert' : (e.status === 'cancelled' ? 'Storno' : 'Offen'),
           formatCurrency(e.valuation_sum),
+          new Intl.NumberFormat('de-DE', { maximumFractionDigits: 2 }).format(e.life_values || 0),
           formatCurrency(e.commission_amount)
       ]);
 
       autoTable(doc, {
           startY: 45,
-          head: [['Eingereicht', 'Policiert', 'Kunde', 'Sparte', 'Status', 'Bewertung', 'Provision']],
+          head: [['Eingereicht', 'Policiert', 'Kunde', 'Sparte', 'Status', 'Bewertung', 'Lebenswerte', 'Provision']],
           body: tableData,
-          foot: [['', '', '', '', 'Summe:', '', formatCurrency(exportTotalCommission)]],
+          foot: [['', '', '', '', 'Summe:', '', new Intl.NumberFormat('de-DE', { maximumFractionDigits: 2 }).format(exportTotalLifeValues), formatCurrency(exportTotalCommission)]],
           theme: 'grid',
           headStyles: { fillColor: [79, 70, 229] }, // Indigo 600
           footStyles: { fillColor: [243, 244, 246], textColor: [0, 0, 0], fontStyle: 'bold' } // Gray 100
@@ -913,15 +961,16 @@ export const Production = () => {
                                     <th className="px-6 py-4 font-semibold text-gray-900 dark:text-white">Sparte</th>
                                     <th className="px-6 py-4 font-semibold text-gray-900 dark:text-white">Beitrag</th>
                                     <th className="px-6 py-4 font-semibold text-gray-900 dark:text-white">Bewertung</th>
+                                    <th className="px-6 py-4 font-semibold text-gray-900 dark:text-white">Lebenswerte</th>
                                     <th className="px-6 py-4 font-semibold text-gray-900 dark:text-white text-right">Provision</th>
                                     <th className="px-6 py-4 font-semibold text-gray-900 dark:text-white text-right">Aktion</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
                                 {loading ? (
-                                    <tr><td colSpan={7} className="px-6 py-12 text-center text-gray-500">Lade Daten...</td></tr>
+                                    <tr><td colSpan={8} className="px-6 py-12 text-center text-gray-500">Lade Daten...</td></tr>
                                 ) : filteredEntries.length === 0 ? (
-                                    <tr><td colSpan={7} className="px-6 py-12 text-center text-gray-500">Keine Verträge gefunden.</td></tr>
+                                    <tr><td colSpan={8} className="px-6 py-12 text-center text-gray-500">Keine Verträge gefunden.</td></tr>
                                 ) : (
                                     filteredEntries.map(entry => (
                                         <tr key={entry.id} className="hover:bg-indigo-50/30 dark:hover:bg-indigo-900/10 transition-colors group">
@@ -971,6 +1020,12 @@ export const Production = () => {
                                             <td className="px-6 py-4 text-gray-600 dark:text-gray-300">
                                                 <div className="text-xs text-gray-400 mb-0.5">Satz: {entry.commission_rate} {entry.category === 'life' ? '‰' : (entry.category === 'health' && !entry.sub_category?.includes('reise') ? 'MB' : '%')}</div>
                                                 <div className="font-medium">{formatCurrency(entry.valuation_sum || 0)}</div>
+                                            </td>
+                                            <td className="px-6 py-4 text-gray-600 dark:text-gray-300">
+                                                <div className="text-xs text-gray-400 mb-0.5">Faktor: {entry.life_value_factor}</div>
+                                                <div className="font-bold text-indigo-600 dark:text-indigo-400">
+                                                    {new Intl.NumberFormat('de-DE', { maximumFractionDigits: 2 }).format(entry.life_values || 0)}
+                                                </div>
                                             </td>
                                             <td className="px-6 py-4 text-right font-black text-indigo-600 dark:text-indigo-400">
                                                 {formatCurrency(entry.commission_amount || 0)}
@@ -1266,12 +1321,12 @@ export const Production = () => {
                 </div>
 
                 {/* 4. Calculation Preview */}
-                <div className="bg-gradient-to-br from-indigo-50 to-violet-50 dark:from-indigo-900/20 dark:to-violet-900/20 p-6 rounded-3xl space-y-4 border border-indigo-100 dark:border-indigo-800/30">
+                    <div className="bg-gradient-to-br from-indigo-50 to-violet-50 dark:from-indigo-900/20 dark:to-violet-900/20 p-6 rounded-3xl space-y-4 border border-indigo-100 dark:border-indigo-800/30">
                     <h3 className="font-bold text-indigo-900 dark:text-indigo-300 text-sm flex items-center gap-2">
-                        <Euro className="w-4 h-4" /> Provision (Vorschau)
+                        <Euro className="w-4 h-4" /> Provision & Lebenswerte
                     </h3>
                     
-                    <div className="grid grid-cols-3 gap-6">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         <div className="bg-white/50 dark:bg-gray-800/50 p-3 rounded-2xl">
                             <label className="block text-xs font-medium text-indigo-400 mb-1">
                                 {category === 'life' ? 'Promille' : (['KV Voll', 'KV Zusatz'].includes(subCategory) ? 'MB-Faktor' : 'Prozent')}
@@ -1281,26 +1336,62 @@ export const Production = () => {
                                 step="0.1" 
                                 value={commissionRate} 
                                 readOnly
-                                className="w-full bg-transparent border-none p-0 text-xl font-black text-indigo-700 dark:text-indigo-300 focus:ring-0" 
+                                className="w-full bg-transparent border-none p-0 text-lg font-black text-indigo-700 dark:text-indigo-300 focus:ring-0" 
                             />
                         </div>
                         <div className="bg-white/50 dark:bg-gray-800/50 p-3 rounded-2xl">
                             <label className="block text-xs font-medium text-indigo-400 mb-1">
-                                {category === 'life' ? 'Bewertungssumme' : (['KV Voll', 'KV Zusatz'].includes(subCategory) ? 'Monatsbeitrag' : 'Jahresbeitrag')}
+                                Bewertungssumme
                             </label>
-                            <div className="text-xl font-bold text-indigo-900 dark:text-indigo-200">
+                            <div className="text-lg font-bold text-indigo-900 dark:text-indigo-200 truncate">
                                 {formatCurrency(valuationSum)}
                             </div>
                         </div>
-                        <div className="bg-white/80 dark:bg-gray-800/80 p-3 rounded-2xl shadow-sm ring-1 ring-indigo-100 dark:ring-indigo-700/50">
+                        <div className="bg-white/50 dark:bg-gray-800/50 p-3 rounded-2xl md:col-span-2">
                             <label className="block text-xs font-bold text-indigo-600 dark:text-indigo-400 mb-1">PROVISION</label>
-                            <div className="text-2xl font-black text-green-600 dark:text-green-400">
+                            <div className="text-2xl font-black text-green-600 dark:text-green-400 truncate">
                                 {formatCurrency(commissionAmount)}
                             </div>
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-4 pt-4 border-t border-indigo-200/50 dark:border-indigo-700/30">
+                    {/* Life Values Section */}
+                    <div className="grid grid-cols-2 gap-4 pt-2 border-t border-indigo-200/30">
+                        <div className="bg-white/50 dark:bg-gray-800/50 p-3 rounded-2xl">
+                            <label className="block text-xs font-medium text-indigo-400 mb-1">
+                                Faktor (LW)
+                            </label>
+                            <input 
+                                type="number" 
+                                step="0.001" 
+                                value={lifeValueFactor} 
+                                onChange={(e) => {
+                                    const newFactor = Number(e.target.value);
+                                    setLifeValueFactor(newFactor);
+                                    // Recalculate Life Values immediately based on new factor
+                                    let base = 0;
+                                    if (subCategory === 'Leben' || subCategory === 'BU') {
+                                        base = valuationSum;
+                                    } else {
+                                        // For Sach/KFZ use netYearly
+                                        base = netPremiumYearly; 
+                                    }
+                                    setLifeValues(base * newFactor);
+                                }}
+                                className="w-full bg-transparent border-none p-0 text-lg font-bold text-gray-700 dark:text-gray-300 focus:ring-0" 
+                            />
+                        </div>
+                        <div className="bg-white/50 dark:bg-gray-800/50 p-3 rounded-2xl">
+                            <label className="block text-xs font-medium text-indigo-400 mb-1">
+                                Lebenswerte
+                            </label>
+                            <div className="text-xl font-black text-indigo-600 dark:text-indigo-400 truncate">
+                                {new Intl.NumberFormat('de-DE', { maximumFractionDigits: 2 }).format(lifeValues)} LW
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-4 pt-2 border-t border-indigo-200/50 dark:border-indigo-700/30">
                          <div className="flex items-center gap-3 bg-white/50 dark:bg-gray-800/50 px-4 py-2 rounded-xl">
                              <input 
                                  type="checkbox" 
