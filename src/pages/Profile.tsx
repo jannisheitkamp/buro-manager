@@ -14,7 +14,8 @@ export const ProfilePage = () => {
     // Profile State
     const [fullName, setFullName] = useState('');
     const [agencyNumber, setAgencyNumber] = useState(''); 
-    const [phoneExtension, setPhoneExtension] = useState(''); // New
+    const [phoneExtension, setPhoneExtension] = useState('');
+    const [address, setAddress] = useState(''); // New: Address
     const [avatarUrl, setAvatarUrl] = useState('');
     
     // Password State
@@ -41,7 +42,8 @@ export const ProfilePage = () => {
         if (profile) {
             setFullName(profile.full_name || '');
             setAgencyNumber(profile.agency_number || ''); 
-            setPhoneExtension(profile.phone_extension || ''); // Load
+            setPhoneExtension(profile.phone_extension || '');
+            setAddress(profile.address || ''); // Load
             setAvatarUrl(profile.avatar_url || '');
             fetchUserRates();
         }
@@ -113,7 +115,8 @@ export const ProfilePage = () => {
                 .update({ 
                     full_name: fullName,
                     agency_number: agencyNumber,
-                    phone_extension: phoneExtension, // Save
+                    phone_extension: phoneExtension,
+                    address: address, // Save
                     avatar_url: avatarUrl 
                 })
                 .eq('id', user.id);
@@ -274,6 +277,17 @@ export const ProfilePage = () => {
                                     className="w-full rounded-xl bg-gray-50 dark:bg-gray-900 border-transparent focus:bg-white focus:ring-2 focus:ring-indigo-500/20 px-4 py-2.5 text-sm transition-all"
                                 />
                                 <p className="text-[10px] text-gray-400 mt-1">Wichtig für die Zuordnung von Anrufen, wenn der Browser nicht eingeloggt ist.</p>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Adresse (für Anträge)</label>
+                                <textarea 
+                                    value={address}
+                                    onChange={e => setAddress(e.target.value)}
+                                    placeholder="Straße Hausnummer&#10;PLZ Ort"
+                                    rows={3}
+                                    className="w-full rounded-xl bg-gray-50 dark:bg-gray-900 border-transparent focus:bg-white focus:ring-2 focus:ring-indigo-500/20 px-4 py-2.5 text-sm transition-all resize-none"
+                                />
                             </div>
 
                             <div>
