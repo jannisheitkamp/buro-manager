@@ -18,7 +18,8 @@ import {
   TrendingUp,
   Clock,
   MessageSquare,
-  BarChart as BarChartIcon
+  BarChart as BarChartIcon,
+  GraduationCap
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { useNavigate } from 'react-router-dom';
@@ -52,6 +53,7 @@ const STATUS_CONFIG: StatusConfig[] = [
   { value: 'meeting', label: 'Im Termin', icon: Users, className: 'text-purple-700 bg-purple-100 dark:text-purple-200 dark:bg-purple-900/50' },
   { value: 'vacation', label: 'Urlaub', icon: Palmtree, className: 'text-indigo-700 bg-indigo-100 dark:text-indigo-200 dark:bg-indigo-900/50' },
   { value: 'sick', label: 'Krank', icon: ThermometerSun, className: 'text-red-700 bg-red-100 dark:text-red-200 dark:bg-red-900/50' },
+  { value: 'seminar', label: 'Seminar', icon: GraduationCap, className: 'text-blue-700 bg-blue-100 dark:text-blue-200 dark:bg-blue-900/50' },
   { value: 'off', label: 'Feierabend', icon: LogOut, className: 'text-gray-700 bg-gray-100 dark:text-gray-300 dark:bg-gray-700/50' },
 ];
 

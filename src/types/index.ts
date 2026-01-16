@@ -45,7 +45,7 @@ export type Callback = {
 export type UserStatus = {
   id: string;
   user_id: string;
-  status: 'office' | 'remote' | 'break' | 'meeting' | 'vacation' | 'sick' | 'off';
+  status: 'office' | 'remote' | 'break' | 'meeting' | 'vacation' | 'sick' | 'off' | 'seminar';
   message: string | null;
   updated_at: string;
   profiles?: Profile; // Joined profile data
