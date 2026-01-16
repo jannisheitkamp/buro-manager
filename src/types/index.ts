@@ -17,6 +17,7 @@ export type Parcel = {
   recipient_id: string;
   created_by: string;
   carrier: string | null;
+  tracking_number?: string | null; // New
   location: string;
   status: 'pending' | 'collected' | 'expected';
   collected_at: string | null;

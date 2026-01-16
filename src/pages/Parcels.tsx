@@ -24,8 +24,24 @@ export const Parcels = () => {
   // Form State
   const [recipientId, setRecipientId] = useState('');
   const [carrier, setCarrier] = useState('');
+  const [trackingNumber, setTrackingNumber] = useState(''); // New
   const [location, setLocation] = useState('Empfang');
   const [status, setStatus] = useState<'pending' | 'expected'>('pending');
+
+  const getTrackingLink = (carrier: string | null, number: string | null | undefined) => {
+      if (!number) return null;
+      const c = (carrier || '').toLowerCase();
+      
+      if (c.includes('dhl')) return `https://www.dhl.de/de/privatkunden/pakete-empfangen/verfolgen.html?piececode=${number}`;
+      if (c.includes('ups')) return `https://www.ups.com/track?tracknum=${number}`;
+      if (c.includes('dpd')) return `https://www.dpd.com/tracking/(lang)/de_DE?parcelnr=${number}`;
+      if (c.includes('gls')) return `https://gls-group.eu/DE/de/paketverfolgung?match=${number}`;
+      if (c.includes('hermes')) return `https://www.myhermes.de/empfangen/sendungsverfolgung/sendungsinformation#${number}`;
+      if (c.includes('amazon')) return `https://www.amazon.de/progress-tracker/package/ref=pt_redirect?itemId=${number}`; // Amazon often tricky, but this is a try
+      
+      // Fallback: 17TRACK (Auto-detect)
+      return `https://t.17track.net/de#nums=${number}`;
+  };
 
   const fetchParcels = async () => {
     try {
@@ -75,6 +91,7 @@ export const Parcels = () => {
         recipient_id: recipientId,
         created_by: user.id,
         carrier: carrier || 'Unbekannt',
+        tracking_number: trackingNumber, // New
         location: status === 'expected' ? 'Unterwegs' : location,
         status: status // 'pending' or 'expected'
       });
@@ -85,6 +102,7 @@ export const Parcels = () => {
       setIsModalOpen(false);
       setRecipientId('');
       setCarrier('');
+      setTrackingNumber('');
       setLocation('Empfang');
       setStatus('pending');
     } catch (error) {
@@ -295,6 +313,17 @@ export const Parcels = () => {
                                          </p>
                                          <p className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-1.5 mt-0.5">
                                             <Truck className="w-3.5 h-3.5" /> {parcel.carrier}
+                                            {parcel.tracking_number && (
+                                                <a 
+                                                    href={getTrackingLink(parcel.carrier, parcel.tracking_number) || '#'} 
+                                                    target="_blank" 
+                                                    rel="noopener noreferrer"
+                                                    className="ml-2 text-indigo-600 dark:text-indigo-400 hover:underline text-xs font-bold"
+                                                    onClick={(e) => e.stopPropagation()}
+                                                >
+                                                    Verfolgen &rarr;
+                                                </a>
+                                            )}
                                          </p>
                                      </div>
                                 </div>
@@ -415,6 +444,19 @@ export const Parcels = () => {
               value={carrier}
               onChange={(e) => setCarrier(e.target.value)}
               placeholder="z.B. DHL, UPS, Amazon"
+              className="w-full rounded-xl border-transparent bg-gray-50/50 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 px-4 py-3 text-sm transition-all"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+              Sendungsnummer (Optional)
+            </label>
+            <input
+              type="text"
+              value={trackingNumber}
+              onChange={(e) => setTrackingNumber(e.target.value)}
+              placeholder="z.B. 00340434..."
               className="w-full rounded-xl border-transparent bg-gray-50/50 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 px-4 py-3 text-sm transition-all"
             />
           </div>
