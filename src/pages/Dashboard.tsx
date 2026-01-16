@@ -160,8 +160,10 @@ export const Dashboard = () => {
       current_status: latestStatuses.find(s => s.user_id === p.id)
     })).sort((a, b) => {
         // Sort: Online first, then alphabetical
-        const aOnline = a.current_status?.status !== 'off' && a.current_status?.status !== 'vacation';
-        const bOnline = b.current_status?.status !== 'off' && b.current_status?.status !== 'vacation';
+        const onlineStatuses = ['office', 'remote', 'meeting'];
+        const aOnline = onlineStatuses.includes(a.current_status?.status || 'office');
+        const bOnline = onlineStatuses.includes(b.current_status?.status || 'office');
+        
         if (aOnline && !bOnline) return -1;
         if (!aOnline && bOnline) return 1;
         return (a.full_name || '').localeCompare(b.full_name || '');
@@ -503,7 +505,7 @@ export const Dashboard = () => {
                      {colleagues.map((colleague) => {
                         const status = colleague.current_status?.status || 'office';
                         const note = colleague.current_status?.message;
-                        const isOnline = status !== 'off' && status !== 'vacation';
+                        const isOnline = ['office', 'remote', 'meeting'].includes(status);
                         
                         return (
                              <div key={colleague.id} className={cn("flex items-center gap-3 p-2 rounded-xl transition-colors", isOnline ? "hover:bg-gray-50 dark:hover:bg-gray-700/50" : "opacity-60 grayscale")}>
