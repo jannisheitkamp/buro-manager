@@ -163,11 +163,11 @@ export const Login = () => {
                     animate={{ y: 0, opacity: 1 }}
                     transition={{ delay: 0.3 }}
                 >
-                    <h1 className="text-6xl font-bold leading-tight mb-8">
-                        Das moderne OS <br/> für deine <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-200 to-indigo-100">Agentur.</span>
+                    <h1 className="text-5xl font-bold leading-tight mb-8">
+                        Agenturverbund <br/> <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-200 to-indigo-100">Dortmund.</span>
                     </h1>
                     <p className="text-xl text-indigo-100 max-w-lg leading-relaxed font-light">
-                        Organisiere Rückrufe, Pakete und Anwesenheiten an einem Ort. Effizient, übersichtlich und einfach schön.
+                        Die zentrale Plattform für den Agenturverbund der Nürnberger Versicherung.
                     </p>
                 </motion.div>
             </div>
@@ -178,15 +178,10 @@ export const Login = () => {
                 transition={{ delay: 0.4 }}
                 className="flex items-center gap-6 text-sm text-indigo-200"
             >
-                <div className="flex -space-x-4">
-                    {[1,2,3,4].map((i) => (
-                        <div key={i} className="w-10 h-10 rounded-full bg-indigo-500/30 border-2 border-indigo-400/50 backdrop-blur-md flex items-center justify-center">
-                             <Sparkles className="w-4 h-4 text-white" />
-                        </div>
-                    ))}
+                <div className="flex items-center gap-2 px-4 py-2 bg-white/10 rounded-full backdrop-blur-md border border-white/10">
+                    <ShieldCheck className="w-4 h-4 text-white" />
+                    <span className="font-medium">Nürnberger Versicherung</span>
                 </div>
-                <div className="h-px w-12 bg-indigo-400/50" />
-                <p className="font-medium">Nutze die Power von KI & Automation.</p>
             </motion.div>
         </div>
       </motion.div>
