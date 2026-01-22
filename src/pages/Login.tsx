@@ -303,15 +303,17 @@ export const Login = () => {
                                 </button>
                                 <button
                                     type="button"
-                                    onClick={() => {
+                                    onClick={async () => {
                                         setNeedsMfa(false);
                                         setMfaCode('');
                                         setEmail('');
                                         setPassword('');
+                                        await supabase.auth.signOut(); // Ensure session is cleared
                                     }}
-                                    className="w-full text-center text-sm font-medium text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 py-2"
+                                    className="w-full text-center text-sm font-medium text-gray-500 hover:text-red-600 dark:hover:text-red-400 py-2 flex items-center justify-center gap-2 transition-colors"
                                 >
-                                    Abbrechen
+                                    <ArrowRight className="w-4 h-4 rotate-180" />
+                                    Abbrechen & Abmelden
                                 </button>
                             </div>
                         </form>
