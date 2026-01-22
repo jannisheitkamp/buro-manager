@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
-import { Shield, KeyRound, ArrowRight } from 'lucide-react';
+import { Shield, KeyRound, ArrowRight, LogOut } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export function MfaVerify() {
@@ -58,6 +58,11 @@ export function MfaVerify() {
     }
   };
 
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    navigate('/login');
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">
       <div className="max-w-md w-full bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 border border-gray-100 dark:border-gray-700">
@@ -103,6 +108,16 @@ export function MfaVerify() {
             {!loading && <ArrowRight className="w-4 h-4" />}
           </button>
         </form>
+
+        <div className="mt-6 text-center border-t border-gray-100 dark:border-gray-700 pt-6">
+          <button
+            onClick={handleSignOut}
+            className="text-sm text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400 flex items-center justify-center gap-2 mx-auto transition-colors font-medium"
+          >
+            <LogOut className="w-4 h-4" />
+            Abmelden
+          </button>
+        </div>
       </div>
     </div>
   );
