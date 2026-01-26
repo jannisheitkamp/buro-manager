@@ -191,7 +191,8 @@ export const Production = () => {
     }
     else if (['PHV', 'HR', 'UNF', 'Sach', 'KFZ', 'Rechtsschutz', 'Sonstige'].includes(subCategory)) {
         valSum = netYearly;
-        comm = netYearly * (rate / 100);
+        // Bei Sach-Verträgen (laufende Courtage) wird die Provision auf den Zahlweise-Beitrag (netP) gerechnet
+        comm = netP * (rate / 100);
     }
     
     // 3. Calculate Life Values (Lebenswerte)
