@@ -287,7 +287,7 @@ export const Todoist = () => {
     }
 
     return (
-        <div className="flex h-[calc(100vh-4rem)] -m-4 md:-m-8 lg:-m-12">
+        <div className="flex h-[calc(100vh-4rem)]">
             {/* Sidebar */}
             <div className={cn(
                 "w-64 bg-gray-50/50 dark:bg-gray-900/50 border-r border-gray-200 dark:border-gray-800 flex-shrink-0 transition-all duration-300 overflow-y-auto",
@@ -361,7 +361,7 @@ export const Todoist = () => {
 
             {/* Main Content */}
             <div className="flex-1 flex flex-col min-w-0 bg-white dark:bg-gray-900">
-                <div className="p-4 border-b border-gray-100 dark:border-gray-800 flex items-center gap-4 sticky top-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md z-10">
+                <div className="p-4 border-b border-gray-100 dark:border-gray-800 flex items-center gap-4 bg-white dark:bg-gray-900 z-10">
                     <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg">
                         <Menu className="w-5 h-5 text-gray-500" />
                     </button>
@@ -373,7 +373,7 @@ export const Todoist = () => {
                     </h2>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-4 md:p-8 max-w-4xl mx-auto w-full pt-28">
+                <div className="flex-1 overflow-y-auto p-4 md:p-8 max-w-4xl mx-auto w-full">
                     {/* Add Task */}
                     <form onSubmit={handleAddTask} className={cn(
                         "mb-8 transition-all border rounded-xl p-0 overflow-hidden shadow-sm",
