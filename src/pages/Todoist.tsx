@@ -373,7 +373,7 @@ export const Todoist = () => {
                     </h2>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-4 md:p-8 max-w-4xl mx-auto w-full pt-20">
+                <div className="flex-1 overflow-y-auto p-4 md:p-8 max-w-4xl mx-auto w-full pt-28">
                     {/* Add Task */}
                     <form onSubmit={handleAddTask} className={cn(
                         "mb-8 transition-all border rounded-xl p-0 overflow-hidden shadow-sm",
