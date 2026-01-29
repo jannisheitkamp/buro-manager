@@ -52,7 +52,7 @@ export const Todoist = () => {
     const [tasks, setTasks] = useState<TodoistTask[]>([]);
     const [projects, setProjects] = useState<TodoistProject[]>([]);
     const [loading, setLoading] = useState(true);
-    const [currentView, setCurrentView] = useState<ViewType>('today');
+    const [currentView, setCurrentView] = useState<ViewType>('inbox');
     const [newTaskContent, setNewTaskContent] = useState('');
     const [newTaskDescription, setNewTaskDescription] = useState('');
     const [isAdding, setIsAdding] = useState(false);
@@ -88,13 +88,14 @@ export const Todoist = () => {
             if (currentView === 'today') {
                 url += '?filter=today|overdue';
             } else if (currentView === 'upcoming') {
-                // For upcoming, we fetch all (or a large range) and filter locally for now to group them
-                // Or better: fetch with filter '7 days' or just all active tasks and sort
                 url += '?filter=today|overdue|next 7 days';
             } else if (currentView === 'inbox') {
-                url += '?filter=#Inbox';
+                // For inbox, we want tasks without a project (or in inbox project)
+                // Actually, best is to get project_id for inbox first, or filter by project_id in client
+                // But Todoist API allows filtering by project_id directly
+                // We need to find the Inbox project ID first usually, or use filter '#Inbox'
+                url += '?filter=%23Inbox'; // URL encoded #Inbox
             } else {
-                // Project view
                 url += `?project_id=${currentView}`;
             }
 
@@ -156,7 +157,14 @@ export const Todoist = () => {
             
             // Smart date parsing logic
             const contentLower = newTaskContent.toLowerCase();
-            if (contentLower.includes('heute') || currentView === 'today') {
+            
+            // Default due string based on view
+            if (currentView === 'today') {
+                payload.due_string = 'today';
+            }
+
+            // Keyword detection
+            if (contentLower.includes('heute')) {
                 payload.due_string = 'today';
                 payload.content = payload.content.replace(/(^|\s)heute(\s|$)/i, ' ').trim();
             } else if (contentLower.includes('morgen')) {
