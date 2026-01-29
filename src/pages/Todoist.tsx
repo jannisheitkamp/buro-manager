@@ -22,20 +22,21 @@ import { format, isToday, isTomorrow, isPast, isSameDay, addDays, startOfDay } f
 import { de } from 'date-fns/locale';
 
 interface TodoistTask {
-    id: string;
-    content: string;
-    description: string;
-    is_completed: boolean;
-    due?: {
-        date: string;
-        string: string;
-        lang: string;
-        is_recurring: boolean;
-    };
-    priority: number; // 4 = high (red), 1 = normal (grey)
-    project_id: string;
-    url: string;
-}
+        id: string;
+        content: string;
+        description: string;
+        is_completed: boolean;
+        created_at: string; // Add created_at
+        due?: {
+            date: string;
+            string: string;
+            lang: string;
+            is_recurring: boolean;
+        };
+        priority: number; // 4 = high (red), 1 = normal (grey)
+        project_id: string;
+        url: string;
+    }
 
 interface TodoistProject {
     id: string;
@@ -106,14 +107,9 @@ export const Todoist = () => {
             if (!res.ok) throw new Error('Failed to fetch');
             const data = await res.json();
             
-            // Sort by due date, then priority
+            // Sort by creation date (newest first)
             const sorted = data.sort((a: TodoistTask, b: TodoistTask) => {
-                // First due date
-                if (a.due?.date && b.due?.date) return new Date(a.due.date).getTime() - new Date(b.due.date).getTime();
-                if (a.due?.date) return -1;
-                if (b.due?.date) return 1;
-                // Then priority (descending)
-                return b.priority - a.priority;
+                return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
             });
             
             setTasks(sorted);
@@ -377,16 +373,16 @@ export const Todoist = () => {
                     </h2>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-4 md:p-8 max-w-4xl mx-auto w-full">
+                <div className="flex-1 overflow-y-auto p-4 md:p-8 max-w-4xl mx-auto w-full pt-20">
                     {/* Add Task */}
                     <form onSubmit={handleAddTask} className={cn(
-                        "mb-6 transition-all border rounded-xl p-0 overflow-hidden",
-                        newTaskContent ? "bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-sm ring-1 ring-gray-200 dark:ring-gray-700" : "border-transparent"
+                        "mb-8 transition-all border rounded-xl p-0 overflow-hidden shadow-sm",
+                        newTaskContent ? "bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 ring-1 ring-gray-200 dark:ring-gray-700" : "bg-white dark:bg-gray-800 border-transparent hover:shadow-md"
                     )}>
-                        <div className="relative p-3">
+                        <div className="relative p-4">
                             <div className="flex items-start gap-3">
-                                <Plus className={cn("w-5 h-5 text-red-500 mt-1 transition-all duration-200", newTaskContent ? "opacity-0 w-0 -ml-2" : "opacity-100")} />
-                                <div className="flex-1 space-y-2">
+                                <Plus className={cn("w-6 h-6 text-red-500 mt-1 transition-all duration-200", newTaskContent ? "opacity-0 w-0 -ml-2" : "opacity-100")} />
+                                <div className="flex-1 space-y-3">
                                     <input
                                         type="text"
                                         value={newTaskContent}
@@ -394,7 +390,7 @@ export const Todoist = () => {
                                         placeholder="Aufgabe hinzufügen"
                                         className={cn(
                                             "w-full bg-transparent border-none p-0 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-0 transition-all",
-                                            newTaskContent ? "font-bold text-base" : "text-base"
+                                            newTaskContent ? "font-bold text-lg" : "text-lg font-medium"
                                         )}
                                     />
                                     {newTaskContent && (
