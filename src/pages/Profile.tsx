@@ -16,6 +16,7 @@ export const ProfilePage = () => {
     const [agencyNumber, setAgencyNumber] = useState(''); 
     const [phoneExtension, setPhoneExtension] = useState('');
     const [address, setAddress] = useState(''); // New: Address
+    const [todoistApiKey, setTodoistApiKey] = useState(''); // New: Todoist API Key
     const [avatarUrl, setAvatarUrl] = useState('');
     
     // Password State
@@ -44,6 +45,7 @@ export const ProfilePage = () => {
             setAgencyNumber(profile.agency_number || ''); 
             setPhoneExtension(profile.phone_extension || '');
             setAddress(profile.address || ''); // Load
+            setTodoistApiKey(profile.todoist_api_key || ''); // Load
             setAvatarUrl(profile.avatar_url || '');
             fetchUserRates();
         }
@@ -117,6 +119,7 @@ export const ProfilePage = () => {
                     agency_number: agencyNumber,
                     phone_extension: phoneExtension,
                     address: address, // Save
+                    todoist_api_key: todoistApiKey, // Save
                     avatar_url: avatarUrl 
                 })
                 .eq('id', user.id);
@@ -288,6 +291,22 @@ export const ProfilePage = () => {
                                     rows={3}
                                     className="w-full rounded-xl bg-gray-50 dark:bg-gray-900 border-transparent focus:bg-white focus:ring-2 focus:ring-indigo-500/20 px-4 py-2.5 text-sm transition-all resize-none"
                                 />
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Todoist API Key</label>
+                                <div className="relative">
+                                    <input 
+                                        type="password" 
+                                        value={todoistApiKey}
+                                        onChange={e => setTodoistApiKey(e.target.value)}
+                                        placeholder="API Token hier einfügen"
+                                        className="w-full rounded-xl bg-gray-50 dark:bg-gray-900 border-transparent focus:bg-white focus:ring-2 focus:ring-indigo-500/20 px-4 py-2.5 text-sm transition-all"
+                                    />
+                                </div>
+                                <p className="text-[10px] text-gray-400 mt-1">
+                                    Zu finden unter Todoist Einstellungen &gt; Integrationen &gt; API-Token.
+                                </p>
                             </div>
 
                             <div>

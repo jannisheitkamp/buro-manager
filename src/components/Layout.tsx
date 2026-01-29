@@ -17,7 +17,8 @@ import {
   TrendingUp,
   Shield,
   Kanban,
-  FileText
+  FileText,
+  CheckSquare
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { useState, useEffect } from 'react';
@@ -30,6 +31,7 @@ import { useNotifications } from '@/hooks/useNotifications';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+  { name: 'Todoist', href: '/todoist', icon: CheckSquare },
   { name: 'Leads', href: '/leads', icon: Kanban },
   { name: 'Kalender', href: '/general-calendar', icon: CalendarDays },
   { name: 'Abwesenheiten', href: '/calendar', icon: CalendarDays },

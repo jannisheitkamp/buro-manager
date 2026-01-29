@@ -30,6 +30,7 @@ const MfaSetup = lazy(() => import('@/pages/MfaSetup').then(module => ({ default
 const MfaVerify = lazy(() => import('@/pages/MfaVerify').then(module => ({ default: module.MfaVerify })));
 const PhoneCalls = lazy(() => import('@/pages/PhoneCalls').then(module => ({ default: module.PhoneCalls })));
 const IncomingCallHandler = lazy(() => import('@/pages/IncomingCallHandler').then(module => ({ default: module.IncomingCallHandler })));
+const Todoist = lazy(() => import('@/pages/Todoist').then(module => ({ default: module.Todoist })));
 
 function PageLoader() {
   return (
@@ -100,6 +101,7 @@ function App() {
                 <Route path="/directory" element={<Layout><PageTransition><Directory /></PageTransition></Layout>} />
                 <Route path="/admin" element={<Layout><PageTransition><Admin /></PageTransition></Layout>} />
                 <Route path="/documents" element={<Layout><PageTransition><Documents /></PageTransition></Layout>} />
+                <Route path="/todoist" element={<Layout><PageTransition><Todoist /></PageTransition></Layout>} />
                 <Route path="/calls" element={<Layout><PageTransition><PhoneCalls /></PageTransition></Layout>} />
                 <Route path="/profile" element={<Layout><PageTransition><ProfilePage /></PageTransition></Layout>} />
               </Route>

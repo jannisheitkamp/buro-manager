@@ -4,6 +4,7 @@ export type Profile = {
   full_name: string | null;
   agency_number?: string | null;
   phone_extension?: string | null; // New
+  todoist_api_key?: string | null; // New
   avatar_url: string | null;
   roles: string[];
   address?: string | null;
