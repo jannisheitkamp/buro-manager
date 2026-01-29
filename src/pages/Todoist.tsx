@@ -57,6 +57,40 @@ export const Todoist = () => {
     const [newTaskContent, setNewTaskContent] = useState('');
     const [newTaskDescription, setNewTaskDescription] = useState('');
     const [isAdding, setIsAdding] = useState(false);
+    const [highlightedText, setHighlightedText] = useState<{ text: string, type: 'date' | 'time' | 'none' }>({ text: '', type: 'none' });
+
+    // Effect to check for highlights
+    useEffect(() => {
+        const contentLower = newTaskContent.toLowerCase();
+        
+        // Time detection
+        const timeMatch = contentLower.match(/(\d{1,2})[\.:,\s](\d{2})\s*(uhr)?/i);
+        if (timeMatch) {
+            const hours = parseInt(timeMatch[1]);
+            const minutes = parseInt(timeMatch[2]);
+            if (hours >= 0 && hours < 24 && minutes >= 0 && minutes < 60) {
+                setHighlightedText({ text: timeMatch[0], type: 'time' });
+                return;
+            }
+        }
+
+        // Date detection keywords
+        if (contentLower.includes('heute')) setHighlightedText({ text: 'heute', type: 'date' });
+        else if (contentLower.includes('morgen')) setHighlightedText({ text: 'morgen', type: 'date' });
+        else if (contentLower.includes('übermorgen')) setHighlightedText({ text: 'übermorgen', type: 'date' });
+        else if (contentLower.includes('nächste woche')) setHighlightedText({ text: 'nächste woche', type: 'date' });
+        else if (contentLower.includes('wochenende')) setHighlightedText({ text: 'wochenende', type: 'date' });
+        
+        // Explicit date detection
+        else {
+            const dateMatch = contentLower.match(/(\d{1,2}\.\d{1,2}(\.\d{4})?)/);
+            if (dateMatch) {
+                setHighlightedText({ text: dateMatch[0], type: 'date' });
+                return;
+            }
+            setHighlightedText({ text: '', type: 'none' });
+        }
+    }, [newTaskContent]);
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [projectsExpanded, setProjectsExpanded] = useState(true);
 
@@ -162,33 +196,60 @@ export const Todoist = () => {
             // Keyword detection
             if (contentLower.includes('heute')) {
                 payload.due_string = 'today';
+                payload.due_lang = 'de';
                 payload.content = payload.content.replace(/(^|\s)heute(\s|$)/i, ' ').trim();
             } else if (contentLower.includes('morgen')) {
                 payload.due_string = 'tomorrow';
+                payload.due_lang = 'de';
                 payload.content = payload.content.replace(/(^|\s)morgen(\s|$)/i, ' ').trim();
             } else if (contentLower.includes('übermorgen')) {
                 payload.due_string = 'in 2 days';
+                payload.due_lang = 'de';
                 payload.content = payload.content.replace(/(^|\s)übermorgen(\s|$)/i, ' ').trim();
             } else if (contentLower.includes('nächste woche')) {
                 payload.due_string = 'next monday';
+                payload.due_lang = 'de';
                 payload.content = payload.content.replace(/(^|\s)nächste woche(\s|$)/i, ' ').trim();
             } else if (contentLower.includes('wochenende')) {
                 payload.due_string = 'next saturday';
+                payload.due_lang = 'de';
                 payload.content = payload.content.replace(/(^|\s)wochenende(\s|$)/i, ' ').trim();
             } else {
                  // Try to find specific date formats (dd.mm or dd.mm.yyyy)
                  const dateMatch = payload.content.match(/(\d{1,2}\.\d{1,2}(\.\d{4})?)/);
                  if (dateMatch) {
                      payload.due_string = dateMatch[0];
+                     payload.due_lang = 'de';
                      payload.content = payload.content.replace(dateMatch[0], '').trim();
                  }
                  
                  // Try to find time formats (HH:MM)
-                 const timeMatch = payload.content.match(/(\d{1,2}:\d{2})/);
+                 const timeMatch = payload.content.match(/(\d{1,2})[\.:,\s](\d{2})/);
                  if (timeMatch) {
-                     // If we already have a due_string, append time, otherwise just set time (which defaults to today)
-                     payload.due_string = payload.due_string ? `${payload.due_string} at ${timeMatch[0]}` : `today at ${timeMatch[0]}`;
-                     payload.content = payload.content.replace(timeMatch[0], '').trim();
+                     const hours = timeMatch[1].padStart(2, '0');
+                     const minutes = timeMatch[2];
+                     
+                     // Basic validation for hours/minutes
+                     if (parseInt(hours) >= 0 && parseInt(hours) < 24 && parseInt(minutes) >= 0 && parseInt(minutes) < 60) {
+                        const timeString = `${hours}:${minutes}`;
+
+                        // If we already have a due_string, append time, otherwise just set time (which defaults to today)
+                        if (payload.due_string) {
+                            payload.due_string = `${payload.due_string} ${timeString}`;
+                        } else {
+                            payload.due_string = `today ${timeString}`;
+                        }
+                        
+                        // Replace the whole match and optional "uhr"
+                        // Re-match to include potential "uhr" which was not captured in the simplified regex
+                        const fullMatch = payload.content.match(new RegExp(`${timeMatch[0]}\\s*(uhr)?`, 'i'));
+                        if (fullMatch) {
+                            payload.content = payload.content.replace(fullMatch[0], '').trim();
+                        } else {
+                            payload.content = payload.content.replace(timeMatch[0], '').trim();
+                        }
+                        payload.due_lang = 'de';
+                     }
                  }
             }
 
@@ -382,17 +443,29 @@ export const Todoist = () => {
                         <div className="relative p-4">
                             <div className="flex items-start gap-3">
                                 <Plus className={cn("w-6 h-6 text-red-500 mt-1 transition-all duration-200", newTaskContent ? "opacity-0 w-0 -ml-2" : "opacity-100")} />
-                                <div className="flex-1 space-y-3">
-                                    <input
-                                        type="text"
-                                        value={newTaskContent}
-                                        onChange={e => setNewTaskContent(e.target.value)}
-                                        placeholder="Aufgabe hinzufügen"
-                                        className={cn(
-                                            "w-full bg-transparent border-none p-0 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-0 transition-all",
-                                            newTaskContent ? "font-bold text-lg" : "text-lg font-medium"
-                                        )}
-                                    />
+                                <div className="flex-1 space-y-3 relative">
+                                    <div className="relative">
+                                        {/* Highlight Overlay */}
+                                        <div className="absolute inset-0 pointer-events-none text-lg font-medium whitespace-pre-wrap p-0 text-transparent" aria-hidden="true">
+                                            {newTaskContent.split(new RegExp(`(${highlightedText.text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'i')).map((part, i) => (
+                                                part.toLowerCase() === highlightedText.text.toLowerCase() && highlightedText.type !== 'none' ? (
+                                                    <span key={i} className="bg-red-100 text-red-600 rounded px-0.5">{part}</span>
+                                                ) : (
+                                                    <span key={i}>{part}</span>
+                                                )
+                                            ))}
+                                        </div>
+                                        <input
+                                            type="text"
+                                            value={newTaskContent}
+                                            onChange={e => setNewTaskContent(e.target.value)}
+                                            placeholder="Aufgabe hinzufügen"
+                                            className={cn(
+                                                "w-full bg-transparent border-none p-0 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-0 transition-all relative z-10",
+                                                newTaskContent ? "font-bold text-lg" : "text-lg font-medium"
+                                            )}
+                                        />
+                                    </div>
                                     {newTaskContent && (
                                         <textarea
                                             value={newTaskDescription}
