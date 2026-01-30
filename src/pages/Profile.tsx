@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useStore } from '@/store/useStore';
 import { motion } from 'framer-motion';
-import { User, Lock, Save, Briefcase, Mail, Key, Shield, Upload, DollarSign } from 'lucide-react';
+import { User, Lock, Save, Briefcase, Mail, Key, Shield, Upload, DollarSign, Command, Copy, Check } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { cn } from '@/utils/cn';
 
@@ -17,6 +17,7 @@ export const ProfilePage = () => {
     const [phoneExtension, setPhoneExtension] = useState('');
     const [address, setAddress] = useState(''); // New: Address
     const [todoistApiKey, setTodoistApiKey] = useState(''); // New: Todoist API Key
+    const [webhookSecret, setWebhookSecret] = useState(''); // New: Webhook Secret
     const [avatarUrl, setAvatarUrl] = useState('');
     
     // Password State
@@ -46,6 +47,7 @@ export const ProfilePage = () => {
             setPhoneExtension(profile.phone_extension || '');
             setAddress(profile.address || ''); // Load
             setTodoistApiKey(profile.todoist_api_key || ''); // Load
+            setWebhookSecret(profile.webhook_secret || ''); // Load
             setAvatarUrl(profile.avatar_url || '');
             fetchUserRates();
         }
@@ -104,6 +106,42 @@ export const ProfilePage = () => {
         } finally {
             setLoading(false);
         }
+    };
+
+    const handleGenerateSecret = async () => {
+        if (!user) return;
+        setLoading(true);
+        try {
+            const newSecret = crypto.randomUUID();
+            const { error } = await supabase
+                .from('profiles')
+                .update({ webhook_secret: newSecret })
+                .eq('id', user.id);
+            
+            if (error) throw error;
+            setWebhookSecret(newSecret);
+            toast.success('Neuer Secret generiert');
+        } catch (error) {
+            console.error(error);
+            toast.error('Fehler beim Generieren');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const copyToClipboard = (text: string) => {
+        navigator.clipboard.writeText(text);
+        toast.success('In die Zwischenablage kopiert');
+    };
+
+    const getWebhookUrl = (status: string) => {
+        // Assuming the edge function is deployed at this URL pattern
+        // In local dev, this might need adjustment, but for production it's standard
+        const projectUrl = import.meta.env.VITE_SUPABASE_URL;
+        // Extract project ID from URL if possible, or assume a standard structure
+        // Usually: https://<project_ref>.supabase.co
+        const functionUrl = projectUrl?.replace('.supabase.co', '.supabase.co/functions/v1/update-status');
+        return `${functionUrl}?secret=${webhookSecret}&status=${status}`;
     };
 
     const handleUpdateProfile = async (e: React.FormEvent) => {
@@ -440,6 +478,95 @@ export const ProfilePage = () => {
                             </div>
                         ))}
                     </div>
+                </motion.div>
+
+                {/* Apple Shortcuts Card */}
+                <motion.div 
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.3 }}
+                    className="lg:col-span-2 bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 h-fit"
+                >
+                    <div className="flex items-center justify-between mb-6">
+                        <div>
+                            <h2 className="font-bold text-lg flex items-center gap-2">
+                                <Command className="w-5 h-5 text-gray-400" />
+                                Apple Kurzbefehle
+                            </h2>
+                            <p className="text-sm text-gray-500 mt-1">
+                                Steuere deinen Status über Siri oder Shortcuts.
+                            </p>
+                        </div>
+                    </div>
+
+                    {!webhookSecret ? (
+                        <div className="text-center py-8">
+                            <p className="text-gray-500 mb-4">Du hast noch keinen Secret Key generiert.</p>
+                            <button 
+                                onClick={handleGenerateSecret}
+                                disabled={loading}
+                                className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-indigo-500/20 transition-all active:scale-95"
+                            >
+                                Key generieren
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="space-y-6">
+                            <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-700">
+                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Dein Secret Key</label>
+                                <div className="flex items-center gap-2">
+                                    <code className="flex-1 bg-white dark:bg-gray-800 p-2 rounded-lg font-mono text-sm border border-gray-200 dark:border-gray-700 overflow-hidden text-ellipsis">
+                                        {webhookSecret}
+                                    </code>
+                                    <button 
+                                        onClick={() => handleGenerateSecret()}
+                                        className="p-2 text-gray-400 hover:text-red-500 transition-colors"
+                                        title="Neu generieren"
+                                    >
+                                        <Upload className="w-4 h-4 rotate-180" />
+                                    </button>
+                                </div>
+                                <p className="text-xs text-red-400 mt-2">Teile diesen Key mit niemandem!</p>
+                            </div>
+
+                            <div className="space-y-3">
+                                <h3 className="font-bold text-sm text-gray-900 dark:text-white">Verfügbare Aktionen</h3>
+                                {[
+                                    { label: 'Im Büro', status: 'office', icon: '🏢' },
+                                    { label: 'Feierabend', status: 'off', icon: '🏠' },
+                                    { label: 'Pause', status: 'break', icon: '☕' },
+                                    { label: 'Home Office', status: 'remote', icon: '💻' }
+                                ].map((action) => (
+                                    <div key={action.status} className="flex items-center justify-between p-3 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl hover:shadow-md transition-all">
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-xl">{action.icon}</span>
+                                            <div>
+                                                <p className="font-bold text-sm text-gray-900 dark:text-white">{action.label}</p>
+                                                <p className="text-xs text-gray-400">Setzt Status auf "{action.label}"</p>
+                                            </div>
+                                        </div>
+                                        <button 
+                                            onClick={() => copyToClipboard(getWebhookUrl(action.status))}
+                                            className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 dark:bg-gray-900 text-gray-600 dark:text-gray-300 rounded-lg text-xs font-bold hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                                        >
+                                            <Copy className="w-3 h-3" /> URL kopieren
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <div className="text-xs text-gray-500 bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl leading-relaxed">
+                                <strong>Anleitung:</strong>
+                                <ol className="list-decimal list-inside mt-2 space-y-1">
+                                    <li>Öffne die "Kurzbefehle" App auf deinem iPhone/Mac.</li>
+                                    <li>Erstelle einen neuen Kurzbefehl.</li>
+                                    <li>Füge die Aktion <code>Inhalte von URL abrufen</code> hinzu.</li>
+                                    <li>Kopiere die URL von oben und füge sie ein.</li>
+                                    <li>Fertig! Du kannst den Kurzbefehl nun per Siri oder Widget starten.</li>
+                                </ol>
+                            </div>
+                        </div>
+                    )}
                 </motion.div>
             </div>
         </div>
