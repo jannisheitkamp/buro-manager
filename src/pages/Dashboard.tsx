@@ -19,7 +19,9 @@ import {
   Clock,
   MessageSquare,
   BarChart as BarChartIcon,
-  GraduationCap
+  GraduationCap,
+  ArrowUpRight,
+  Sparkles
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { useNavigate } from 'react-router-dom';
@@ -86,9 +88,31 @@ export const Dashboard = () => {
     monthlyCommission: 0,
     monthlyLifeValues: 0,
     openCallbacks: 0,
-    pendingParcels: 0
+    pendingParcels: 0,
+    monthlyGoal: 10000 // Default goal
   });
   const [revenueData, setRevenueData] = useState<{name: string, value: number}[]>([]);
+  const [scriptOpen, setScriptOpen] = useState<string | null>(null); // New: Anruf-Skript Overlay ID
+  
+  // Prediction Logic
+  const getTrendPrediction = () => {
+    const today = new Date().getDate();
+    const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
+    const progress = today / daysInMonth;
+    
+    // Simple linear projection based on current stats
+    // Formula: (Current / DaysPassed) * TotalDays
+    const projectedLifeValues = Math.round((stats.monthlyLifeValues / today) * daysInMonth);
+    const projectedCommission = Math.round((stats.monthlyCommission / today) * daysInMonth);
+    
+    return {
+        lifeValues: isFinite(projectedLifeValues) ? projectedLifeValues : 0,
+        commission: isFinite(projectedCommission) ? projectedCommission : 0,
+        onTrack: projectedLifeValues >= stats.monthlyGoal
+    };
+  };
+
+  const trend = getTrendPrediction();
 
   // UI State
   const [statusMessage, setStatusMessage] = useState('');
@@ -280,7 +304,8 @@ export const Dashboard = () => {
       monthlyCommission: monthlyComm,
       monthlyLifeValues: monthlyLifeValues,
       openCallbacks: callbacks.length,
-      pendingParcels: allParcels.length
+      pendingParcels: allParcels.length,
+      monthlyGoal: myProfile?.monthly_goal || 10000
     });
     setParcels(parcelsRes.data || []);
     setBoardMessages(boardRes.data || []);
@@ -397,7 +422,20 @@ export const Dashboard = () => {
             </div>
 
             {/* Quick KPIs (Top Right) */}
-            <div className="flex gap-6">
+            <div className="flex gap-6 items-center">
+                <div className="text-right">
+                    <p className="text-xs text-gray-500 font-medium uppercase tracking-wider mb-1">Monatsziel</p>
+                    <div className="relative w-32 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                        <div 
+                            className="absolute top-0 left-0 h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all duration-1000"
+                            style={{ width: `${Math.min((stats.monthlyLifeValues / stats.monthlyGoal) * 100, 100)}%` }}
+                        />
+                    </div>
+                    <p className="text-[10px] text-gray-400 mt-1 font-mono">
+                        {Math.round((stats.monthlyLifeValues / stats.monthlyGoal) * 100)}% erreicht
+                    </p>
+                </div>
+                <div className="w-px bg-gray-200 dark:bg-gray-700 h-10 hidden sm:block" />
                 <div className="text-right">
                     <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Umsatz</p>
                     <p className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
@@ -436,6 +474,35 @@ export const Dashboard = () => {
         
         {/* LEFT COLUMN: TIMELINE & TASKS (2/3 width) */}
         <div className="lg:col-span-2 space-y-6">
+            
+            {/* New: Trend Prediction Card (Only show if data exists) */}
+            {stats.monthlyLifeValues > 0 && (
+                <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-3xl p-6 text-white shadow-lg relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-16 -mt-16 blur-3xl" />
+                    <div className="relative z-10 flex items-center justify-between">
+                        <div>
+                            <div className="flex items-center gap-2 mb-1 text-indigo-100">
+                                <Sparkles className="w-4 h-4" />
+                                <span className="text-xs font-bold uppercase tracking-wider">KI-Trendvorhersage</span>
+                            </div>
+                            <h3 className="text-xl font-bold mb-2">
+                                {trend.onTrack ? "Stark! Du bist auf Kurs." : "Gib Gas, du packst das!"}
+                            </h3>
+                            <p className="text-sm text-indigo-100 opacity-90 max-w-md">
+                                Basierend auf deiner aktuellen Performance landest du diesen Monat voraussichtlich bei 
+                                <strong className="text-white"> {new Intl.NumberFormat('de-DE').format(trend.lifeValues)} Bewertungssumme</strong>.
+                            </p>
+                        </div>
+                        <div className="text-right hidden sm:block">
+                            <div className="bg-white/20 backdrop-blur-md rounded-2xl p-3 inline-block">
+                                <span className="block text-xs text-indigo-100 mb-1">Prognose</span>
+                                <span className="text-2xl font-bold">{new Intl.NumberFormat('de-DE').format(trend.lifeValues)}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div className="flex items-center justify-between">
                 <h2 className="text-xl font-bold flex items-center gap-2">
                     <Clock className="w-6 h-6 text-gray-400" />
@@ -460,6 +527,7 @@ export const Dashboard = () => {
                         {myTasks.map((task, idx) => {
                             const isEvent = task.type === 'event';
                             const isMissedCall = task.type === 'missed_call';
+                            const isCallback = task.type === 'callback';
                             const isHighPrio = task.priority === 'high' || isMissedCall;
                             
                             return (
@@ -469,12 +537,13 @@ export const Dashboard = () => {
                                     transition={{ delay: idx * 0.05 }}
                                     key={`${task.type}-${task.id}`} 
                                     className={cn(
-                                        "p-4 flex items-center gap-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer group",
+                                        "p-4 flex items-center gap-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer group relative",
                                         isHighPrio ? "bg-red-50/10" : ""
                                     )}
                                     onClick={() => {
                                         if (isEvent) navigate('/general-calendar');
                                         else if (isMissedCall) navigate('/calls?tab=live');
+                                        else if (isCallback) setScriptOpen(task.id === scriptOpen ? null : task.id);
                                         else navigate('/calls?tab=tasks');
                                     }}
                                 >
@@ -504,6 +573,33 @@ export const Dashboard = () => {
                                             {task.meta}
                                             {isHighPrio && <span className="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Dringend</span>}
                                         </p>
+
+                                        {/* Script Overlay (Only for Callbacks) */}
+                                        {isCallback && scriptOpen === task.id && (
+                                            <motion.div 
+                                                initial={{ opacity: 0, height: 0 }}
+                                                animate={{ opacity: 1, height: 'auto' }}
+                                                className="mt-3 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl p-3 border border-indigo-100 dark:border-indigo-800/50"
+                                                onClick={e => e.stopPropagation()}
+                                            >
+                                                <div className="flex items-center gap-2 mb-2 text-indigo-700 dark:text-indigo-300">
+                                                    <MessageSquare className="w-3 h-3" />
+                                                    <span className="text-xs font-bold uppercase tracking-wider">Gesprächsleitfaden</span>
+                                                </div>
+                                                <div className="space-y-2 text-sm text-gray-700 dark:text-gray-300">
+                                                    <p>👋 "Hallo Herr/Frau {task.title.replace('Rückruf: ', '')}, hier ist {profile?.full_name?.split(' ')[0]} von der Agentur..."</p>
+                                                    <p>📞 "Sie hatten um einen Rückruf gebeten bezüglich <strong>{task.meta}</strong>?"</p>
+                                                    <div className="flex gap-2 mt-2 pt-2 border-t border-indigo-200 dark:border-indigo-800">
+                                                        <button onClick={() => navigate('/calls?tab=tasks')} className="flex-1 bg-white dark:bg-gray-800 py-1.5 rounded-lg text-xs font-bold shadow-sm hover:bg-gray-50">
+                                                            Zum Task
+                                                        </button>
+                                                        <button onClick={() => setScriptOpen(null)} className="flex-1 bg-transparent py-1.5 rounded-lg text-xs font-bold text-gray-500 hover:bg-black/5">
+                                                            Schließen
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </motion.div>
+                                        )}
                                     </div>
                                     
                                     <div className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-300">

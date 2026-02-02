@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useStore } from '@/store/useStore';
 import { motion } from 'framer-motion';
-import { User, Lock, Save, Briefcase, Mail, Key, Shield, Upload, DollarSign, Command, Copy, Check } from 'lucide-react';
+import { User, Lock, Save, Briefcase, Mail, Key, Shield, Upload, DollarSign, Command, Copy, Check, Target } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { cn } from '@/utils/cn';
 
@@ -18,6 +18,7 @@ export const ProfilePage = () => {
     const [address, setAddress] = useState(''); // New: Address
     const [todoistApiKey, setTodoistApiKey] = useState(''); // New: Todoist API Key
     const [webhookSecret, setWebhookSecret] = useState(''); // New: Webhook Secret
+    const [monthlyGoal, setMonthlyGoal] = useState<number>(10000); // New: Monthly Goal (Default 10k)
     const [avatarUrl, setAvatarUrl] = useState('');
     
     // Password State
@@ -48,6 +49,7 @@ export const ProfilePage = () => {
             setAddress(profile.address || ''); // Load
             setTodoistApiKey(profile.todoist_api_key || ''); // Load
             setWebhookSecret(profile.webhook_secret || ''); // Load
+            setMonthlyGoal(profile.monthly_goal || 10000); // Load
             setAvatarUrl(profile.avatar_url || '');
             fetchUserRates();
         }
@@ -158,6 +160,7 @@ export const ProfilePage = () => {
                     phone_extension: phoneExtension,
                     address: address, // Save
                     todoist_api_key: todoistApiKey, // Save
+                    monthly_goal: monthlyGoal, // Save
                     avatar_url: avatarUrl 
                 })
                 .eq('id', user.id);
@@ -329,6 +332,20 @@ export const ProfilePage = () => {
                                     rows={3}
                                     className="w-full rounded-xl bg-gray-50 dark:bg-gray-900 border-transparent focus:bg-white focus:ring-2 focus:ring-indigo-500/20 px-4 py-2.5 text-sm transition-all resize-none"
                                 />
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Monatsziel (Bewertungssumme)</label>
+                                <div className="relative">
+                                    <Target className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
+                                    <input 
+                                        type="number" 
+                                        value={monthlyGoal}
+                                        onChange={e => setMonthlyGoal(Number(e.target.value))}
+                                        placeholder="10000"
+                                        className="w-full rounded-xl bg-gray-50 dark:bg-gray-900 border-transparent focus:bg-white focus:ring-2 focus:ring-indigo-500/20 pl-10 px-4 py-2.5 text-sm transition-all"
+                                    />
+                                </div>
                             </div>
 
                             <div>
