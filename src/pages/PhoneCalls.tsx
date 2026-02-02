@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Phone, PhoneMissed, PhoneIncoming, Clock, CheckCircle, XCircle, Search, ClipboardList, Plus, AlertCircle, Trash2, ArrowRight, PenTool, Check, MessageSquare } from 'lucide-react';
-import { format } from 'date-fns';
+import { Phone, PhoneMissed, PhoneIncoming, Clock, CheckCircle, XCircle, Search, ClipboardList, Plus, AlertCircle, Trash2, ArrowRight, PenTool, Check, MessageSquare, PhoneOutgoing, Calendar, UserPlus } from 'lucide-react';
+import { format, addDays } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { cn } from '@/utils/cn';
 import toast from 'react-hot-toast';
@@ -15,9 +15,95 @@ import { useSearchParams } from 'react-router-dom';
 export const PhoneCalls = () => {
   const { user, profile } = useStore();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [activeTab, setActiveTab] = useState<'live' | 'tasks'>(
-      (searchParams.get('tab') as 'live' | 'tasks') || 'live'
+  const [activeTab, setActiveTab] = useState<'live' | 'tasks' | 'dialer'>(
+      (searchParams.get('tab') as 'live' | 'tasks' | 'dialer') || 'live'
   );
+
+  // --- DIALER STATE ---
+  const [leads, setLeads] = useState<any[]>([]);
+  const [currentLeadIndex, setCurrentLeadIndex] = useState(0);
+  const [dialerMode, setDialerMode] = useState<'idle' | 'calling'>('idle');
+  const [importText, setImportText] = useState('');
+  const [showImporter, setShowImporter] = useState(false);
+
+  // --- DIALER LOGIC ---
+  const fetchLeads = async () => {
+      const { data } = await supabase.from('leads').select('*').neq('status', 'done').order('created_at', { ascending: false });
+      setLeads(data || []);
+  };
+
+  const handleImportLeads = async () => {
+      // Format: Name, Phone (one per line)
+      const lines = importText.split('\n');
+      const newLeads = [];
+      
+      for (const line of lines) {
+          const [name, phone] = line.split(',');
+          if (name && phone) {
+              newLeads.push({
+                  user_id: user?.id,
+                  customer_name: name.trim(),
+                  phone: phone.trim().replace(/\s/g, ''),
+                  status: 'new'
+              });
+          }
+      }
+      
+      if (newLeads.length > 0) {
+          const { error } = await supabase.from('leads').insert(newLeads);
+          if (!error) {
+              toast.success(`${newLeads.length} Leads importiert!`);
+              setImportText('');
+              setShowImporter(false);
+              fetchLeads();
+          } else {
+              toast.error('Fehler beim Import');
+          }
+      }
+  };
+
+  const handleLeadResult = async (leadId: string, result: 'appointment' | 'later' | 'no_interest' | 'unreachable' | 'bad_number') => {
+      let updateData: any = { last_call_at: new Date().toISOString() };
+      
+      // Update logic based on result
+      if (result === 'appointment') {
+          updateData.status = 'done';
+          updateData.notes = 'Termin vereinbart ✅';
+          toast.success('Termin vereinbart! 🎉');
+      } else if (result === 'no_interest') {
+          updateData.status = 'lost';
+          updateData.notes = 'Kein Interesse ❌';
+      } else if (result === 'bad_number') {
+          updateData.status = 'bad';
+          updateData.notes = 'Falsche Nummer';
+      } else if (result === 'unreachable') {
+          updateData.status = 'retry';
+          updateData.next_call_at = addDays(new Date(), 1).toISOString(); // Auto-reschedule tomorrow
+          updateData.call_attempts = (leads[currentLeadIndex].call_attempts || 0) + 1;
+          toast('Wiedervorlage: Morgen', { icon: '📅' });
+      } else if (result === 'later') {
+          // Ideally open date picker, for now auto 3 days
+          updateData.status = 'retry';
+          updateData.next_call_at = addDays(new Date(), 3).toISOString();
+          toast('Wiedervorlage: in 3 Tagen', { icon: '⏰' });
+      }
+
+      await supabase.from('leads').update(updateData).eq('id', leadId);
+      
+      // Move to next lead
+      if (currentLeadIndex < leads.length - 1) {
+          setCurrentLeadIndex(prev => prev + 1);
+      } else {
+          toast.success('Liste abgearbeitet! 💪');
+          setDialerMode('idle');
+          fetchLeads(); // Refresh list (completed ones will disappear)
+          setCurrentLeadIndex(0);
+      }
+  };
+
+  useEffect(() => {
+      if (activeTab === 'dialer') fetchLeads();
+  }, [activeTab]);
   
   // Update URL when tab changes
   useEffect(() => {
@@ -281,6 +367,18 @@ export const PhoneCalls = () => {
             >
                 <ClipboardList className="w-4 h-4" />
                 Rückruf-Aufgaben
+            </button>
+            <button 
+                onClick={() => setActiveTab('dialer')}
+                className={cn(
+                    "px-6 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2",
+                    activeTab === 'dialer' 
+                        ? "bg-white dark:bg-gray-700 shadow-sm text-indigo-600 dark:text-indigo-400" 
+                        : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                )}
+            >
+                <PhoneOutgoing className="w-4 h-4" />
+                Power Dialer
             </button>
         </div>
       </div>
@@ -597,6 +695,173 @@ export const PhoneCalls = () => {
                 </AnimatePresence>
              </div>
         </div>
+      )}
+
+      {/* CONTENT DIALER */}
+      {activeTab === 'dialer' && (
+          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              
+              {/* Toolbar */}
+              <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-2">
+                      <div className="bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 px-3 py-1 rounded-lg text-xs font-bold">
+                          {leads.length} Leads in der Liste
+                      </div>
+                  </div>
+                  <button 
+                      onClick={() => setShowImporter(!showImporter)}
+                      className="text-sm text-indigo-600 hover:text-indigo-700 font-bold flex items-center gap-1"
+                  >
+                      <UserPlus className="w-4 h-4" />
+                      Leads importieren
+                  </button>
+              </div>
+
+              {/* Importer */}
+              <AnimatePresence>
+                  {showImporter && (
+                      <motion.div 
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          className="overflow-hidden"
+                      >
+                          <div className="bg-white dark:bg-gray-800 p-6 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm">
+                              <h3 className="font-bold mb-2">CSV / Text Import</h3>
+                              <p className="text-xs text-gray-500 mb-4">Format pro Zeile: <code>Name, Telefonnummer</code></p>
+                              <textarea
+                                  value={importText}
+                                  onChange={e => setImportText(e.target.value)}
+                                  placeholder={`Max Mustermann, 0171123456\nErika Musterfrau, 0172987654`}
+                                  className="w-full h-32 rounded-xl border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-900 text-sm p-4 font-mono mb-4"
+                              />
+                              <button 
+                                  onClick={handleImportLeads}
+                                  className="bg-indigo-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-indigo-700 transition-colors w-full"
+                              >
+                                  Importieren
+                              </button>
+                          </div>
+                      </motion.div>
+                  )}
+              </AnimatePresence>
+
+              {/* DIALER INTERFACE */}
+              {leads.length === 0 ? (
+                  <div className="text-center py-20 bg-white dark:bg-gray-800 rounded-3xl border border-dashed border-gray-300 dark:border-gray-700">
+                      <div className="w-16 h-16 bg-gray-50 dark:bg-gray-900 rounded-full flex items-center justify-center mx-auto mb-4">
+                          <PhoneOutgoing className="w-8 h-8 text-gray-300" />
+                      </div>
+                      <h3 className="text-lg font-bold text-gray-900 dark:text-white">Keine Leads vorhanden</h3>
+                      <p className="text-gray-500 mb-4">Importiere Leads um zu starten.</p>
+                      <button onClick={() => setShowImporter(true)} className="text-indigo-600 font-bold hover:underline">Jetzt importieren</button>
+                  </div>
+              ) : (
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                      {/* ACTIVE CARD */}
+                      <div className="bg-white dark:bg-gray-800 rounded-3xl p-8 shadow-xl border border-indigo-100 dark:border-indigo-900/50 relative overflow-hidden flex flex-col items-center text-center">
+                          <div className="absolute top-0 left-0 w-full h-2 bg-gray-100">
+                              <div 
+                                  className="h-full bg-indigo-500 transition-all duration-500"
+                                  style={{ width: `${((currentLeadIndex + 1) / leads.length) * 100}%` }}
+                              />
+                          </div>
+                          
+                          <span className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-6 mt-2">
+                              Lead {currentLeadIndex + 1} von {leads.length}
+                          </span>
+
+                          <div className="w-24 h-24 bg-indigo-50 dark:bg-indigo-900/20 rounded-full flex items-center justify-center mb-6 animate-pulse">
+                              <PhoneOutgoing className="w-10 h-10 text-indigo-600" />
+                          </div>
+
+                          <h2 className="text-3xl font-black text-gray-900 dark:text-white mb-2">
+                              {leads[currentLeadIndex].customer_name}
+                          </h2>
+                          
+                          <a 
+                              href={`tel:${leads[currentLeadIndex].phone}`}
+                              onClick={() => setDialerMode('calling')}
+                              className="text-4xl font-mono font-bold text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 my-8 block hover:scale-105 transition-transform cursor-pointer"
+                          >
+                              {leads[currentLeadIndex].phone}
+                          </a>
+
+                          {dialerMode === 'idle' ? (
+                              <p className="text-gray-500 animate-bounce">
+                                  Klicke auf die Nummer um zu wählen 👆
+                              </p>
+                          ) : (
+                              <div className="w-full space-y-3 animate-in fade-in slide-in-from-bottom-4">
+                                  <p className="text-xs font-bold text-gray-400 uppercase mb-2">Ergebnis wählen:</p>
+                                  
+                                  <div className="grid grid-cols-2 gap-3">
+                                      <button 
+                                          onClick={() => handleLeadResult(leads[currentLeadIndex].id, 'appointment')}
+                                          className="bg-emerald-500 hover:bg-emerald-600 text-white p-4 rounded-2xl font-bold flex flex-col items-center gap-1 transition-transform hover:scale-105"
+                                      >
+                                          <CheckCircle className="w-6 h-6" />
+                                          Termin
+                                      </button>
+                                      
+                                      <button 
+                                          onClick={() => handleLeadResult(leads[currentLeadIndex].id, 'later')}
+                                          className="bg-amber-500 hover:bg-amber-600 text-white p-4 rounded-2xl font-bold flex flex-col items-center gap-1 transition-transform hover:scale-105"
+                                      >
+                                          <Clock className="w-6 h-6" />
+                                          Später (Erreicht)
+                                      </button>
+
+                                      <button 
+                                          onClick={() => handleLeadResult(leads[currentLeadIndex].id, 'unreachable')}
+                                          className="bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 p-4 rounded-2xl font-bold flex flex-col items-center gap-1 transition-transform hover:scale-105"
+                                      >
+                                          <PhoneMissed className="w-6 h-6" />
+                                          Nicht erreicht
+                                      </button>
+
+                                      <button 
+                                          onClick={() => handleLeadResult(leads[currentLeadIndex].id, 'no_interest')}
+                                          className="bg-red-100 hover:bg-red-200 dark:bg-red-900/30 dark:hover:bg-red-900/50 text-red-600 dark:text-red-400 p-4 rounded-2xl font-bold flex flex-col items-center gap-1 transition-transform hover:scale-105"
+                                      >
+                                          <XCircle className="w-6 h-6" />
+                                          Kein Interesse
+                                      </button>
+                                  </div>
+                                  
+                                  <button 
+                                      onClick={() => handleLeadResult(leads[currentLeadIndex].id, 'bad_number')}
+                                      className="text-xs text-gray-400 hover:text-red-500 mt-4 flex items-center justify-center gap-1 w-full py-2"
+                                  >
+                                      <AlertCircle className="w-3 h-3" /> Falsche Nummer / Ungültig
+                                  </button>
+                              </div>
+                          )}
+                      </div>
+
+                      {/* UPCOMING LIST */}
+                      <div className="bg-gray-50 dark:bg-gray-800/50 rounded-3xl p-6 border border-gray-100 dark:border-gray-700">
+                          <h3 className="font-bold text-gray-500 uppercase text-xs tracking-wider mb-4">Nächste Anrufe</h3>
+                          <div className="space-y-3 opacity-60 pointer-events-none">
+                              {leads.slice(currentLeadIndex + 1, currentLeadIndex + 6).map((lead, idx) => (
+                                  <div key={lead.id} className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm flex justify-between items-center">
+                                      <div>
+                                          <p className="font-bold text-gray-900 dark:text-white">{lead.customer_name}</p>
+                                          <p className="text-xs text-gray-500">{lead.phone}</p>
+                                      </div>
+                                      <div className="w-8 h-8 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center text-gray-400 font-bold text-xs">
+                                          {currentLeadIndex + idx + 2}
+                                      </div>
+                                  </div>
+                              ))}
+                              {leads.length > currentLeadIndex + 6 && (
+                                  <p className="text-center text-xs text-gray-400 mt-4">...und {leads.length - (currentLeadIndex + 6)} weitere</p>
+                              )}
+                          </div>
+                      </div>
+                  </div>
+              )}
+          </div>
       )}
 
       {/* MODALS FOR TASKS */}
