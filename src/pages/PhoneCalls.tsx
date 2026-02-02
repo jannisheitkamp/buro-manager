@@ -779,28 +779,23 @@ export const PhoneCalls = () => {
                               {leads[currentLeadIndex].customer_name}
                           </h2>
                           
-                          <button 
-                              onClick={(e) => {
-                                  e.preventDefault();
-                                  setDialerMode('calling');
-                                  window.location.href = `tel:${leads[currentLeadIndex].phone}`;
-                              }}
-                              className="text-4xl font-mono font-bold text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 my-8 block hover:scale-105 transition-transform cursor-pointer bg-transparent border-none p-0 mx-auto"
+                          <a 
+                              href={`tel:${leads[currentLeadIndex].phone}`}
+                              className="text-4xl font-mono font-bold text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 my-8 block hover:scale-105 transition-transform cursor-pointer"
                           >
                               {leads[currentLeadIndex].phone}
-                          </button>
+                          </a>
 
-                          {/* Always show buttons but maybe highlight them after clicking */}
-                          <div className={cn(
-                              "w-full space-y-3 transition-all duration-500",
-                              dialerMode === 'idle' ? "opacity-50 grayscale blur-[1px] pointer-events-none" : "opacity-100 scale-100"
-                          )}>
-                                  <p className={cn(
-                                      "text-xs font-bold uppercase mb-2 transition-colors",
-                                      dialerMode === 'idle' ? "text-gray-300" : "text-indigo-500 animate-pulse"
-                                  )}>
-                                      {dialerMode === 'idle' ? "Erst wählen, dann Ergebnis eintragen..." : "Gespräch läuft... Ergebnis wählen:"}
-                                  </p>
+                          {dialerMode === 'idle' ? (
+                              <button 
+                                  onClick={() => setDialerMode('calling')}
+                                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-3 rounded-xl font-bold text-lg shadow-lg shadow-indigo-500/30 animate-pulse"
+                              >
+                                  📞 Anruf gestartet
+                              </button>
+                          ) : (
+                              <div className="w-full space-y-3 animate-in fade-in slide-in-from-bottom-4">
+                                  <p className="text-xs font-bold text-indigo-500 uppercase mb-2 animate-pulse">Gespräch läuft... Ergebnis wählen:</p>
                                   
                                   <div className="grid grid-cols-2 gap-3">
                                       <button 
@@ -842,7 +837,8 @@ export const PhoneCalls = () => {
                                   >
                                       <AlertCircle className="w-3 h-3" /> Falsche Nummer / Ungültig
                                   </button>
-                          </div>
+                              </div>
+                          )}
                       </div>
 
                       {/* UPCOMING LIST */}
