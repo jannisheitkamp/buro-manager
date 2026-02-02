@@ -230,17 +230,32 @@ export const Dashboard = () => {
       // 4. Stats & Chart Data
       // Use ALL loaded data (no user_id filter for now to ensure visibility)
       const myProd = loadedProd; 
+      
+      console.log('Production Data for Calculation:', myProd);
 
       // Calculate Monthly Commission (Current Month)
       const currentMonthKey = format(new Date(), 'yyyy-MM');
+      console.log('Current Month Key:', currentMonthKey);
       
       const monthlyComm = myProd
-          .filter(e => e.submission_date && String(e.submission_date).substring(0, 7) === currentMonthKey)
+          .filter(e => {
+            if (!e.submission_date) return false;
+            // Handle both Date objects and string dates
+            const dateVal = e.submission_date instanceof Date ? e.submission_date.toISOString() : String(e.submission_date);
+            const match = dateVal.substring(0, 7) === currentMonthKey;
+            if (match) console.log('Match found for comm:', e);
+            return match;
+          })
           .reduce((sum, e) => sum + Number(e.commission_amount || 0), 0);
 
       const monthlyLifeValues = myProd
-          .filter(e => e.submission_date && String(e.submission_date).substring(0, 7) === currentMonthKey)
+          .filter(e => {
+             if (!e.submission_date) return false;
+             const dateVal = e.submission_date instanceof Date ? e.submission_date.toISOString() : String(e.submission_date);
+             return dateVal.substring(0, 7) === currentMonthKey;
+          })
           .reduce((sum, e) => sum + Number(e.life_values || 0), 0);
+
 
       // Calculate Chart Data (Last 6 Months)
       const last6Months = Array.from({ length: 6 }, (_, i) => {
@@ -254,7 +269,11 @@ export const Dashboard = () => {
           const monthLabel = format(date, 'MMM', { locale: de });
           
           const total = myProd
-            .filter(e => e.submission_date && String(e.submission_date).substring(0, 7) === monthKey)
+            .filter(e => {
+                if (!e.submission_date) return false;
+                const dateVal = e.submission_date instanceof Date ? e.submission_date.toISOString() : String(e.submission_date);
+                return dateVal.substring(0, 7) === monthKey;
+            })
             .reduce((acc, curr) => acc + Number(curr.commission_amount || 0), 0);
             
           return { name: monthLabel, value: total };
