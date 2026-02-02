@@ -25,10 +25,32 @@ export const PhoneCalls = () => {
   const [dialerMode, setDialerMode] = useState<'idle' | 'calling'>('idle');
   const [importText, setImportText] = useState('');
   const [showImporter, setShowImporter] = useState(false);
+  
+  // Modals for Dialer
+  const [isLaterModalOpen, setIsLaterModalOpen] = useState(false);
+  const [laterDelay, setLaterDelay] = useState<string>('3h'); // 1h, 3h, 1d, 3d, custom
+  const [laterCustomDate, setLaterCustomDate] = useState('');
+  
+  const [isAppointmentModalOpen, setIsAppointmentModalOpen] = useState(false);
+  const [appointmentDate, setAppointmentDate] = useState('');
+  const [appointmentTime, setAppointmentTime] = useState('10:00');
+  const [appointmentNote, setAppointmentNote] = useState('');
 
   // --- DIALER LOGIC ---
   const fetchLeads = async () => {
-      const { data } = await supabase.from('leads').select('*').neq('status', 'done').order('created_at', { ascending: false });
+      // Fetch leads that are NOT done/lost/bad
+      // AND (next_call_at is NULL OR next_call_at <= NOW)
+      const now = new Date().toISOString();
+      
+      const { data, error } = await supabase
+        .from('leads')
+        .select('*')
+        .not('status', 'in', '("done","lost","bad")') // Exclude finished states
+        .or(`next_call_at.is.null,next_call_at.lte.${now}`) // Show only if due
+        .order('next_call_at', { ascending: true, nullsFirst: true }) // Due ones first
+        .order('created_at', { ascending: false });
+
+      if (error) console.error(error);
       setLeads(data || []);
   };
 
@@ -62,15 +84,106 @@ export const PhoneCalls = () => {
       }
   };
 
+  const handleConfirmLater = async () => {
+      let nextDate = new Date();
+      if (laterDelay === '1h') nextDate.setHours(nextDate.getHours() + 1);
+      else if (laterDelay === '3h') nextDate.setHours(nextDate.getHours() + 3);
+      else if (laterDelay === '1d') nextDate = addDays(nextDate, 1);
+      else if (laterDelay === '3d') nextDate = addDays(nextDate, 3);
+      else if (laterDelay === 'custom' && laterCustomDate) nextDate = new Date(laterCustomDate);
+
+      const leadId = leads[currentLeadIndex].id;
+      await supabase.from('leads').update({
+          status: 'retry',
+          next_call_at: nextDate.toISOString(),
+          last_call_at: new Date().toISOString()
+      }).eq('id', leadId);
+
+      toast.success('Wiedervorlage gespeichert! ⏰');
+      setIsLaterModalOpen(false);
+      advanceLead();
+  };
+
+  const handleConfirmAppointment = async () => {
+      const lead = leads[currentLeadIndex];
+      const start = new Date(`${appointmentDate}T${appointmentTime}`);
+      const end = new Date(start.getTime() + 30 * 60000); // 30 min default
+
+      // 1. Create Calendar Event
+      await supabase.from('calendar_events').insert({
+          title: `Termin: ${lead.customer_name}`,
+          start_time: start.toISOString(),
+          end_time: end.toISOString(),
+          user_id: user?.id,
+          category: 'client',
+          description: appointmentNote
+      });
+
+      // 2. Create Todoist Task (if api key exists)
+      if (profile?.todoist_api_key) {
+          try {
+              await fetch('https://api.todoist.com/rest/v2/tasks', {
+                  method: 'POST',
+                  headers: {
+                      'Authorization': `Bearer ${profile.todoist_api_key}`,
+                      'Content-Type': 'application/json'
+                  },
+                  body: JSON.stringify({
+                      content: `Termin: ${lead.customer_name}`,
+                      description: `Tel: ${lead.phone}\nNotiz: ${appointmentNote}`,
+                      due_datetime: start.toISOString()
+                  })
+              });
+              toast.success('Todoist Task erstellt!');
+          } catch (e) {
+              console.error('Todoist Error', e);
+          }
+      }
+
+      // 3. Mark Lead as Done
+      await supabase.from('leads').update({
+          status: 'done',
+          notes: `Termin: ${format(start, 'dd.MM. HH:mm')} - ${appointmentNote}`,
+          last_call_at: new Date().toISOString()
+      }).eq('id', lead.id);
+
+      toast.success('Termin & Kalender erstellt! 🎉');
+      setIsAppointmentModalOpen(false);
+      advanceLead();
+  };
+
+  const advanceLead = () => {
+      setDialerMode('idle');
+      // Remove current lead from local list immediately
+      const newLeads = [...leads];
+      newLeads.splice(currentLeadIndex, 1);
+      setLeads(newLeads);
+      
+      // Index stays 0 because list shifted, unless empty
+      if (newLeads.length === 0) {
+          toast.success('Alle fälligen Leads erledigt! 💪');
+      } else {
+          // If we were at the end, go to 0
+          if (currentLeadIndex >= newLeads.length) setCurrentLeadIndex(0);
+      }
+  };
+
   const handleLeadResult = async (leadId: string, result: 'appointment' | 'later' | 'no_interest' | 'unreachable' | 'bad_number') => {
+      if (result === 'appointment') {
+          setAppointmentDate(format(new Date(), 'yyyy-MM-dd'));
+          setIsAppointmentModalOpen(true);
+          return;
+      } 
+      
+      if (result === 'later') {
+          setLaterDelay('3h');
+          setIsLaterModalOpen(true);
+          return;
+      }
+
       let updateData: any = { last_call_at: new Date().toISOString() };
       
-      // Update logic based on result
-      if (result === 'appointment') {
-          updateData.status = 'done';
-          updateData.notes = 'Termin vereinbart ✅';
-          toast.success('Termin vereinbart! 🎉');
-      } else if (result === 'no_interest') {
+      if (result === 'no_interest') {
           updateData.status = 'lost';
           updateData.notes = 'Kein Interesse ❌';
       } else if (result === 'bad_number') {
@@ -78,27 +191,20 @@ export const PhoneCalls = () => {
           updateData.notes = 'Falsche Nummer';
       } else if (result === 'unreachable') {
           updateData.status = 'retry';
-          updateData.next_call_at = addDays(new Date(), 1).toISOString(); // Auto-reschedule tomorrow
+          // Auto reschedule to 3 hours later or tomorrow if late
+          const now = new Date();
+          let next = new Date(now.getTime() + 3 * 60 * 60 * 1000); // +3h
+          if (next.getHours() >= 18) {
+              next = addDays(now, 1);
+              next.setHours(10, 0, 0, 0);
+          }
+          updateData.next_call_at = next.toISOString();
           updateData.call_attempts = (leads[currentLeadIndex].call_attempts || 0) + 1;
-          toast('Wiedervorlage: Morgen', { icon: '📅' });
-      } else if (result === 'later') {
-          // Ideally open date picker, for now auto 3 days
-          updateData.status = 'retry';
-          updateData.next_call_at = addDays(new Date(), 3).toISOString();
-          toast('Wiedervorlage: in 3 Tagen', { icon: '⏰' });
+          toast('Nicht erreicht -> Später nochmal', { icon: '📞' });
       }
 
       await supabase.from('leads').update(updateData).eq('id', leadId);
-      
-      // Move to next lead
-      if (currentLeadIndex < leads.length - 1) {
-          setCurrentLeadIndex(prev => prev + 1);
-      } else {
-          toast.success('Liste abgearbeitet! 💪');
-          setDialerMode('idle');
-          fetchLeads(); // Refresh list (completed ones will disappear)
-          setCurrentLeadIndex(0);
-      }
+      advanceLead();
   };
 
   useEffect(() => {
@@ -873,6 +979,7 @@ export const PhoneCalls = () => {
         title="Rückruf-Aufgabe erstellen"
       >
         <form onSubmit={handleCreateCallback} className="space-y-6">
+          {/* ... existing task form ... */}
           <div>
             <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
               Wer hat angerufen? *
@@ -963,6 +1070,94 @@ export const PhoneCalls = () => {
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* DIALER: LATER MODAL */}
+      <Modal
+        isOpen={isLaterModalOpen}
+        onClose={() => setIsLaterModalOpen(false)}
+        title="Wann wieder vorlegen?"
+      >
+          <div className="space-y-6">
+              <div className="grid grid-cols-2 gap-3">
+                  {['1h', '3h', '1d', '3d'].map(val => (
+                      <button
+                          key={val}
+                          onClick={() => setLaterDelay(val)}
+                          className={cn(
+                              "p-4 rounded-xl font-bold border transition-all",
+                              laterDelay === val ? "bg-indigo-50 border-indigo-500 text-indigo-700" : "bg-white border-gray-200 text-gray-600 hover:border-indigo-200"
+                          )}
+                      >
+                          In {val}
+                      </button>
+                  ))}
+                  <button
+                          onClick={() => setLaterDelay('custom')}
+                          className={cn(
+                              "p-4 rounded-xl font-bold border transition-all col-span-2",
+                              laterDelay === 'custom' ? "bg-indigo-50 border-indigo-500 text-indigo-700" : "bg-white border-gray-200 text-gray-600 hover:border-indigo-200"
+                          )}
+                      >
+                          Datum wählen
+                  </button>
+              </div>
+
+              {laterDelay === 'custom' && (
+                  <input 
+                      type="datetime-local" 
+                      className="w-full rounded-xl border-gray-300 p-3"
+                      value={laterCustomDate}
+                      onChange={e => setLaterCustomDate(e.target.value)}
+                  />
+              )}
+
+              <div className="flex justify-end gap-3 pt-4">
+                  <button onClick={() => setIsLaterModalOpen(false)} className="px-4 py-2 text-gray-500">Abbrechen</button>
+                  <button onClick={handleConfirmLater} className="px-6 py-2 bg-indigo-600 text-white rounded-xl font-bold">Speichern</button>
+              </div>
+          </div>
+      </Modal>
+
+      {/* DIALER: APPOINTMENT MODAL */}
+      <Modal
+        isOpen={isAppointmentModalOpen}
+        onClose={() => setIsAppointmentModalOpen(false)}
+        title="Termin vereinbaren"
+      >
+          <div className="space-y-4">
+              <div>
+                  <label className="text-xs font-bold text-gray-500 uppercase">Datum</label>
+                  <input 
+                      type="date" 
+                      className="w-full rounded-xl border-gray-300 p-3 mt-1"
+                      value={appointmentDate}
+                      onChange={e => setAppointmentDate(e.target.value)}
+                  />
+              </div>
+              <div>
+                  <label className="text-xs font-bold text-gray-500 uppercase">Uhrzeit</label>
+                  <input 
+                      type="time" 
+                      className="w-full rounded-xl border-gray-300 p-3 mt-1"
+                      value={appointmentTime}
+                      onChange={e => setAppointmentTime(e.target.value)}
+                  />
+              </div>
+              <div>
+                  <label className="text-xs font-bold text-gray-500 uppercase">Notiz / Thema</label>
+                  <textarea 
+                      className="w-full rounded-xl border-gray-300 p-3 mt-1 h-24"
+                      placeholder="Was wird besprochen?"
+                      value={appointmentNote}
+                      onChange={e => setAppointmentNote(e.target.value)}
+                  />
+              </div>
+              <div className="flex justify-end gap-3 pt-4">
+                  <button onClick={() => setIsAppointmentModalOpen(false)} className="px-4 py-2 text-gray-500">Abbrechen</button>
+                  <button onClick={handleConfirmAppointment} className="px-6 py-2 bg-emerald-600 text-white rounded-xl font-bold">Termin buchen</button>
+              </div>
+          </div>
       </Modal>
 
       <ConfirmModal
