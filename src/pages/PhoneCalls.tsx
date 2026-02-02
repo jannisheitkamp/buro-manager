@@ -116,7 +116,7 @@ export const PhoneCalls = () => {
           start_time: start.toISOString(),
           end_time: end.toISOString(),
           user_id: user?.id,
-          color: 'emerald',
+          color: 'green', // Changed from 'emerald' to 'green' to match calendar filters
           description: appointmentNote
       };
       console.log('Event Data:', eventData);
