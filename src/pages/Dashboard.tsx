@@ -86,10 +86,12 @@ export const Dashboard = () => {
   const [boardMessages, setBoardMessages] = useState<any[]>([]);
   const [stats, setStats] = useState({
     monthlyCommission: 0,
+    yearlyCommission: 0,
     monthlyLifeValues: 0,
+    yearlyLifeValues: 0,
     openCallbacks: 0,
     pendingParcels: 0,
-    monthlyGoal: 10000 // Default goal
+    monthlyGoal: 10000
   });
   const [revenueData, setRevenueData] = useState<{name: string, value: number}[]>([]);
   const [scriptOpen, setScriptOpen] = useState<string | null>(null); // New: Anruf-Skript Overlay ID
@@ -235,6 +237,7 @@ export const Dashboard = () => {
 
       // Calculate Monthly Commission (Current Month)
       const currentMonthKey = format(new Date(), 'yyyy-MM');
+      const currentYearKey = format(new Date(), 'yyyy');
       console.log('Current Month Key:', currentMonthKey);
       
       const monthlyComm = myProd
@@ -253,6 +256,23 @@ export const Dashboard = () => {
              if (!e.submission_date) return false;
              const dateVal = e.submission_date instanceof Date ? e.submission_date.toISOString() : String(e.submission_date);
              return dateVal.substring(0, 7) === currentMonthKey;
+          })
+          .reduce((sum, e) => sum + Number(e.life_values || 0), 0);
+
+      // Calculate Yearly Commission (Current Year)
+      const yearlyComm = myProd
+          .filter(e => {
+            if (!e.submission_date) return false;
+            const dateVal = e.submission_date instanceof Date ? e.submission_date.toISOString() : String(e.submission_date);
+            return dateVal.substring(0, 4) === currentYearKey;
+          })
+          .reduce((sum, e) => sum + Number(e.commission_amount || 0), 0);
+
+      const yearlyLifeValues = myProd
+          .filter(e => {
+             if (!e.submission_date) return false;
+             const dateVal = e.submission_date instanceof Date ? e.submission_date.toISOString() : String(e.submission_date);
+             return dateVal.substring(0, 4) === currentYearKey;
           })
           .reduce((sum, e) => sum + Number(e.life_values || 0), 0);
 
@@ -283,7 +303,9 @@ export const Dashboard = () => {
 
       setStats({
         monthlyCommission: monthlyComm,
+        yearlyCommission: yearlyComm,
         monthlyLifeValues: monthlyLifeValues,
+        yearlyLifeValues: yearlyLifeValues,
         openCallbacks: callbacks.length,
         pendingParcels: allParcels.length,
         monthlyGoal: myProfile?.monthly_goal || 10000
@@ -523,16 +545,22 @@ export const Dashboard = () => {
                 </div>
                 <div className="w-px bg-gray-200 dark:bg-gray-700 h-10 hidden sm:block" />
                 <div className="text-right">
-                    <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Umsatz</p>
+                    <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Umsatz (Jahr)</p>
                     <p className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
-                        {new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(stats.monthlyCommission)}
+                        {new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(stats.yearlyCommission)}
+                    </p>
+                    <p className="text-[10px] text-gray-400 font-mono mt-0.5">
+                        Monat: {new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(stats.monthlyCommission)}
                     </p>
                 </div>
                 <div className="w-px bg-gray-200 dark:bg-gray-700 h-10 self-center hidden sm:block" />
                 <div className="text-right">
-                    <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Lebenswerte</p>
+                    <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Lebenswerte (Jahr)</p>
                     <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
-                        {new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 }).format(stats.monthlyLifeValues)}
+                        {new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 }).format(stats.yearlyLifeValues)}
+                    </p>
+                    <p className="text-[10px] text-gray-400 font-mono mt-0.5">
+                        Monat: {new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 }).format(stats.monthlyLifeValues)}
                     </p>
                 </div>
                 <div className="w-px bg-gray-200 dark:bg-gray-700 h-10 self-center hidden sm:block" />
