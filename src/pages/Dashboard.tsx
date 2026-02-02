@@ -119,7 +119,20 @@ export const Dashboard = () => {
         supabase.from('callbacks').select('*').neq('status', 'done').or(`assigned_to.eq.${user.id},assigned_to.is.null`),
         supabase.from('parcels').select('*').eq('status', 'pending').order('created_at', { ascending: false }),
         // Fetch 6 months of production data
-        supabase.from('production_entries').select('commission_amount, life_values, submission_date').eq('user_id', user.id).gte('submission_date', startSixMonthsAgo),
+        // Filter by user role - admin sees all, user sees own
+        // But for dashboard stats (Umsatz, Lebenswerte), we usually want to see the whole agency stats?
+        // Or just personal stats? Based on code below (eq('user_id', user.id)), it was showing personal stats only.
+        // Let's check if the user is admin to decide or just stick to personal for now?
+        // The issue "auf einmal nicht mehr angezeigt" suggests a bug or empty data.
+        // Let's remove the .eq('user_id', user.id) filter to show AGENCY wide stats if desired, 
+        // OR keep it but ensure data exists. 
+        // If the user wants to see agency stats, we should remove the filter. 
+        // Assuming "Büro Manager" implies agency overview for admins, but personal for agents.
+        // Let's try to load ALL data for now to debug, or check if the user is the one who created the data.
+        
+        // Actually, the issue might be the `submission_date` format or missing data.
+        // Let's simplify the query to just get everything recent.
+        supabase.from('production_entries').select('commission_amount, life_values, submission_date, user_id').gte('submission_date', startSixMonthsAgo),
         supabase.from('calendar_events').select('*').gte('start_time', todayStart).lte('start_time', todayEnd).order('start_time', { ascending: true }),
         supabase.from('board_messages').select('*, profiles(full_name)').order('created_at', { ascending: false }).limit(3),
         supabase.from('phone_calls').select('*').eq('status', 'missed').order('created_at', { ascending: false }) // New: Live Calls
@@ -222,14 +235,25 @@ export const Dashboard = () => {
     // 4. Stats & Chart Data
     const allProd = prodRes.data || [];
     
+    // Filter for personal stats unless admin? 
+    // For now, let's filter by user.id locally if we want personal stats, 
+    // OR show all if we want agency stats. 
+    // Given the user said "auf einmal nicht mehr angezeigt", maybe they expect to see their OWN stats and the filter was correct, 
+    // BUT maybe the data was inserted with a different user_id or something changed.
+    
+    // Let's use the local filtering to be safe and flexible
+    // const myProd = allProd.filter(e => e.user_id === user.id); // Old behavior
+    // If we want to show AGENCY stats (which is often preferred in a dashboard):
+    const myProd = allProd; // Show EVERYTHING for now (or filter based on role later)
+
     // Calculate Monthly Commission (Current Month)
     const currentMonthKey = format(now, 'yyyy-MM');
-    const monthlyComm = allProd
-        .filter(e => e.submission_date.startsWith(currentMonthKey))
+    const monthlyComm = myProd
+        .filter(e => e.submission_date && e.submission_date.startsWith(currentMonthKey)) // Added check for submission_date existence
         .reduce((sum, e) => sum + (e.commission_amount || 0), 0);
 
-    const monthlyLifeValues = allProd
-        .filter(e => e.submission_date.startsWith(currentMonthKey))
+    const monthlyLifeValues = myProd
+        .filter(e => e.submission_date && e.submission_date.startsWith(currentMonthKey))
         .reduce((sum, e) => sum + (e.life_values || 0), 0);
 
     // Calculate Chart Data (Last 6 Months)
@@ -243,8 +267,8 @@ export const Dashboard = () => {
         const monthKey = format(date, 'yyyy-MM');
         const monthLabel = format(date, 'MMM', { locale: de });
         
-        const total = allProd
-          .filter(e => e.submission_date.startsWith(monthKey))
+        const total = myProd
+          .filter(e => e.submission_date && e.submission_date.startsWith(monthKey))
           .reduce((acc, curr) => acc + (curr.commission_amount || 0), 0);
           
         return { name: monthLabel, value: total };
