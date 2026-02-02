@@ -372,21 +372,57 @@ export const Dashboard = () => {
   const handleClaimData = async () => {
       setIsFixing(true);
       try {
-          // Update ALL entries that have NO user_id to belong to ME
-          const { data, error } = await supabase
+          // 1. Check what's in there using the ADMIN policy we just created
+          // Since we might not be admin, this could fail, but let's try to list everything
+          const { data: allData, error } = await supabase
             .from('production_entries')
-            .update({ user_id: user?.id })
-            .is('user_id', null)
-            .select();
+            .select('user_id, commission_amount, created_at');
 
           if (error) throw error;
           
-          toast.success(`${data.length} alte Einträge wiederhergestellt!`);
-          fetchData();
+          const total = allData.length;
+          const mine = allData.filter(e => e.user_id === user?.id).length;
+          const nullUser = allData.filter(e => !e.user_id).length;
+          const others = total - mine - nullUser;
           
+          // Group by other user IDs
+          const otherIDs = allData
+            .filter(e => e.user_id && e.user_id !== user?.id)
+            .reduce((acc: any, curr) => {
+                acc[curr.user_id] = (acc[curr.user_id] || 0) + 1;
+                return acc;
+            }, {});
+
+          const report = `DB Scan:\n\nGesamt: ${total}\nMir: ${mine}\nOhne User: ${nullUser}\nAndere: ${others}\n\nIDs: ${JSON.stringify(otherIDs)}`;
+          
+          alert(report);
+          
+          if (others > 0) {
+             const confirm = window.confirm(`Soll ich die ${others} Einträge von anderen Usern auf DICH übertragen?`);
+             if (confirm) {
+                 const { error: updateError } = await supabase
+                    .from('production_entries')
+                    .update({ user_id: user?.id })
+                    .neq('user_id', user?.id); // Take EVERYTHING that is not mine
+                 
+                 if (updateError) throw updateError;
+                 toast.success("Daten erfolgreich übernommen!");
+                 fetchData();
+             }
+          } else if (nullUser > 0) {
+              // ... existing logic for nulls ...
+              const { error: updateError } = await supabase
+                .from('production_entries')
+                .update({ user_id: user?.id })
+                .is('user_id', null);
+              if (updateError) throw updateError;
+              toast.success(`${nullUser} verwaiste Einträge wiederhergestellt!`);
+              fetchData();
+          }
+
       } catch (e: any) {
           console.error(e);
-          toast.error(`Fehler: ${e.message}`);
+          alert(`Scan Fehler (evtl. fehlende Rechte?): ${e.message}`);
       } finally {
           setIsFixing(false);
       }
