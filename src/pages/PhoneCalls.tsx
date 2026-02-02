@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Phone, PhoneMissed, PhoneIncoming, Clock, CheckCircle, XCircle, Search, ClipboardList, Plus, AlertCircle, Trash2, ArrowRight, PenTool, Check } from 'lucide-react';
+import { Phone, PhoneMissed, PhoneIncoming, Clock, CheckCircle, XCircle, Search, ClipboardList, Plus, AlertCircle, Trash2, ArrowRight, PenTool, Check, MessageSquare } from 'lucide-react';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { cn } from '@/utils/cn';
@@ -37,6 +37,7 @@ export const PhoneCalls = () => {
   const [submitting, setSubmitting] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [filterCallbacks, setFilterCallbacks] = useState<'open' | 'done'>('open');
+  const [scriptOpen, setScriptOpen] = useState<string | null>(null); // New: Anruf-Skript Overlay ID
 
   // Form State for Tasks
   const [customerName, setCustomerName] = useState('');
@@ -524,10 +525,36 @@ export const PhoneCalls = () => {
                                         </div>
                                     </div>
 
-                                    <div className="bg-gray-50 dark:bg-gray-700/30 rounded-2xl p-4 mb-6 flex-grow border border-gray-100 dark:border-gray-600/30">
+                                    <div className="bg-gray-50 dark:bg-gray-700/30 rounded-2xl p-4 mb-6 flex-grow border border-gray-100 dark:border-gray-600/30 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors"
+                                         onClick={() => setScriptOpen(cb.id === scriptOpen ? null : cb.id)}
+                                         title="Klicken für Gesprächsleitfaden">
                                         <p className="text-gray-700 dark:text-gray-300 text-sm leading-relaxed whitespace-pre-wrap">
                                             {cb.topic || 'Keine Notiz hinterlassen.'}
                                         </p>
+                                        
+                                        {/* Script Overlay */}
+                                        {scriptOpen === cb.id && (
+                                            <motion.div 
+                                                initial={{ opacity: 0, height: 0 }}
+                                                animate={{ opacity: 1, height: 'auto' }}
+                                                className="mt-4 pt-4 border-t border-indigo-100 dark:border-indigo-800/30"
+                                                onClick={e => e.stopPropagation()}
+                                            >
+                                                <div className="flex items-center gap-2 mb-2 text-indigo-700 dark:text-indigo-300">
+                                                    <MessageSquare className="w-3 h-3" />
+                                                    <span className="text-xs font-bold uppercase tracking-wider">Gesprächsleitfaden</span>
+                                                </div>
+                                                <div className="bg-indigo-50 dark:bg-indigo-900/20 rounded-xl p-3 text-sm text-gray-700 dark:text-gray-300 space-y-2 border border-indigo-100 dark:border-indigo-800/50">
+                                                    <p>👋 "Hallo Herr/Frau {cb.customer_name}, hier ist {profile?.full_name?.split(' ')[0]} von der Agentur..."</p>
+                                                    <p>📞 "Sie hatten um einen Rückruf gebeten bezüglich <strong>{cb.topic || 'Ihrer Anfrage'}</strong>?"</p>
+                                                    <div className="flex justify-end mt-2">
+                                                        <button onClick={() => setScriptOpen(null)} className="text-xs text-indigo-600 dark:text-indigo-400 font-bold hover:underline">
+                                                            Schließen
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </motion.div>
+                                        )}
                                     </div>
 
                                     <div className="flex items-center justify-between pt-4 border-t border-gray-100 dark:border-gray-700/50 mt-auto">

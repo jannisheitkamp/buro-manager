@@ -271,13 +271,14 @@ export const Dashboard = () => {
     const myProd = allProd; // Show EVERYTHING for now (or filter based on role later)
 
     // Calculate Monthly Commission (Current Month)
+    // IMPORTANT: Fix date parsing issues by ensuring we match the format stored in DB
     const currentMonthKey = format(now, 'yyyy-MM');
     const monthlyComm = myProd
-        .filter(e => e.submission_date && e.submission_date.startsWith(currentMonthKey)) // Added check for submission_date existence
+        .filter(e => e.submission_date && e.submission_date.substring(0, 7) === currentMonthKey)
         .reduce((sum, e) => sum + (e.commission_amount || 0), 0);
 
     const monthlyLifeValues = myProd
-        .filter(e => e.submission_date && e.submission_date.startsWith(currentMonthKey))
+        .filter(e => e.submission_date && e.submission_date.substring(0, 7) === currentMonthKey)
         .reduce((sum, e) => sum + (e.life_values || 0), 0);
 
     // Calculate Chart Data (Last 6 Months)
@@ -292,7 +293,7 @@ export const Dashboard = () => {
         const monthLabel = format(date, 'MMM', { locale: de });
         
         const total = myProd
-          .filter(e => e.submission_date && e.submission_date.startsWith(monthKey))
+          .filter(e => e.submission_date && e.submission_date.substring(0, 7) === monthKey)
           .reduce((acc, curr) => acc + (curr.commission_amount || 0), 0);
           
         return { name: monthLabel, value: total };
