@@ -382,14 +382,14 @@ export const Dashboard = () => {
       {/* 1. HERO SECTION - REDESIGNED */}
       
       {/* A. Top Stats Bar (Full Width) */}
-      <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 mb-6">
-         <div className="flex flex-col lg:flex-row gap-8 items-center justify-between">
+      <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 mb-6 overflow-x-auto">
+         <div className="flex flex-col 2xl:flex-row gap-8 items-start 2xl:items-center justify-between min-w-max 2xl:min-w-0">
              
              {/* Left: Yearly Stats */}
-             <div className="flex flex-col sm:flex-row gap-6 items-center w-full lg:w-auto">
-                 <div className="w-full sm:w-auto min-w-[140px]">
+             <div className="flex flex-row gap-6 items-center">
+                 <div className="min-w-[140px]">
                      <p className="text-xs text-gray-500 font-medium uppercase tracking-wider mb-1">Jahresziel</p>
-                     <div className="relative w-full sm:w-32 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                     <div className="relative w-32 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                          <div 
                              className="absolute top-0 left-0 h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all duration-1000"
                              style={{ width: `${Math.min((stats.yearlyLifeValues / stats.yearlyGoal) * 100, 100)}%` }}
@@ -400,18 +400,18 @@ export const Dashboard = () => {
                      </p>
                  </div>
 
-                 <div className="hidden sm:block w-px bg-gray-200 dark:bg-gray-700 h-10" />
+                 <div className="w-px bg-gray-200 dark:bg-gray-700 h-10" />
 
-                 <div className="w-full sm:w-auto min-w-[120px]">
+                 <div className="min-w-[120px]">
                      <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Umsatz (Jahr)</p>
                      <p className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
                          {new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(stats.yearlyCommission)}
                      </p>
                  </div>
 
-                 <div className="hidden sm:block w-px bg-gray-200 dark:bg-gray-700 h-10" />
+                 <div className="w-px bg-gray-200 dark:bg-gray-700 h-10" />
 
-                 <div className="w-full sm:w-auto min-w-[120px]">
+                 <div className="min-w-[120px]">
                      <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">LW (Jahr)</p>
                      <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
                          {new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 }).format(stats.yearlyLifeValues)}
@@ -420,13 +420,14 @@ export const Dashboard = () => {
              </div>
 
              {/* Divider for Desktop */}
-             <div className="hidden lg:block w-px bg-gray-200 dark:bg-gray-700 h-12" />
+             <div className="hidden 2xl:block w-px bg-gray-200 dark:bg-gray-700 h-12" />
+             <div className="block 2xl:hidden w-full h-px bg-gray-100 dark:bg-gray-700" />
 
              {/* Right: Monthly Stats */}
-             <div className="flex flex-col sm:flex-row gap-6 items-center w-full lg:w-auto">
-                 <div className="w-full sm:w-auto min-w-[140px]">
+             <div className="flex flex-row gap-6 items-center">
+                 <div className="min-w-[140px]">
                      <p className="text-xs text-gray-500 font-medium uppercase tracking-wider mb-1">Monatsziel</p>
-                     <div className="relative w-full sm:w-32 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                     <div className="relative w-32 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                          <div 
                              className="absolute top-0 left-0 h-full bg-gradient-to-r from-blue-400 to-cyan-400 rounded-full transition-all duration-1000"
                              style={{ width: `${Math.min((stats.monthlyLifeValues / stats.monthlyGoal) * 100, 100)}%` }}
@@ -437,18 +438,18 @@ export const Dashboard = () => {
                      </p>
                  </div>
 
-                 <div className="hidden sm:block w-px bg-gray-200 dark:bg-gray-700 h-10" />
+                 <div className="w-px bg-gray-200 dark:bg-gray-700 h-10" />
 
-                 <div className="w-full sm:w-auto min-w-[120px]">
+                 <div className="min-w-[120px]">
                      <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Umsatz (Monat)</p>
                      <p className="text-2xl font-bold text-gray-900 dark:text-white">
                          {new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(stats.monthlyCommission)}
                      </p>
                  </div>
 
-                 <div className="hidden sm:block w-px bg-gray-200 dark:bg-gray-700 h-10" />
+                 <div className="w-px bg-gray-200 dark:bg-gray-700 h-10" />
 
-                 <div className="w-full sm:w-auto min-w-[120px]">
+                 <div className="min-w-[120px]">
                      <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">LW (Monat)</p>
                      <p className="text-2xl font-bold text-gray-900 dark:text-white">
                          {new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 }).format(stats.monthlyLifeValues)}
@@ -456,8 +457,12 @@ export const Dashboard = () => {
                  </div>
              </div>
 
+             {/* Divider for Desktop */}
+             <div className="hidden 2xl:block w-px bg-gray-200 dark:bg-gray-700 h-12" />
+             <div className="block 2xl:hidden w-full h-px bg-gray-100 dark:bg-gray-700" />
+
              {/* Far Right: Notifications (Better Design) */}
-             <div className="flex gap-3 items-center justify-end w-full lg:w-auto border-t lg:border-t-0 lg:border-l border-gray-100 dark:border-gray-700 pt-4 lg:pt-0 lg:pl-6">
+             <div className="flex gap-3 items-center justify-start 2xl:justify-end w-full 2xl:w-auto">
                 
                 {/* Tasks Card */}
                 <div className={cn(
