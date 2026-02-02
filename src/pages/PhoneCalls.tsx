@@ -781,24 +781,31 @@ export const PhoneCalls = () => {
                           
                           <a 
                               href={`tel:${leads[currentLeadIndex].phone}`}
-                              onClick={() => setDialerMode('calling')}
+                              onClick={(e) => {
+                                  // Don't prevent default, we want the call to happen!
+                                  setDialerMode('calling');
+                              }}
                               className="text-4xl font-mono font-bold text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 my-8 block hover:scale-105 transition-transform cursor-pointer"
                           >
                               {leads[currentLeadIndex].phone}
                           </a>
 
-                          {dialerMode === 'idle' ? (
-                              <p className="text-gray-500 animate-bounce">
-                                  Klicke auf die Nummer um zu wählen 👆
-                              </p>
-                          ) : (
-                              <div className="w-full space-y-3 animate-in fade-in slide-in-from-bottom-4">
-                                  <p className="text-xs font-bold text-gray-400 uppercase mb-2">Ergebnis wählen:</p>
+                          {/* Always show buttons but maybe highlight them after clicking */}
+                          <div className={cn(
+                              "w-full space-y-3 transition-all duration-500",
+                              dialerMode === 'idle' ? "opacity-50 grayscale blur-[1px] pointer-events-none" : "opacity-100 scale-100"
+                          )}>
+                                  <p className={cn(
+                                      "text-xs font-bold uppercase mb-2 transition-colors",
+                                      dialerMode === 'idle' ? "text-gray-300" : "text-indigo-500 animate-pulse"
+                                  )}>
+                                      {dialerMode === 'idle' ? "Erst wählen, dann Ergebnis eintragen..." : "Gespräch läuft... Ergebnis wählen:"}
+                                  </p>
                                   
                                   <div className="grid grid-cols-2 gap-3">
                                       <button 
                                           onClick={() => handleLeadResult(leads[currentLeadIndex].id, 'appointment')}
-                                          className="bg-emerald-500 hover:bg-emerald-600 text-white p-4 rounded-2xl font-bold flex flex-col items-center gap-1 transition-transform hover:scale-105"
+                                          className="bg-emerald-500 hover:bg-emerald-600 text-white p-4 rounded-2xl font-bold flex flex-col items-center gap-1 transition-transform hover:scale-105 shadow-md"
                                       >
                                           <CheckCircle className="w-6 h-6" />
                                           Termin
@@ -806,7 +813,7 @@ export const PhoneCalls = () => {
                                       
                                       <button 
                                           onClick={() => handleLeadResult(leads[currentLeadIndex].id, 'later')}
-                                          className="bg-amber-500 hover:bg-amber-600 text-white p-4 rounded-2xl font-bold flex flex-col items-center gap-1 transition-transform hover:scale-105"
+                                          className="bg-amber-500 hover:bg-amber-600 text-white p-4 rounded-2xl font-bold flex flex-col items-center gap-1 transition-transform hover:scale-105 shadow-md"
                                       >
                                           <Clock className="w-6 h-6" />
                                           Später (Erreicht)
@@ -814,7 +821,7 @@ export const PhoneCalls = () => {
 
                                       <button 
                                           onClick={() => handleLeadResult(leads[currentLeadIndex].id, 'unreachable')}
-                                          className="bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 p-4 rounded-2xl font-bold flex flex-col items-center gap-1 transition-transform hover:scale-105"
+                                          className="bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 p-4 rounded-2xl font-bold flex flex-col items-center gap-1 transition-transform hover:scale-105 shadow-sm"
                                       >
                                           <PhoneMissed className="w-6 h-6" />
                                           Nicht erreicht
@@ -822,7 +829,7 @@ export const PhoneCalls = () => {
 
                                       <button 
                                           onClick={() => handleLeadResult(leads[currentLeadIndex].id, 'no_interest')}
-                                          className="bg-red-100 hover:bg-red-200 dark:bg-red-900/30 dark:hover:bg-red-900/50 text-red-600 dark:text-red-400 p-4 rounded-2xl font-bold flex flex-col items-center gap-1 transition-transform hover:scale-105"
+                                          className="bg-red-100 hover:bg-red-200 dark:bg-red-900/30 dark:hover:bg-red-900/50 text-red-600 dark:text-red-400 p-4 rounded-2xl font-bold flex flex-col items-center gap-1 transition-transform hover:scale-105 shadow-sm"
                                       >
                                           <XCircle className="w-6 h-6" />
                                           Kein Interesse
@@ -835,8 +842,7 @@ export const PhoneCalls = () => {
                                   >
                                       <AlertCircle className="w-3 h-3" /> Falsche Nummer / Ungültig
                                   </button>
-                              </div>
-                          )}
+                          </div>
                       </div>
 
                       {/* UPCOMING LIST */}
