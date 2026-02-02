@@ -379,161 +379,150 @@ export const Dashboard = () => {
   return (
     <div className="max-w-[1600px] mx-auto space-y-8 pb-12 px-4 md:px-8">
       
-      {/* 1. HERO SECTION (Restored & Improved) */}
-      <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 relative overflow-hidden">
+      {/* 1. HERO SECTION - REDESIGNED */}
+      
+      {/* A. Top Stats Bar (Full Width) */}
+      <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 mb-6">
+         <div className="flex flex-col lg:flex-row gap-8 items-center justify-between">
+             
+             {/* Left: Yearly Stats */}
+             <div className="flex flex-col sm:flex-row gap-6 items-center w-full lg:w-auto">
+                 <div className="w-full sm:w-auto min-w-[140px]">
+                     <p className="text-xs text-gray-500 font-medium uppercase tracking-wider mb-1">Jahresziel</p>
+                     <div className="relative w-full sm:w-32 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                         <div 
+                             className="absolute top-0 left-0 h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all duration-1000"
+                             style={{ width: `${Math.min((stats.yearlyLifeValues / stats.yearlyGoal) * 100, 100)}%` }}
+                         />
+                     </div>
+                     <p className="text-[10px] text-gray-400 mt-1 font-mono">
+                         {Math.round((stats.yearlyLifeValues / stats.yearlyGoal) * 100)}% erreicht
+                     </p>
+                 </div>
+
+                 <div className="hidden sm:block w-px bg-gray-200 dark:bg-gray-700 h-10" />
+
+                 <div className="w-full sm:w-auto min-w-[120px]">
+                     <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Umsatz (Jahr)</p>
+                     <p className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
+                         {new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(stats.yearlyCommission)}
+                     </p>
+                 </div>
+
+                 <div className="hidden sm:block w-px bg-gray-200 dark:bg-gray-700 h-10" />
+
+                 <div className="w-full sm:w-auto min-w-[120px]">
+                     <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">LW (Jahr)</p>
+                     <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+                         {new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 }).format(stats.yearlyLifeValues)}
+                     </p>
+                 </div>
+             </div>
+
+             {/* Divider for Desktop */}
+             <div className="hidden lg:block w-px bg-gray-200 dark:bg-gray-700 h-12" />
+
+             {/* Right: Monthly Stats */}
+             <div className="flex flex-col sm:flex-row gap-6 items-center w-full lg:w-auto">
+                 <div className="w-full sm:w-auto min-w-[140px]">
+                     <p className="text-xs text-gray-500 font-medium uppercase tracking-wider mb-1">Monatsziel</p>
+                     <div className="relative w-full sm:w-32 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                         <div 
+                             className="absolute top-0 left-0 h-full bg-gradient-to-r from-blue-400 to-cyan-400 rounded-full transition-all duration-1000"
+                             style={{ width: `${Math.min((stats.monthlyLifeValues / stats.monthlyGoal) * 100, 100)}%` }}
+                         />
+                     </div>
+                     <p className="text-[10px] text-gray-400 mt-1 font-mono">
+                         {Math.round((stats.monthlyLifeValues / stats.monthlyGoal) * 100)}% erreicht
+                     </p>
+                 </div>
+
+                 <div className="hidden sm:block w-px bg-gray-200 dark:bg-gray-700 h-10" />
+
+                 <div className="w-full sm:w-auto min-w-[120px]">
+                     <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Umsatz (Monat)</p>
+                     <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                         {new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(stats.monthlyCommission)}
+                     </p>
+                 </div>
+
+                 <div className="hidden sm:block w-px bg-gray-200 dark:bg-gray-700 h-10" />
+
+                 <div className="w-full sm:w-auto min-w-[120px]">
+                     <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">LW (Monat)</p>
+                     <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                         {new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 }).format(stats.monthlyLifeValues)}
+                     </p>
+                 </div>
+             </div>
+
+             {/* Far Right: Notifications */}
+             <div className="flex gap-4 items-center justify-end w-full lg:w-auto border-t lg:border-t-0 lg:border-l border-gray-100 dark:border-gray-700 pt-4 lg:pt-0 lg:pl-6">
+                <div className="flex flex-col items-center">
+                    <div className="relative">
+                        <Phone className="w-5 h-5 text-gray-400" />
+                        {stats.openCallbacks > 0 && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse" />}
+                    </div>
+                    <span className="text-[10px] text-gray-400 font-bold mt-1">{stats.openCallbacks} Tasks</span>
+                </div>
+                <div className="flex flex-col items-center">
+                    <div className="relative">
+                        <Package className="w-5 h-5 text-gray-400" />
+                        {stats.pendingParcels > 0 && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-blue-500 rounded-full" />}
+                    </div>
+                    <span className="text-[10px] text-gray-400 font-bold mt-1">{stats.pendingParcels} Pakete</span>
+                </div>
+             </div>
+         </div>
+      </div>
+
+      {/* B. Greeting & Status (Full Width below Stats) */}
+      <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 relative overflow-hidden mb-6">
          <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-900/10 dark:to-purple-900/10 rounded-bl-[100px] -mr-10 -mt-10 pointer-events-none" />
          
-         <div className="relative z-10 flex flex-col xl:flex-row gap-8 items-start xl:items-center justify-between">
-            {/* Greeting & Status Input */}
-            <div className="flex-1 w-full xl:w-auto">
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-                    Moin, {profile?.full_name?.split(' ')[0]}! 👋
-                </h1>
-                <div className="flex flex-col gap-4 bg-white dark:bg-gray-800 p-4 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm max-w-4xl">
-                    <div className="w-full">
-                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block">Deine Nachricht</label>
-                        <input 
-                            type="text" 
-                            placeholder="Was machst du gerade? (z.B. 'Kundenmeeting')" 
-                            className="w-full rounded-xl border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500 dark:placeholder-gray-500"
-                            value={statusMessage}
-                            onChange={e => setStatusMessage(e.target.value)}
-                            onKeyDown={e => e.key === 'Enter' && handleStatusUpdate(myCurrentStatus?.status || 'office')}
-                        />
-                    </div>
-                    <div className="w-full">
-                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">Dein Status</label>
-                        <div className="flex gap-2 pb-1 flex-wrap">
-                            {STATUS_CONFIG.map(s => {
-                                const Icon = s.icon;
-                                const active = myCurrentStatus?.status === s.value;
-                                return (
-                                    <button
-                                        key={s.value}
-                                        onClick={() => handleStatusUpdate(s.value)}
-                                        className={cn(
-                                            "px-3 py-2 rounded-xl transition-all flex items-center gap-2",
-                                            active 
-                                                ? cn("shadow-md ring-2 ring-offset-1 ring-offset-white dark:ring-offset-gray-900 ring-indigo-500 font-bold transform scale-105", s.className) 
-                                                : "bg-gray-50 dark:bg-gray-900/50 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 border border-transparent hover:border-gray-200 dark:hover:border-gray-600"
-                                        )}
-                                        title={s.label}
-                                    >
-                                        <Icon className={cn("w-4 h-4", active ? "scale-110" : "")} />
-                                        <span className="text-xs whitespace-nowrap">{s.label}</span>
-                                    </button>
-                                )
-                            })}
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {/* Quick KPIs (Responsive) */}
-            <div className="w-full xl:w-auto flex flex-col gap-6">
-                
-                {/* 1. YEARLY ROW (Desktop & Mobile) */}
-                <div className="grid grid-cols-2 md:grid-cols-4 lg:flex gap-6 items-center">
-                    {/* Yearly Goal */}
-                    <div className="text-left lg:text-right col-span-2 md:col-span-1 min-w-[140px]">
-                        <p className="text-xs text-gray-500 font-medium uppercase tracking-wider mb-1">Jahresziel</p>
-                        <div className="relative w-full lg:w-32 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                            <div 
-                                className="absolute top-0 left-0 h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all duration-1000"
-                                style={{ width: `${Math.min((stats.yearlyLifeValues / stats.yearlyGoal) * 100, 100)}%` }}
-                            />
-                        </div>
-                        <p className="text-[10px] text-gray-400 mt-1 font-mono">
-                            {Math.round((stats.yearlyLifeValues / stats.yearlyGoal) * 100)}% erreicht
-                        </p>
-                    </div>
-                    
-                    <div className="hidden lg:block w-px bg-gray-200 dark:bg-gray-700 h-10" />
-                    
-                    {/* Yearly Revenue */}
-                    <div className="text-left lg:text-right min-w-[120px]">
-                        <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Umsatz (Jahr)</p>
-                        <p className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
-                            {new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(stats.yearlyCommission)}
-                        </p>
-                    </div>
-                    
-                    <div className="hidden lg:block w-px bg-gray-200 dark:bg-gray-700 h-10 self-center" />
-                    
-                    {/* Yearly Life Values */}
-                    <div className="text-left lg:text-right min-w-[120px]">
-                        <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Lebenswerte (Jahr)</p>
-                        <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
-                            {new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 }).format(stats.yearlyLifeValues)}
-                        </p>
-                    </div>
-
-                    {/* Spacers for Desktop alignment to match bottom row */}
-                    <div className="hidden lg:block w-px bg-transparent h-10 self-center" />
-                    <div className="hidden lg:block min-w-[100px]" /> {/* Spacer for Tasks */}
-                    <div className="hidden lg:block w-px bg-transparent h-10 self-center" />
-                    <div className="hidden lg:block min-w-[100px]" /> {/* Spacer for Parcels */}
+         <div className="relative z-10">
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
+                Moin, {profile?.full_name?.split(' ')[0]}! 👋
+            </h1>
+            
+            <div className="flex flex-col md:flex-row gap-6">
+                {/* Status Input */}
+                <div className="flex-1">
+                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">Was machst du gerade?</label>
+                    <input 
+                        type="text" 
+                        placeholder="z.B. 'Kundenmeeting' oder 'Pause'..." 
+                        className="w-full rounded-xl border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500 dark:placeholder-gray-500 shadow-sm"
+                        value={statusMessage}
+                        onChange={e => setStatusMessage(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && handleStatusUpdate(myCurrentStatus?.status || 'office')}
+                    />
                 </div>
 
-                {/* Separator for Mobile Only */}
-                <div className="block lg:hidden w-full h-px bg-gray-100 dark:bg-gray-700/50" />
-
-                {/* 2. MONTHLY ROW (Desktop & Mobile) */}
-                <div className="grid grid-cols-2 md:grid-cols-4 lg:flex gap-6 items-center">
-                    {/* Monthly Goal */}
-                    <div className="text-left lg:text-right col-span-2 md:col-span-1 min-w-[140px]">
-                        <p className="text-xs text-gray-500 font-medium uppercase tracking-wider mb-1">Monatsziel</p>
-                        <div className="relative w-full lg:w-32 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                            <div 
-                                className="absolute top-0 left-0 h-full bg-gradient-to-r from-blue-400 to-cyan-400 rounded-full transition-all duration-1000"
-                                style={{ width: `${Math.min((stats.monthlyLifeValues / stats.monthlyGoal) * 100, 100)}%` }}
-                            />
-                        </div>
-                        <p className="text-[10px] text-gray-400 mt-1 font-mono">
-                            {Math.round((stats.monthlyLifeValues / stats.monthlyGoal) * 100)}% erreicht
-                        </p>
-                    </div>
-                    
-                    <div className="hidden lg:block w-px bg-gray-200 dark:bg-gray-700 h-10" />
-                    
-                    {/* Monthly Revenue */}
-                    <div className="text-left lg:text-right min-w-[120px]">
-                        <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Umsatz (Monat)</p>
-                        <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                            {new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(stats.monthlyCommission)}
-                        </p>
-                    </div>
-                    
-                    <div className="hidden lg:block w-px bg-gray-200 dark:bg-gray-700 h-10 self-center" />
-                    
-                    {/* Monthly Life Values */}
-                    <div className="text-left lg:text-right min-w-[120px]">
-                        <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Lebenswerte (Monat)</p>
-                        <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                            {new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 }).format(stats.monthlyLifeValues)}
-                        </p>
-                    </div>
-                    
-                    <div className="hidden lg:block w-px bg-gray-200 dark:bg-gray-700 h-10 self-center" />
-                    
-                    {/* Tasks */}
-                    <div className="text-left lg:text-right min-w-[100px]">
-                        <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Offene Tasks</p>
-                        <div className="flex items-center lg:justify-end gap-2">
-                            <span className="text-2xl font-bold text-gray-900 dark:text-white">{stats.openCallbacks}</span>
-                            {stats.openCallbacks > 0 && <span className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse" />}
-                        </div>
-                    </div>
-                    
-                    <div className="hidden lg:block w-px bg-gray-200 dark:bg-gray-700 h-10 self-center" />
-                    
-                    {/* Parcels */}
-                    <div className="text-left lg:text-right min-w-[100px]">
-                        <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Pakete</p>
-                        <div className="flex items-center lg:justify-end gap-2">
-                            <span className="text-2xl font-bold text-gray-900 dark:text-white">{stats.pendingParcels}</span>
-                            {stats.pendingParcels > 0 && <span className="w-2.5 h-2.5 bg-blue-500 rounded-full" />}
-                        </div>
+                {/* Status Buttons */}
+                <div className="flex-1">
+                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">Dein Status</label>
+                    <div className="flex gap-2 flex-wrap">
+                        {STATUS_CONFIG.map(s => {
+                            const Icon = s.icon;
+                            const active = myCurrentStatus?.status === s.value;
+                            return (
+                                <button
+                                    key={s.value}
+                                    onClick={() => handleStatusUpdate(s.value)}
+                                    className={cn(
+                                        "px-4 py-3 rounded-xl transition-all flex items-center gap-2 flex-1 justify-center md:flex-none",
+                                        active 
+                                            ? cn("shadow-md ring-2 ring-offset-1 ring-offset-white dark:ring-offset-gray-900 ring-indigo-500 font-bold transform scale-105", s.className) 
+                                            : "bg-gray-50 dark:bg-gray-900/50 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 border border-transparent hover:border-gray-200 dark:hover:border-gray-600"
+                                    )}
+                                    title={s.label}
+                                >
+                                    <Icon className={cn("w-4 h-4", active ? "scale-110" : "")} />
+                                    <span className="text-sm whitespace-nowrap">{s.label}</span>
+                                </button>
+                            )
+                        })}
                     </div>
                 </div>
             </div>
