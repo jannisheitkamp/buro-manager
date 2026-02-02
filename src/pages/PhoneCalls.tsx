@@ -779,16 +779,16 @@ export const PhoneCalls = () => {
                               {leads[currentLeadIndex].customer_name}
                           </h2>
                           
-                          <a 
-                              href={`tel:${leads[currentLeadIndex].phone}`}
+                          <button 
                               onClick={(e) => {
-                                  // Don't prevent default, we want the call to happen!
+                                  e.preventDefault();
                                   setDialerMode('calling');
+                                  window.location.href = `tel:${leads[currentLeadIndex].phone}`;
                               }}
-                              className="text-4xl font-mono font-bold text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 my-8 block hover:scale-105 transition-transform cursor-pointer"
+                              className="text-4xl font-mono font-bold text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 my-8 block hover:scale-105 transition-transform cursor-pointer bg-transparent border-none p-0 mx-auto"
                           >
                               {leads[currentLeadIndex].phone}
-                          </a>
+                          </button>
 
                           {/* Always show buttons but maybe highlight them after clicking */}
                           <div className={cn(
