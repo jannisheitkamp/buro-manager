@@ -456,22 +456,47 @@ export const Dashboard = () => {
                  </div>
              </div>
 
-             {/* Far Right: Notifications */}
-             <div className="flex gap-4 items-center justify-end w-full lg:w-auto border-t lg:border-t-0 lg:border-l border-gray-100 dark:border-gray-700 pt-4 lg:pt-0 lg:pl-6">
-                <div className="flex flex-col items-center">
+             {/* Far Right: Notifications (Better Design) */}
+             <div className="flex gap-3 items-center justify-end w-full lg:w-auto border-t lg:border-t-0 lg:border-l border-gray-100 dark:border-gray-700 pt-4 lg:pt-0 lg:pl-6">
+                
+                {/* Tasks Card */}
+                <div className={cn(
+                    "flex items-center gap-3 px-4 py-2 rounded-xl border transition-all",
+                    stats.openCallbacks > 0 
+                        ? "bg-red-50 border-red-100 dark:bg-red-900/20 dark:border-red-800" 
+                        : "bg-gray-50 border-gray-100 dark:bg-gray-700/50 dark:border-gray-600"
+                )}>
                     <div className="relative">
-                        <Phone className="w-5 h-5 text-gray-400" />
-                        {stats.openCallbacks > 0 && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse" />}
+                        <Phone className={cn("w-5 h-5", stats.openCallbacks > 0 ? "text-red-500" : "text-gray-400")} />
+                        {stats.openCallbacks > 0 && <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-600 rounded-full animate-pulse" />}
                     </div>
-                    <span className="text-[10px] text-gray-400 font-bold mt-1">{stats.openCallbacks} Tasks</span>
+                    <div className="flex flex-col">
+                        <span className={cn("text-sm font-bold", stats.openCallbacks > 0 ? "text-red-700 dark:text-red-300" : "text-gray-500")}>
+                            {stats.openCallbacks}
+                        </span>
+                        <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Tasks</span>
+                    </div>
                 </div>
-                <div className="flex flex-col items-center">
+
+                {/* Parcels Card */}
+                <div className={cn(
+                    "flex items-center gap-3 px-4 py-2 rounded-xl border transition-all",
+                    stats.pendingParcels > 0 
+                        ? "bg-blue-50 border-blue-100 dark:bg-blue-900/20 dark:border-blue-800" 
+                        : "bg-gray-50 border-gray-100 dark:bg-gray-700/50 dark:border-gray-600"
+                )}>
                     <div className="relative">
-                        <Package className="w-5 h-5 text-gray-400" />
-                        {stats.pendingParcels > 0 && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-blue-500 rounded-full" />}
+                        <Package className={cn("w-5 h-5", stats.pendingParcels > 0 ? "text-blue-500" : "text-gray-400")} />
+                        {stats.pendingParcels > 0 && <span className="absolute -top-1 -right-1 w-2 h-2 bg-blue-600 rounded-full" />}
                     </div>
-                    <span className="text-[10px] text-gray-400 font-bold mt-1">{stats.pendingParcels} Pakete</span>
+                    <div className="flex flex-col">
+                        <span className={cn("text-sm font-bold", stats.pendingParcels > 0 ? "text-blue-700 dark:text-blue-300" : "text-gray-500")}>
+                            {stats.pendingParcels}
+                        </span>
+                        <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Pakete</span>
+                    </div>
                 </div>
+
              </div>
          </div>
       </div>
