@@ -334,6 +334,41 @@ export const Dashboard = () => {
 
   const myCurrentStatus = colleagues.find(c => c.id === user?.id)?.current_status;
 
+  const [isFixing, setIsFixing] = useState(false);
+  const handleFixAndTest = async () => {
+      setIsFixing(true);
+      try {
+          // 1. Create a dummy entry
+          const dummy = {
+              user_id: user?.id,
+              submission_date: format(new Date(), 'yyyy-MM-dd'),
+              customer_name: 'Test Kunde',
+              category: 'Sach',
+              commission_amount: 500,
+              life_values: 250,
+              status: 'submitted'
+          };
+          
+          const { error: insertError } = await supabase.from('production_entries').insert(dummy);
+          if (insertError) throw insertError;
+          
+          toast.success('Test-Eintrag erstellt!');
+          
+          // 2. Fetch it back immediately
+          const { data, error: fetchError } = await supabase.from('production_entries').select('*').eq('user_id', user?.id);
+          if (fetchError) throw fetchError;
+          
+          alert(`Erfolg! ${data.length} Einträge gefunden. Der neueste: ${JSON.stringify(data[0])}`);
+          fetchData(); // Reload dashboard
+          
+      } catch (e: any) {
+          console.error(e);
+          alert(`Fehler: ${e.message || JSON.stringify(e)}`);
+      } finally {
+          setIsFixing(false);
+      }
+  };
+
   if (loading) return (
     <div className="flex items-center justify-center h-96">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
@@ -359,6 +394,18 @@ export const Dashboard = () => {
     <div className="max-w-[1600px] mx-auto space-y-8 pb-12 px-4 md:px-8">
       
       {/* 1. HERO SECTION (Restored & Improved) */}
+      
+      {/* DEBUG BUTTON - REMOVE LATER */}
+      <div className="flex justify-end mb-2">
+        <button 
+            onClick={handleFixAndTest} 
+            disabled={isFixing}
+            className="bg-red-500 text-white px-3 py-1 rounded text-xs font-bold hover:bg-red-600 transition-colors"
+        >
+            {isFixing ? 'Fixing...' : '🛠️ Fix & Test Data'}
+        </button>
+      </div>
+
       <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 relative overflow-hidden">
          <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-900/10 dark:to-purple-900/10 rounded-bl-[100px] -mr-10 -mt-10 pointer-events-none" />
          
