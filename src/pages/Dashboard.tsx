@@ -121,8 +121,6 @@ export const Dashboard = () => {
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [debugInfo, setDebugInfo] = useState<string>('');
-
   const fetchData = async () => {
     if (!user) return;
     setError(null);
@@ -165,8 +163,7 @@ export const Dashboard = () => {
 
       // Debugging
       const loadedProd = prodRes.data || [];
-      console.log(`Loaded ${loadedProd.length} production entries`);
-      setDebugInfo(`Debug: ${loadedProd.length} Entries loaded. First: ${loadedProd[0]?.submission_date}`);
+      // console.log(`Loaded ${loadedProd.length} production entries`);
 
       // 2. Process Colleagues
       const latestStatuses = statusRes.data || [];
@@ -356,82 +353,6 @@ export const Dashboard = () => {
 
   const myCurrentStatus = colleagues.find(c => c.id === user?.id)?.current_status;
 
-  const [isFixing, setIsFixing] = useState(false);
-  const handleFixAndTest = async () => {
-      setIsFixing(true);
-      try {
-          // 1. Create a dummy entry
-          const dummy = {
-              user_id: user?.id,
-              submission_date: format(new Date(), 'yyyy-MM-dd'),
-              customer_name: 'Test Kunde',
-              category: 'Sach',
-              commission_amount: 500,
-              life_values: 250,
-              status: 'submitted'
-          };
-          
-          const { error: insertError } = await supabase.from('production_entries').insert(dummy);
-          if (insertError) throw insertError;
-          
-          toast.success('Test-Eintrag erstellt!');
-          
-          // 2. Fetch it back immediately
-          const { data, error: fetchError } = await supabase.from('production_entries').select('*').eq('user_id', user?.id);
-          if (fetchError) throw fetchError;
-          
-          alert(`Erfolg! ${data.length} Einträge gefunden. Der neueste: ${JSON.stringify(data[0])}`);
-          fetchData(); // Reload dashboard
-          
-      } catch (e: any) {
-          console.error(e);
-          alert(`Fehler: ${e.message || JSON.stringify(e)}`);
-      } finally {
-          setIsFixing(false);
-      }
-  };
-
-  const handleClaimData = async () => {
-      setIsFixing(true);
-      try {
-          // 1. Get MY entries to debug why they don't show up
-          const { data: myData, error } = await supabase
-            .from('production_entries')
-            .select('*')
-            .eq('user_id', user?.id);
-
-          if (error) throw error;
-          
-          if (myData.length === 0) {
-              alert("Du hast 0 Verträge in der Datenbank gefunden (mit deiner User-ID).");
-          } else {
-              const details = myData.map(e => `Datum: ${e.submission_date} | Wert: ${e.commission_amount}€ | ID: ${e.id.substring(0,4)}`).join('\n');
-              const currentMonth = format(new Date(), 'yyyy-MM');
-              
-              const inCurrentMonth = myData.filter(e => String(e.submission_date).substring(0, 7) === currentMonth);
-              
-              alert(`Gefunden: ${myData.length} Verträge.\n\nDavon im aktuellen Monat (${currentMonth}): ${inCurrentMonth.length}\n\nDetails:\n${details}\n\nWenn das Datum nicht ${currentMonth} ist, wird es im Dashboard (oben rechts) NICHT angezeigt, weil das nur den aktuellen Monat zeigt.`);
-              
-              // Ask to fix dates if they are wrong
-              if (inCurrentMonth.length < myData.length) {
-                  const fixDates = window.confirm(`Soll ich das Datum aller ${myData.length} Verträge auf HEUTE setzen, damit sie im Dashboard erscheinen?`);
-                  if (fixDates) {
-                      const today = format(new Date(), 'yyyy-MM-dd');
-                      await supabase.from('production_entries').update({ submission_date: today }).eq('user_id', user?.id);
-                      toast.success("Alle Daten auf HEUTE datiert!");
-                      fetchData();
-                  }
-              }
-          }
-
-      } catch (e: any) {
-          console.error(e);
-          alert(`Fehler: ${e.message}`);
-      } finally {
-          setIsFixing(false);
-      }
-  };
-
   if (loading) return (
     <div className="flex items-center justify-center h-96">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
@@ -457,25 +378,6 @@ export const Dashboard = () => {
     <div className="max-w-[1600px] mx-auto space-y-8 pb-12 px-4 md:px-8">
       
       {/* 1. HERO SECTION (Restored & Improved) */}
-      
-      {/* DEBUG BUTTONS - REMOVE LATER */}
-      <div className="flex justify-end mb-2 gap-2">
-        <button 
-            onClick={handleClaimData} 
-            disabled={isFixing}
-            className="bg-emerald-500 text-white px-3 py-1 rounded text-xs font-bold hover:bg-emerald-600 transition-colors"
-        >
-            {isFixing ? 'Working...' : '🔄 Alte Daten wiederherstellen'}
-        </button>
-        <button 
-            onClick={handleFixAndTest} 
-            disabled={isFixing}
-            className="bg-red-500 text-white px-3 py-1 rounded text-xs font-bold hover:bg-red-600 transition-colors"
-        >
-            {isFixing ? 'Fixing...' : '🛠️ Fix & Test Data'}
-        </button>
-      </div>
-
       <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 relative overflow-hidden">
          <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-900/10 dark:to-purple-900/10 rounded-bl-[100px] -mr-10 -mt-10 pointer-events-none" />
          
@@ -525,26 +427,24 @@ export const Dashboard = () => {
                 </div>
             </div>
 
-            {/* Quick KPIs (Top Right) */}
-            <div className="flex gap-6 items-center">
-                <div className="text-right">
+            {/* Quick KPIs (Top Right) - Responsive Grid */}
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:flex gap-6 items-center w-full xl:w-auto">
+                <div className="text-left lg:text-right col-span-2 md:col-span-1">
                     <p className="text-xs text-gray-500 font-medium uppercase tracking-wider mb-1">Monatsziel</p>
-                    <div className="relative w-32 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden group">
+                    <div className="relative w-full lg:w-32 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden group">
                         <div 
                             className="absolute top-0 left-0 h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all duration-1000"
                             style={{ width: `${Math.min((stats.monthlyLifeValues / stats.monthlyGoal) * 100, 100)}%` }}
                         />
-                        {/* Hidden Debug Tooltip */}
-                        <div className="absolute top-4 right-0 w-64 bg-black text-white text-[10px] p-2 rounded hidden group-hover:block z-50 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
-                            {debugInfo}
-                        </div>
                     </div>
                     <p className="text-[10px] text-gray-400 mt-1 font-mono">
                         {Math.round((stats.monthlyLifeValues / stats.monthlyGoal) * 100)}% erreicht
                     </p>
                 </div>
-                <div className="w-px bg-gray-200 dark:bg-gray-700 h-10 hidden sm:block" />
-                <div className="text-right">
+                
+                <div className="hidden lg:block w-px bg-gray-200 dark:bg-gray-700 h-10" />
+                
+                <div className="text-left lg:text-right">
                     <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Umsatz (Jahr)</p>
                     <p className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
                         {new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(stats.yearlyCommission)}
@@ -553,8 +453,10 @@ export const Dashboard = () => {
                         Monat: {new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(stats.monthlyCommission)}
                     </p>
                 </div>
-                <div className="w-px bg-gray-200 dark:bg-gray-700 h-10 self-center hidden sm:block" />
-                <div className="text-right">
+                
+                <div className="hidden lg:block w-px bg-gray-200 dark:bg-gray-700 h-10 self-center" />
+                
+                <div className="text-left lg:text-right">
                     <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Lebenswerte (Jahr)</p>
                     <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
                         {new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 }).format(stats.yearlyLifeValues)}
@@ -563,18 +465,22 @@ export const Dashboard = () => {
                         Monat: {new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 }).format(stats.monthlyLifeValues)}
                     </p>
                 </div>
-                <div className="w-px bg-gray-200 dark:bg-gray-700 h-10 self-center hidden sm:block" />
-                <div className="text-right">
+                
+                <div className="hidden lg:block w-px bg-gray-200 dark:bg-gray-700 h-10 self-center" />
+                
+                <div className="text-left lg:text-right">
                     <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Offene Tasks</p>
-                    <div className="flex items-center justify-end gap-2">
+                    <div className="flex items-center lg:justify-end gap-2">
                         <span className="text-2xl font-bold text-gray-900 dark:text-white">{stats.openCallbacks}</span>
                         {stats.openCallbacks > 0 && <span className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse" />}
                     </div>
                 </div>
-                 <div className="w-px bg-gray-200 dark:bg-gray-700 h-10 self-center hidden sm:block" />
-                <div className="text-right">
+                
+                <div className="hidden lg:block w-px bg-gray-200 dark:bg-gray-700 h-10 self-center" />
+                
+                <div className="text-left lg:text-right">
                     <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Pakete</p>
-                    <div className="flex items-center justify-end gap-2">
+                    <div className="flex items-center lg:justify-end gap-2">
                         <span className="text-2xl font-bold text-gray-900 dark:text-white">{stats.pendingParcels}</span>
                         {stats.pendingParcels > 0 && <span className="w-2.5 h-2.5 bg-blue-500 rounded-full" />}
                     </div>
