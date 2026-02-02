@@ -19,6 +19,7 @@ export const ProfilePage = () => {
     const [todoistApiKey, setTodoistApiKey] = useState(''); // New: Todoist API Key
     const [webhookSecret, setWebhookSecret] = useState(''); // New: Webhook Secret
     const [monthlyGoal, setMonthlyGoal] = useState<number>(10000); // New: Monthly Goal (Default 10k)
+    const [yearlyGoal, setYearlyGoal] = useState<number>(120000); // New: Yearly Goal (Default 120k)
     const [avatarUrl, setAvatarUrl] = useState('');
     
     // Password State
@@ -50,6 +51,7 @@ export const ProfilePage = () => {
             setTodoistApiKey(profile.todoist_api_key || ''); // Load
             setWebhookSecret(profile.webhook_secret || ''); // Load
             setMonthlyGoal(profile.monthly_goal || 10000); // Load
+            setYearlyGoal(profile.yearly_goal || (profile.monthly_goal ? profile.monthly_goal * 12 : 120000)); // Load or calc
             setAvatarUrl(profile.avatar_url || '');
             fetchUserRates();
         }
@@ -161,6 +163,7 @@ export const ProfilePage = () => {
                     address: address, // Save
                     todoist_api_key: todoistApiKey, // Save
                     monthly_goal: monthlyGoal, // Save
+                    yearly_goal: yearlyGoal, // Save
                     avatar_url: avatarUrl 
                 })
                 .eq('id', user.id);
@@ -335,13 +338,35 @@ export const ProfilePage = () => {
                             </div>
 
                             <div>
-                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Monatsziel (Bewertungssumme)</label>
+                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Jahresziel (Bewertungssumme)</label>
+                                <div className="relative">
+                                    <Target className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
+                                    <input 
+                                        type="number" 
+                                        value={yearlyGoal}
+                                        onChange={e => {
+                                            const val = Number(e.target.value);
+                                            setYearlyGoal(val);
+                                            setMonthlyGoal(Math.round(val / 12)); // Auto-calc monthly
+                                        }}
+                                        placeholder="120000"
+                                        className="w-full rounded-xl bg-gray-50 dark:bg-gray-900 border-transparent focus:bg-white focus:ring-2 focus:ring-indigo-500/20 pl-10 px-4 py-2.5 text-sm transition-all"
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Monatsziel (automatisch berechnet)</label>
                                 <div className="relative">
                                     <Target className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
                                     <input 
                                         type="number" 
                                         value={monthlyGoal}
-                                        onChange={e => setMonthlyGoal(Number(e.target.value))}
+                                        onChange={e => {
+                                            const val = Number(e.target.value);
+                                            setMonthlyGoal(val);
+                                            setYearlyGoal(val * 12); // Auto-calc yearly
+                                        }}
                                         placeholder="10000"
                                         className="w-full rounded-xl bg-gray-50 dark:bg-gray-900 border-transparent focus:bg-white focus:ring-2 focus:ring-indigo-500/20 pl-10 px-4 py-2.5 text-sm transition-all"
                                     />

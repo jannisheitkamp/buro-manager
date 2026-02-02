@@ -91,7 +91,8 @@ export const Dashboard = () => {
     yearlyLifeValues: 0,
     openCallbacks: 0,
     pendingParcels: 0,
-    monthlyGoal: 10000
+    monthlyGoal: 10000,
+    yearlyGoal: 120000
   });
   const [revenueData, setRevenueData] = useState<{name: string, value: number}[]>([]);
   const [scriptOpen, setScriptOpen] = useState<string | null>(null); // New: Anruf-Skript Overlay ID
@@ -305,7 +306,8 @@ export const Dashboard = () => {
         yearlyLifeValues: yearlyLifeValues,
         openCallbacks: callbacks.length,
         pendingParcels: allParcels.length,
-        monthlyGoal: myProfile?.monthly_goal || 10000
+        monthlyGoal: myProfile?.monthly_goal || 10000,
+        yearlyGoal: myProfile?.yearly_goal || (myProfile?.monthly_goal ? myProfile.monthly_goal * 12 : 120000)
       });
       setParcels(parcelsRes.data || []);
       setBoardMessages(boardRes.data || []);
@@ -430,15 +432,15 @@ export const Dashboard = () => {
             {/* Quick KPIs (Top Right) - Responsive Grid */}
             <div className="grid grid-cols-2 md:grid-cols-4 lg:flex gap-6 items-center w-full xl:w-auto">
                 <div className="text-left lg:text-right col-span-2 md:col-span-1">
-                    <p className="text-xs text-gray-500 font-medium uppercase tracking-wider mb-1">Monatsziel</p>
+                    <p className="text-xs text-gray-500 font-medium uppercase tracking-wider mb-1">Jahresziel</p>
                     <div className="relative w-full lg:w-32 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden group">
                         <div 
                             className="absolute top-0 left-0 h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all duration-1000"
-                            style={{ width: `${Math.min((stats.monthlyLifeValues / stats.monthlyGoal) * 100, 100)}%` }}
+                            style={{ width: `${Math.min((stats.yearlyLifeValues / stats.yearlyGoal) * 100, 100)}%` }}
                         />
                     </div>
                     <p className="text-[10px] text-gray-400 mt-1 font-mono">
-                        {Math.round((stats.monthlyLifeValues / stats.monthlyGoal) * 100)}% erreicht
+                        {Math.round((stats.yearlyLifeValues / stats.yearlyGoal) * 100)}% (Monat: {Math.round((stats.monthlyLifeValues / stats.monthlyGoal) * 100)}%)
                     </p>
                 </div>
                 
