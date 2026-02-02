@@ -119,199 +119,166 @@ export const Dashboard = () => {
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [debugInfo, setDebugInfo] = useState<string>('');
+
   const fetchData = async () => {
     if (!user) return;
     setError(null);
 
     const now = new Date();
-    const startMonth = startOfMonth(now).toISOString();
-    const endMonth = endOfMonth(now).toISOString();
-    
-    // For Chart: Last 6 months
-    const sixMonthsAgo = subMonths(now, 5);
-    const startSixMonthsAgo = startOfMonth(sixMonthsAgo).toISOString();
-
     const todayStart = new Date(now.setHours(0,0,0,0)).toISOString();
     const todayEnd = new Date(now.setHours(23,59,59,999)).toISOString();
+    
+    // For Chart: Last 6 months
+    const startSixMonthsAgo = new Date();
+    startSixMonthsAgo.setMonth(startSixMonthsAgo.getMonth() - 5);
+    startSixMonthsAgo.setDate(1);
+    const dateStr = format(startSixMonthsAgo, 'yyyy-MM-dd'); // Format YYYY-MM-DD for Supabase date column
 
-    // 1. Parallel Fetching for Speed
-    let results;
     try {
-      results = await Promise.all([
+      // 1. Parallel Fetching
+      const [
+        statusRes, 
+        profilesRes, 
+        callbacksRes, 
+        parcelsRes, 
+        eventsRes,
+        boardRes,
+        callsRes,
+        prodRes // Fetch separately or in parallel
+      ] = await Promise.all([
         supabase.from('user_status').select('*').order('updated_at', { ascending: false }),
         supabase.from('profiles').select('*'),
         supabase.from('callbacks').select('*').neq('status', 'done').or(`assigned_to.eq.${user.id},assigned_to.is.null`),
         supabase.from('parcels').select('*').eq('status', 'pending').order('created_at', { ascending: false }),
-        // Fetch 6 months of production data
-        // Filter by user role - admin sees all, user sees own
-        // But for dashboard stats (Umsatz, Lebenswerte), we usually want to see the whole agency stats?
-        // Or just personal stats? Based on code below (eq('user_id', user.id)), it was showing personal stats only.
-        // Let's check if the user is admin to decide or just stick to personal for now?
-        // The issue "auf einmal nicht mehr angezeigt" suggests a bug or empty data.
-        // Let's remove the .eq('user_id', user.id) filter to show AGENCY wide stats if desired, 
-        // OR keep it but ensure data exists. 
-        // If the user wants to see agency stats, we should remove the filter. 
-        // Assuming "Büro Manager" implies agency overview for admins, but personal for agents.
-        // Let's try to load ALL data for now to debug, or check if the user is the one who created the data.
-        
-        // Actually, the issue might be the `submission_date` format or missing data.
-        // Let's simplify the query to just get everything recent.
-        supabase.from('production_entries').select('commission_amount, life_values, submission_date, user_id').gte('submission_date', startSixMonthsAgo),
         supabase.from('calendar_events').select('*').gte('start_time', todayStart).lte('start_time', todayEnd).order('start_time', { ascending: true }),
         supabase.from('board_messages').select('*, profiles(full_name)').order('created_at', { ascending: false }).limit(3),
-        supabase.from('phone_calls').select('*').eq('status', 'missed').order('created_at', { ascending: false }) // New: Live Calls
+        supabase.from('phone_calls').select('*').eq('status', 'missed').order('created_at', { ascending: false }),
+        // Production Data: Fetch ALL for now to debug visibility issues
+        supabase.from('production_entries').select('commission_amount, life_values, submission_date, user_id').gte('submission_date', dateStr)
       ]);
+
+      if (profilesRes.error) throw profilesRes.error;
+      if (prodRes.error) throw prodRes.error;
+
+      // Debugging
+      const loadedProd = prodRes.data || [];
+      console.log(`Loaded ${loadedProd.length} production entries`);
+      setDebugInfo(`Debug: ${loadedProd.length} Entries loaded. First: ${loadedProd[0]?.submission_date}`);
+
+      // 2. Process Colleagues
+      const latestStatuses = statusRes.data || [];
+      const profiles = profilesRes.data || [];
+      const myProfile = profiles.find(p => p.id === user.id);
+
+      const mergedColleagues = profiles.map(p => ({
+        ...p,
+        current_status: latestStatuses.find(s => s.user_id === p.id)
+      })).sort((a, b) => {
+          const onlineStatuses = ['office', 'remote', 'meeting'];
+          const aOnline = onlineStatuses.includes(a.current_status?.status || 'office');
+          const bOnline = onlineStatuses.includes(b.current_status?.status || 'office');
+          if (aOnline && !bOnline) return -1;
+          if (!aOnline && bOnline) return 1;
+          return (a.full_name || '').localeCompare(b.full_name || '');
+      });
+      setColleagues(mergedColleagues);
+
+      // Show ALL parcels for EVERYONE
+      const allParcels = parcelsRes.data || [];
+      
+      // 3. Process Tasks (Timeline)
+      const callbacks = callbacksRes.data || [];
+      const events = eventsRes.data || [];
+      const missedCalls = callsRes.data || [];
+
+      // Filter missed calls
+      const myMissedCalls = missedCalls.filter((c: any) => 
+          !c.notes?.includes('erledigt') && c.status === 'missed' &&
+          (c.user_id === user.id || (!c.user_id && profile?.roles?.includes('admin')))
+      );
+      
+      const timelineItems = [
+        ...events.map(e => ({
+          id: e.id,
+          type: 'event',
+          title: e.title,
+          time: new Date(e.start_time),
+          meta: e.category,
+          priority: 'normal'
+        })),
+        ...callbacks.map(c => ({
+          id: c.id,
+          type: 'callback',
+          title: `Rückruf: ${c.customer_name}`,
+          time: new Date(c.created_at), 
+          meta: c.phone,
+          priority: c.priority
+        })),
+        ...myMissedCalls.map((c: any) => ({
+          id: c.id,
+          type: 'missed_call', 
+          title: `Verpasst: ${c.caller_number}`,
+          time: new Date(c.created_at),
+          meta: c.notes?.replace('Anrufer: ', '').replace(/Raw Params:.*/, '') || 'Unbekannt',
+          priority: 'high'
+        }))
+      ].sort((a, b) => a.time.getTime() - b.time.getTime());
+      
+      setMyTasks(timelineItems);
+
+      // 4. Stats & Chart Data
+      // Use ALL loaded data (no user_id filter for now to ensure visibility)
+      const myProd = loadedProd; 
+
+      // Calculate Monthly Commission (Current Month)
+      const currentMonthKey = format(new Date(), 'yyyy-MM');
+      
+      const monthlyComm = myProd
+          .filter(e => e.submission_date && String(e.submission_date).substring(0, 7) === currentMonthKey)
+          .reduce((sum, e) => sum + Number(e.commission_amount || 0), 0);
+
+      const monthlyLifeValues = myProd
+          .filter(e => e.submission_date && String(e.submission_date).substring(0, 7) === currentMonthKey)
+          .reduce((sum, e) => sum + Number(e.life_values || 0), 0);
+
+      // Calculate Chart Data (Last 6 Months)
+      const last6Months = Array.from({ length: 6 }, (_, i) => {
+          const d = new Date();
+          d.setMonth(d.getMonth() - (5 - i));
+          return d;
+      });
+
+      const chartData = last6Months.map(date => {
+          const monthKey = format(date, 'yyyy-MM');
+          const monthLabel = format(date, 'MMM', { locale: de });
+          
+          const total = myProd
+            .filter(e => e.submission_date && String(e.submission_date).substring(0, 7) === monthKey)
+            .reduce((acc, curr) => acc + Number(curr.commission_amount || 0), 0);
+            
+          return { name: monthLabel, value: total };
+      });
+
+      setRevenueData(chartData);
+
+      setStats({
+        monthlyCommission: monthlyComm,
+        monthlyLifeValues: monthlyLifeValues,
+        openCallbacks: callbacks.length,
+        pendingParcels: allParcels.length,
+        monthlyGoal: myProfile?.monthly_goal || 10000
+      });
+      setParcels(parcelsRes.data || []);
+      setBoardMessages(boardRes.data || []);
+
+      setLoading(false);
+
     } catch (e) {
       console.error('Unexpected error fetching dashboard data:', e);
       setError('Ein unerwarteter Fehler ist aufgetreten.');
       setLoading(false);
-      return;
     }
-
-    const [
-      statusRes, 
-      profilesRes, 
-      callbacksRes, 
-      parcelsRes, 
-      prodRes,
-      eventsRes,
-      boardRes,
-      callsRes
-    ] = results;
-
-    if (profilesRes.error) {
-      console.error('Critical error loading profiles:', profilesRes.error);
-      setError('Benutzerprofile konnten nicht geladen werden.');
-      setLoading(false);
-      return;
-    }
-
-    // 2. Process Colleagues
-    const latestStatuses = statusRes.data || [];
-    const profiles = profilesRes.data || [];
-    const myProfile = profiles.find(p => p.id === user.id);
-    const isAdmin = myProfile?.roles?.includes('admin');
-
-    const mergedColleagues = profiles.map(p => ({
-      ...p,
-      current_status: latestStatuses.find(s => s.user_id === p.id)
-    })).sort((a, b) => {
-        // Sort: Online first, then alphabetical
-        const onlineStatuses = ['office', 'remote', 'meeting'];
-        const aOnline = onlineStatuses.includes(a.current_status?.status || 'office');
-        const bOnline = onlineStatuses.includes(b.current_status?.status || 'office');
-        
-        if (aOnline && !bOnline) return -1;
-        if (!aOnline && bOnline) return 1;
-        return (a.full_name || '').localeCompare(b.full_name || '');
-    });
-    setColleagues(mergedColleagues);
-
-    // Show ALL parcels for EVERYONE
-    const allParcels = parcelsRes.data || [];
-    
-    // 3. Process Tasks (Timeline)
-    const callbacks = callbacksRes.data || [];
-    const events = eventsRes.data || [];
-    const missedCalls = callsRes.data || [];
-
-
-      // Filter missed calls: Show own calls + unassigned calls (if no user_id)
-    const myMissedCalls = missedCalls.filter((c: any) => 
-        !c.notes?.includes('erledigt') && c.status === 'missed' &&
-        (c.user_id === user.id || (!c.user_id && profile?.roles?.includes('admin')))
-    );
-    
-    // Transform to unified "Task" format
-    const timelineItems = [
-      ...events.map(e => ({
-        id: e.id,
-        type: 'event',
-        title: e.title,
-        time: new Date(e.start_time),
-        meta: e.category,
-        priority: 'normal'
-      })),
-      ...callbacks.map(c => ({
-        id: c.id,
-        type: 'callback',
-        title: `Rückruf: ${c.customer_name}`,
-        time: new Date(c.created_at), 
-        meta: c.phone,
-        priority: c.priority
-      })),
-      ...myMissedCalls.map((c: any) => ({
-        id: c.id,
-        type: 'missed_call', 
-        title: `Verpasst: ${c.caller_number}`,
-        time: new Date(c.created_at),
-        meta: c.notes?.replace('Anrufer: ', '').replace(/Raw Params:.*/, '') || 'Unbekannt',
-        priority: 'high'
-      }))
-    ].sort((a, b) => {
-        // Sort by time: Show newest/soonest first
-        // Events are future (ascending), Tasks/Calls are past (descending)
-        // Let's just sort by "relevance": Future events soon, then past tasks recent
-        return a.time.getTime() - b.time.getTime(); 
-    });
-    setMyTasks(timelineItems);
-
-    // 4. Stats & Chart Data
-    const allProd = prodRes.data || [];
-    
-    // Filter for personal stats unless admin? 
-    // For now, let's filter by user.id locally if we want personal stats, 
-    // OR show all if we want agency stats. 
-    // Given the user said "auf einmal nicht mehr angezeigt", maybe they expect to see their OWN stats and the filter was correct, 
-    // BUT maybe the data was inserted with a different user_id or something changed.
-    
-    // Let's use the local filtering to be safe and flexible
-    // const myProd = allProd.filter(e => e.user_id === user.id); // Old behavior
-    // If we want to show AGENCY stats (which is often preferred in a dashboard):
-    const myProd = allProd; // Show EVERYTHING for now (or filter based on role later)
-
-    // Calculate Monthly Commission (Current Month)
-    // IMPORTANT: Fix date parsing issues by ensuring we match the format stored in DB
-    const currentMonthKey = format(now, 'yyyy-MM');
-    const monthlyComm = myProd
-        .filter(e => e.submission_date && e.submission_date.substring(0, 7) === currentMonthKey)
-        .reduce((sum, e) => sum + (e.commission_amount || 0), 0);
-
-    const monthlyLifeValues = myProd
-        .filter(e => e.submission_date && e.submission_date.substring(0, 7) === currentMonthKey)
-        .reduce((sum, e) => sum + (e.life_values || 0), 0);
-
-    // Calculate Chart Data (Last 6 Months)
-    const last6Months = Array.from({ length: 6 }, (_, i) => {
-        const d = new Date();
-        d.setMonth(d.getMonth() - (5 - i));
-        return d;
-    });
-
-    const chartData = last6Months.map(date => {
-        const monthKey = format(date, 'yyyy-MM');
-        const monthLabel = format(date, 'MMM', { locale: de });
-        
-        const total = myProd
-          .filter(e => e.submission_date && e.submission_date.substring(0, 7) === monthKey)
-          .reduce((acc, curr) => acc + (curr.commission_amount || 0), 0);
-          
-        return { name: monthLabel, value: total };
-    });
-
-    setRevenueData(chartData);
-
-    setStats({
-      monthlyCommission: monthlyComm,
-      monthlyLifeValues: monthlyLifeValues,
-      openCallbacks: callbacks.length,
-      pendingParcels: allParcels.length,
-      monthlyGoal: myProfile?.monthly_goal || 10000
-    });
-    setParcels(parcelsRes.data || []);
-    setBoardMessages(boardRes.data || []);
-
-    setLoading(false);
   };
 
   useEffect(() => {
@@ -426,11 +393,15 @@ export const Dashboard = () => {
             <div className="flex gap-6 items-center">
                 <div className="text-right">
                     <p className="text-xs text-gray-500 font-medium uppercase tracking-wider mb-1">Monatsziel</p>
-                    <div className="relative w-32 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                    <div className="relative w-32 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden group">
                         <div 
                             className="absolute top-0 left-0 h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all duration-1000"
                             style={{ width: `${Math.min((stats.monthlyLifeValues / stats.monthlyGoal) * 100, 100)}%` }}
                         />
+                        {/* Hidden Debug Tooltip */}
+                        <div className="absolute top-4 right-0 w-64 bg-black text-white text-[10px] p-2 rounded hidden group-hover:block z-50 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
+                            {debugInfo}
+                        </div>
                     </div>
                     <p className="text-[10px] text-gray-400 mt-1 font-mono">
                         {Math.round((stats.monthlyLifeValues / stats.monthlyGoal) * 100)}% erreicht
