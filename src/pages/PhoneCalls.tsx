@@ -110,18 +110,22 @@ export const PhoneCalls = () => {
       const end = new Date(start.getTime() + 30 * 60000); // 30 min default
 
       // 1. Create Calendar Event
-      const { error: calendarError } = await supabase.from('calendar_events').insert({
+      console.log('Creating calendar event for:', user?.id);
+      const eventData = {
           title: `Termin: ${lead.customer_name}`,
           start_time: start.toISOString(),
           end_time: end.toISOString(),
           user_id: user?.id,
-          color: 'emerald', // Using color instead of non-existent category
+          color: 'emerald',
           description: appointmentNote
-      });
+      };
+      console.log('Event Data:', eventData);
+
+      const { error: calendarError } = await supabase.from('calendar_events').insert(eventData);
 
       if (calendarError) {
-          console.error('Calendar Error:', calendarError);
-          toast.error('Fehler beim Kalender-Eintrag');
+          console.error('Calendar Error Full:', calendarError);
+          toast.error(`Fehler Kalender: ${calendarError.message}`);
       }
 
       // 2. Create Todoist Task (if api key exists)
