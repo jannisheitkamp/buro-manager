@@ -372,57 +372,39 @@ export const Dashboard = () => {
   const handleClaimData = async () => {
       setIsFixing(true);
       try {
-          // 1. Check what's in there using the ADMIN policy we just created
-          // Since we might not be admin, this could fail, but let's try to list everything
-          const { data: allData, error } = await supabase
+          // 1. Get MY entries to debug why they don't show up
+          const { data: myData, error } = await supabase
             .from('production_entries')
-            .select('user_id, commission_amount, created_at');
+            .select('*')
+            .eq('user_id', user?.id);
 
           if (error) throw error;
           
-          const total = allData.length;
-          const mine = allData.filter(e => e.user_id === user?.id).length;
-          const nullUser = allData.filter(e => !e.user_id).length;
-          const others = total - mine - nullUser;
-          
-          // Group by other user IDs
-          const otherIDs = allData
-            .filter(e => e.user_id && e.user_id !== user?.id)
-            .reduce((acc: any, curr) => {
-                acc[curr.user_id] = (acc[curr.user_id] || 0) + 1;
-                return acc;
-            }, {});
-
-          const report = `DB Scan:\n\nGesamt: ${total}\nMir: ${mine}\nOhne User: ${nullUser}\nAndere: ${others}\n\nIDs: ${JSON.stringify(otherIDs)}`;
-          
-          alert(report);
-          
-          if (others > 0) {
-             const confirm = window.confirm(`Soll ich die ${others} Einträge von anderen Usern auf DICH übertragen?`);
-             if (confirm) {
-                 const { error: updateError } = await supabase
-                    .from('production_entries')
-                    .update({ user_id: user?.id })
-                    .neq('user_id', user?.id); // Take EVERYTHING that is not mine
-                 
-                 if (updateError) throw updateError;
-                 toast.success("Daten erfolgreich übernommen!");
-                 fetchData();
-             }
-          } else if (nullUser > 0) {
-              // ... existing logic for nulls ...
-              const { error: updateError } = await supabase
-                .from('production_entries')
-                .update({ user_id: user?.id })
-                .is('user_id', null);
-              if (updateError) throw updateError;
-              toast.success(`${nullUser} verwaiste Einträge wiederhergestellt!`);
-              fetchData();
+          if (myData.length === 0) {
+              alert("Du hast 0 Verträge in der Datenbank gefunden (mit deiner User-ID).");
+          } else {
+              const details = myData.map(e => `Datum: ${e.submission_date} | Wert: ${e.commission_amount}€ | ID: ${e.id.substring(0,4)}`).join('\n');
+              const currentMonth = format(new Date(), 'yyyy-MM');
+              
+              const inCurrentMonth = myData.filter(e => String(e.submission_date).substring(0, 7) === currentMonth);
+              
+              alert(`Gefunden: ${myData.length} Verträge.\n\nDavon im aktuellen Monat (${currentMonth}): ${inCurrentMonth.length}\n\nDetails:\n${details}\n\nWenn das Datum nicht ${currentMonth} ist, wird es im Dashboard (oben rechts) NICHT angezeigt, weil das nur den aktuellen Monat zeigt.`);
+              
+              // Ask to fix dates if they are wrong
+              if (inCurrentMonth.length < myData.length) {
+                  const fixDates = window.confirm(`Soll ich das Datum aller ${myData.length} Verträge auf HEUTE setzen, damit sie im Dashboard erscheinen?`);
+                  if (fixDates) {
+                      const today = format(new Date(), 'yyyy-MM-dd');
+                      await supabase.from('production_entries').update({ submission_date: today }).eq('user_id', user?.id);
+                      toast.success("Alle Daten auf HEUTE datiert!");
+                      fetchData();
+                  }
+              }
           }
 
       } catch (e: any) {
           console.error(e);
-          alert(`Scan Fehler (evtl. fehlende Rechte?): ${e.message}`);
+          alert(`Fehler: ${e.message}`);
       } finally {
           setIsFixing(false);
       }
