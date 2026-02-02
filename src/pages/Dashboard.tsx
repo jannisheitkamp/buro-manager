@@ -429,62 +429,111 @@ export const Dashboard = () => {
                 </div>
             </div>
 
-            {/* Quick KPIs (Top Right) - Responsive Grid */}
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:flex gap-6 items-center w-full xl:w-auto">
-                <div className="text-left lg:text-right col-span-2 md:col-span-1">
-                    <p className="text-xs text-gray-500 font-medium uppercase tracking-wider mb-1">Jahresziel</p>
-                    <div className="relative w-full lg:w-32 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden group">
-                        <div 
-                            className="absolute top-0 left-0 h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all duration-1000"
-                            style={{ width: `${Math.min((stats.yearlyLifeValues / stats.yearlyGoal) * 100, 100)}%` }}
-                        />
+            {/* Quick KPIs (Responsive) */}
+            <div className="w-full xl:w-auto flex flex-col gap-6">
+                
+                {/* 1. YEARLY ROW (Desktop & Mobile) */}
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:flex gap-6 items-center">
+                    {/* Yearly Goal */}
+                    <div className="text-left lg:text-right col-span-2 md:col-span-1 min-w-[140px]">
+                        <p className="text-xs text-gray-500 font-medium uppercase tracking-wider mb-1">Jahresziel</p>
+                        <div className="relative w-full lg:w-32 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                            <div 
+                                className="absolute top-0 left-0 h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all duration-1000"
+                                style={{ width: `${Math.min((stats.yearlyLifeValues / stats.yearlyGoal) * 100, 100)}%` }}
+                            />
+                        </div>
+                        <p className="text-[10px] text-gray-400 mt-1 font-mono">
+                            {Math.round((stats.yearlyLifeValues / stats.yearlyGoal) * 100)}% erreicht
+                        </p>
                     </div>
-                    <p className="text-[10px] text-gray-400 mt-1 font-mono">
-                        {Math.round((stats.yearlyLifeValues / stats.yearlyGoal) * 100)}% (Monat: {Math.round((stats.monthlyLifeValues / stats.monthlyGoal) * 100)}%)
-                    </p>
-                </div>
-                
-                <div className="hidden lg:block w-px bg-gray-200 dark:bg-gray-700 h-10" />
-                
-                <div className="text-left lg:text-right">
-                    <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Umsatz (Jahr)</p>
-                    <p className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
-                        {new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(stats.yearlyCommission)}
-                    </p>
-                    <p className="text-[10px] text-gray-400 font-mono mt-0.5">
-                        Monat: {new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(stats.monthlyCommission)}
-                    </p>
-                </div>
-                
-                <div className="hidden lg:block w-px bg-gray-200 dark:bg-gray-700 h-10 self-center" />
-                
-                <div className="text-left lg:text-right">
-                    <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Lebenswerte (Jahr)</p>
-                    <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
-                        {new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 }).format(stats.yearlyLifeValues)}
-                    </p>
-                    <p className="text-[10px] text-gray-400 font-mono mt-0.5">
-                        Monat: {new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 }).format(stats.monthlyLifeValues)}
-                    </p>
-                </div>
-                
-                <div className="hidden lg:block w-px bg-gray-200 dark:bg-gray-700 h-10 self-center" />
-                
-                <div className="text-left lg:text-right">
-                    <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Offene Tasks</p>
-                    <div className="flex items-center lg:justify-end gap-2">
-                        <span className="text-2xl font-bold text-gray-900 dark:text-white">{stats.openCallbacks}</span>
-                        {stats.openCallbacks > 0 && <span className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse" />}
+                    
+                    <div className="hidden lg:block w-px bg-gray-200 dark:bg-gray-700 h-10" />
+                    
+                    {/* Yearly Revenue */}
+                    <div className="text-left lg:text-right min-w-[120px]">
+                        <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Umsatz (Jahr)</p>
+                        <p className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
+                            {new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(stats.yearlyCommission)}
+                        </p>
                     </div>
+                    
+                    <div className="hidden lg:block w-px bg-gray-200 dark:bg-gray-700 h-10 self-center" />
+                    
+                    {/* Yearly Life Values */}
+                    <div className="text-left lg:text-right min-w-[120px]">
+                        <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Lebenswerte (Jahr)</p>
+                        <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+                            {new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 }).format(stats.yearlyLifeValues)}
+                        </p>
+                    </div>
+
+                    {/* Spacers for Desktop alignment to match bottom row */}
+                    <div className="hidden lg:block w-px bg-transparent h-10 self-center" />
+                    <div className="hidden lg:block min-w-[100px]" /> {/* Spacer for Tasks */}
+                    <div className="hidden lg:block w-px bg-transparent h-10 self-center" />
+                    <div className="hidden lg:block min-w-[100px]" /> {/* Spacer for Parcels */}
                 </div>
-                
-                <div className="hidden lg:block w-px bg-gray-200 dark:bg-gray-700 h-10 self-center" />
-                
-                <div className="text-left lg:text-right">
-                    <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Pakete</p>
-                    <div className="flex items-center lg:justify-end gap-2">
-                        <span className="text-2xl font-bold text-gray-900 dark:text-white">{stats.pendingParcels}</span>
-                        {stats.pendingParcels > 0 && <span className="w-2.5 h-2.5 bg-blue-500 rounded-full" />}
+
+                {/* Separator for Mobile Only */}
+                <div className="block lg:hidden w-full h-px bg-gray-100 dark:bg-gray-700/50" />
+
+                {/* 2. MONTHLY ROW (Desktop & Mobile) */}
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:flex gap-6 items-center">
+                    {/* Monthly Goal */}
+                    <div className="text-left lg:text-right col-span-2 md:col-span-1 min-w-[140px]">
+                        <p className="text-xs text-gray-500 font-medium uppercase tracking-wider mb-1">Monatsziel</p>
+                        <div className="relative w-full lg:w-32 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                            <div 
+                                className="absolute top-0 left-0 h-full bg-gradient-to-r from-blue-400 to-cyan-400 rounded-full transition-all duration-1000"
+                                style={{ width: `${Math.min((stats.monthlyLifeValues / stats.monthlyGoal) * 100, 100)}%` }}
+                            />
+                        </div>
+                        <p className="text-[10px] text-gray-400 mt-1 font-mono">
+                            {Math.round((stats.monthlyLifeValues / stats.monthlyGoal) * 100)}% erreicht
+                        </p>
+                    </div>
+                    
+                    <div className="hidden lg:block w-px bg-gray-200 dark:bg-gray-700 h-10" />
+                    
+                    {/* Monthly Revenue */}
+                    <div className="text-left lg:text-right min-w-[120px]">
+                        <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Umsatz (Monat)</p>
+                        <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                            {new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(stats.monthlyCommission)}
+                        </p>
+                    </div>
+                    
+                    <div className="hidden lg:block w-px bg-gray-200 dark:bg-gray-700 h-10 self-center" />
+                    
+                    {/* Monthly Life Values */}
+                    <div className="text-left lg:text-right min-w-[120px]">
+                        <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Lebenswerte (Monat)</p>
+                        <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                            {new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 }).format(stats.monthlyLifeValues)}
+                        </p>
+                    </div>
+                    
+                    <div className="hidden lg:block w-px bg-gray-200 dark:bg-gray-700 h-10 self-center" />
+                    
+                    {/* Tasks */}
+                    <div className="text-left lg:text-right min-w-[100px]">
+                        <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Offene Tasks</p>
+                        <div className="flex items-center lg:justify-end gap-2">
+                            <span className="text-2xl font-bold text-gray-900 dark:text-white">{stats.openCallbacks}</span>
+                            {stats.openCallbacks > 0 && <span className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse" />}
+                        </div>
+                    </div>
+                    
+                    <div className="hidden lg:block w-px bg-gray-200 dark:bg-gray-700 h-10 self-center" />
+                    
+                    {/* Parcels */}
+                    <div className="text-left lg:text-right min-w-[100px]">
+                        <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Pakete</p>
+                        <div className="flex items-center lg:justify-end gap-2">
+                            <span className="text-2xl font-bold text-gray-900 dark:text-white">{stats.pendingParcels}</span>
+                            {stats.pendingParcels > 0 && <span className="w-2.5 h-2.5 bg-blue-500 rounded-full" />}
+                        </div>
                     </div>
                 </div>
             </div>
