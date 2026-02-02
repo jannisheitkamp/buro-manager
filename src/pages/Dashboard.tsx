@@ -369,6 +369,29 @@ export const Dashboard = () => {
       }
   };
 
+  const handleClaimData = async () => {
+      setIsFixing(true);
+      try {
+          // Update ALL entries that have NO user_id to belong to ME
+          const { data, error } = await supabase
+            .from('production_entries')
+            .update({ user_id: user?.id })
+            .is('user_id', null)
+            .select();
+
+          if (error) throw error;
+          
+          toast.success(`${data.length} alte Einträge wiederhergestellt!`);
+          fetchData();
+          
+      } catch (e: any) {
+          console.error(e);
+          toast.error(`Fehler: ${e.message}`);
+      } finally {
+          setIsFixing(false);
+      }
+  };
+
   if (loading) return (
     <div className="flex items-center justify-center h-96">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
@@ -395,8 +418,15 @@ export const Dashboard = () => {
       
       {/* 1. HERO SECTION (Restored & Improved) */}
       
-      {/* DEBUG BUTTON - REMOVE LATER */}
-      <div className="flex justify-end mb-2">
+      {/* DEBUG BUTTONS - REMOVE LATER */}
+      <div className="flex justify-end mb-2 gap-2">
+        <button 
+            onClick={handleClaimData} 
+            disabled={isFixing}
+            className="bg-emerald-500 text-white px-3 py-1 rounded text-xs font-bold hover:bg-emerald-600 transition-colors"
+        >
+            {isFixing ? 'Working...' : '🔄 Alte Daten wiederherstellen'}
+        </button>
         <button 
             onClick={handleFixAndTest} 
             disabled={isFixing}
