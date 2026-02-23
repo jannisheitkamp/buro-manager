@@ -228,8 +228,8 @@ export const Dashboard = () => {
       setMyTasks(timelineItems);
 
       // 4. Stats & Chart Data
-      // Use ALL loaded data (no user_id filter for now to ensure visibility)
-      const myProd = loadedProd; 
+      // Filter for OWN production entries to ensure personal stats are accurate
+      const myProd = loadedProd.filter(p => p.user_id === user.id); 
       
       console.log('Production Data for Calculation:', myProd);
 
