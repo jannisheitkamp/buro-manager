@@ -28,6 +28,7 @@ serve(async (req) => {
         status: 500,
       })
     }
+    const GEMINI_MODEL = Deno.env.get('GEMINI_MODEL') || 'gemini-2.0-flash'
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')
@@ -129,7 +130,7 @@ Wenn der Nutzer nach Dingen fragt, die nicht im Kontext stehen (z.B. spezifische
       },
     }
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(requestBody)
