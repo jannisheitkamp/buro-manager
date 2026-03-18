@@ -105,51 +105,31 @@ export const PhoneCalls = () => {
   };
 
   const handleConfirmAppointment = async () => {
+      if (!user) {
+          toast.error('Nicht eingeloggt');
+          return;
+      }
       const lead = leads[currentLeadIndex];
       const start = new Date(`${appointmentDate}T${appointmentTime}`);
       const end = new Date(start.getTime() + 30 * 60000); // 30 min default
 
       // 1. Create Calendar Event
-      console.log('Creating calendar event for:', user?.id);
       const eventData = {
           title: `Termin: ${lead.customer_name}`,
           start_time: start.toISOString(),
           end_time: end.toISOString(),
-          user_id: user?.id,
-          color: 'green', // Changed from 'emerald' to 'green' to match calendar filters
+          user_id: user.id,
+          color: 'green', 
           description: appointmentNote
       };
-      console.log('Event Data:', eventData);
 
       const { error: calendarError } = await supabase.from('calendar_events').insert(eventData);
 
       if (calendarError) {
-          console.error('Calendar Error Full:', calendarError);
           toast.error(`Fehler Kalender: ${calendarError.message}`);
       }
 
-      // 2. Create Todoist Task (if api key exists)
-      if (profile?.todoist_api_key) {
-          try {
-              await fetch('https://api.todoist.com/rest/v2/tasks', {
-                  method: 'POST',
-                  headers: {
-                      'Authorization': `Bearer ${profile.todoist_api_key}`,
-                      'Content-Type': 'application/json'
-                  },
-                  body: JSON.stringify({
-                      content: `Termin: ${lead.customer_name}`,
-                      description: `Tel: ${lead.phone}\nNotiz: ${appointmentNote}`,
-                      due_datetime: start.toISOString()
-                  })
-              });
-              toast.success('Todoist Task erstellt!');
-          } catch (e) {
-              console.error('Todoist Error', e);
-          }
-      }
-
-      // 3. Mark Lead as Done
+      // 2. Mark Lead as Done
       await supabase.from('leads').update({
           status: 'done',
           notes: `Termin: ${format(start, 'dd.MM. HH:mm')} - ${appointmentNote}`,

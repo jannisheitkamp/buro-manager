@@ -2,6 +2,7 @@
 
 -- 1. Profiles
 DROP POLICY IF EXISTS "Public profiles are viewable by everyone" ON public.profiles;
+DROP POLICY IF EXISTS "Profiles are viewable by authenticated users" ON public.profiles;
 CREATE POLICY "Profiles are viewable by authenticated users" 
 ON public.profiles FOR SELECT 
 TO authenticated 
@@ -9,6 +10,7 @@ USING (true);
 
 -- 2. User Status
 DROP POLICY IF EXISTS "Status is viewable by everyone" ON public.user_status;
+DROP POLICY IF EXISTS "Status is viewable by authenticated users" ON public.user_status;
 CREATE POLICY "Status is viewable by authenticated users" 
 ON public.user_status FOR SELECT 
 TO authenticated 
@@ -16,6 +18,7 @@ USING (true);
 
 -- 3. Bookings
 DROP POLICY IF EXISTS "Bookings are viewable by everyone" ON public.bookings;
+DROP POLICY IF EXISTS "Bookings are viewable by authenticated users" ON public.bookings;
 CREATE POLICY "Bookings are viewable by authenticated users" 
 ON public.bookings FOR SELECT 
 TO authenticated 
@@ -23,6 +26,7 @@ USING (true);
 
 -- 4. Absences
 DROP POLICY IF EXISTS "Absences are viewable by everyone" ON public.absences;
+DROP POLICY IF EXISTS "Absences are viewable by authenticated users" ON public.absences;
 CREATE POLICY "Absences are viewable by authenticated users" 
 ON public.absences FOR SELECT 
 TO authenticated 
@@ -30,6 +34,7 @@ USING (true);
 
 -- 5. Posts
 DROP POLICY IF EXISTS "Posts are viewable by everyone" ON public.posts;
+DROP POLICY IF EXISTS "Posts are viewable by authenticated users" ON public.posts;
 CREATE POLICY "Posts are viewable by authenticated users" 
 ON public.posts FOR SELECT 
 TO authenticated 
@@ -37,6 +42,7 @@ USING (true);
 
 -- 6. Callbacks
 DROP POLICY IF EXISTS "Everyone can view callbacks" ON public.callbacks;
+DROP POLICY IF EXISTS "Callbacks are viewable by authenticated users" ON public.callbacks;
 CREATE POLICY "Callbacks are viewable by authenticated users" 
 ON public.callbacks FOR SELECT 
 TO authenticated 
@@ -57,6 +63,7 @@ USING (true); -- Keep team-wide delete for now, but restrict to authenticated
 
 -- 7. Parcels
 DROP POLICY IF EXISTS "Everyone can view parcels" ON public.parcels;
+DROP POLICY IF EXISTS "Parcels are viewable by authenticated users" ON public.parcels;
 CREATE POLICY "Parcels are viewable by authenticated users" 
 ON public.parcels FOR SELECT 
 TO authenticated 
@@ -69,6 +76,12 @@ DROP POLICY IF EXISTS "Public Select" ON public.phone_calls;
 DROP POLICY IF EXISTS "Phone calls insertable by everyone" ON public.phone_calls;
 DROP POLICY IF EXISTS "Phone calls viewable by everyone" ON public.phone_calls;
 DROP POLICY IF EXISTS "Users can view all calls" ON public.phone_calls;
+
+-- Drop new policies if they exist (to allow re-run)
+DROP POLICY IF EXISTS "Phone calls viewable by authenticated users" ON public.phone_calls;
+DROP POLICY IF EXISTS "Phone calls insertable by authenticated users" ON public.phone_calls;
+DROP POLICY IF EXISTS "Phone calls updatable by authenticated users" ON public.phone_calls;
+DROP POLICY IF EXISTS "Phone calls deletable by authenticated users" ON public.phone_calls;
 
 -- Create strict policies (Authenticated only)
 CREATE POLICY "Phone calls viewable by authenticated users" 
@@ -93,18 +106,21 @@ USING (true);
 
 -- 9. Polls
 DROP POLICY IF EXISTS "Everyone can view polls" ON public.polls;
+DROP POLICY IF EXISTS "Polls viewable by authenticated users" ON public.polls;
 CREATE POLICY "Polls viewable by authenticated users" 
 ON public.polls FOR SELECT 
 TO authenticated 
 USING (true);
 
 DROP POLICY IF EXISTS "Everyone can view options" ON public.poll_options;
+DROP POLICY IF EXISTS "Poll_options viewable by authenticated users" ON public.poll_options;
 CREATE POLICY "Poll_options viewable by authenticated users" 
 ON public.poll_options FOR SELECT 
 TO authenticated 
 USING (true);
 
 DROP POLICY IF EXISTS "Everyone can view votes" ON public.poll_votes;
+DROP POLICY IF EXISTS "Poll_votes viewable by authenticated users" ON public.poll_votes;
 CREATE POLICY "Poll_votes viewable by authenticated users" 
 ON public.poll_votes FOR SELECT 
 TO authenticated 
@@ -112,6 +128,11 @@ USING (true);
 
 -- 10. Calendar Events
 DROP POLICY IF EXISTS "Team calendar" ON public.calendar_events;
+DROP POLICY IF EXISTS "Calendar events viewable by authenticated users" ON public.calendar_events;
+DROP POLICY IF EXISTS "Calendar events insertable by authenticated users" ON public.calendar_events;
+DROP POLICY IF EXISTS "Calendar events updatable by authenticated users" ON public.calendar_events;
+DROP POLICY IF EXISTS "Calendar events deletable by authenticated users" ON public.calendar_events;
+
 CREATE POLICY "Calendar events viewable by authenticated users" 
 ON public.calendar_events FOR SELECT 
 TO authenticated 
@@ -134,6 +155,7 @@ USING (true);
 
 -- 11. Board Messages
 DROP POLICY IF EXISTS "Read board" ON public.board_messages;
+DROP POLICY IF EXISTS "Board messages viewable by authenticated users" ON public.board_messages;
 CREATE POLICY "Board messages viewable by authenticated users" 
 ON public.board_messages FOR SELECT 
 TO authenticated 

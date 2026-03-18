@@ -16,7 +16,6 @@ export const ProfilePage = () => {
     const [agencyNumber, setAgencyNumber] = useState(''); 
     const [phoneExtension, setPhoneExtension] = useState('');
     const [address, setAddress] = useState(''); // New: Address
-    const [todoistApiKey, setTodoistApiKey] = useState(''); // New: Todoist API Key
     const [webhookSecret, setWebhookSecret] = useState(''); // New: Webhook Secret
     const [monthlyGoal, setMonthlyGoal] = useState<number>(10000); // New: Monthly Goal (Default 10k)
     const [yearlyGoal, setYearlyGoal] = useState<number>(120000); // New: Yearly Goal (Default 120k)
@@ -48,7 +47,6 @@ export const ProfilePage = () => {
             setAgencyNumber(profile.agency_number || ''); 
             setPhoneExtension(profile.phone_extension || '');
             setAddress(profile.address || ''); // Load
-            setTodoistApiKey(profile.todoist_api_key || ''); // Load
             setWebhookSecret(profile.webhook_secret || ''); // Load
             setMonthlyGoal(profile.monthly_goal || 10000); // Load
             setYearlyGoal(profile.yearly_goal || (profile.monthly_goal ? profile.monthly_goal * 12 : 120000)); // Load or calc
@@ -161,7 +159,6 @@ export const ProfilePage = () => {
                     agency_number: agencyNumber,
                     phone_extension: phoneExtension,
                     address: address, // Save
-                    todoist_api_key: todoistApiKey, // Save
                     monthly_goal: monthlyGoal, // Save
                     yearly_goal: yearlyGoal, // Save
                     avatar_url: avatarUrl 
@@ -371,22 +368,6 @@ export const ProfilePage = () => {
                                         className="w-full rounded-xl bg-gray-50 dark:bg-gray-900 border-transparent focus:bg-white focus:ring-2 focus:ring-indigo-500/20 pl-10 px-4 py-2.5 text-sm transition-all"
                                     />
                                 </div>
-                            </div>
-
-                            <div>
-                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Todoist API Key</label>
-                                <div className="relative">
-                                    <input 
-                                        type="password" 
-                                        value={todoistApiKey}
-                                        onChange={e => setTodoistApiKey(e.target.value)}
-                                        placeholder="API Token hier einfügen"
-                                        className="w-full rounded-xl bg-gray-50 dark:bg-gray-900 border-transparent focus:bg-white focus:ring-2 focus:ring-indigo-500/20 px-4 py-2.5 text-sm transition-all"
-                                    />
-                                </div>
-                                <p className="text-[10px] text-gray-400 mt-1">
-                                    Zu finden unter Todoist Einstellungen &gt; Integrationen &gt; API-Token.
-                                </p>
                             </div>
 
                             <div>

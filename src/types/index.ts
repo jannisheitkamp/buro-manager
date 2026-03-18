@@ -4,7 +4,6 @@ export type Profile = {
   full_name: string | null;
   agency_number?: string | null;
   phone_extension?: string | null; // New
-  todoist_api_key?: string | null; // New
   webhook_secret?: string | null; // New for Apple Shortcuts
   monthly_goal?: number | null; // New: Revenue Goal
   yearly_goal?: number | null;
