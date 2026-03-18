@@ -12,7 +12,7 @@ serve(async (req) => {
   }
 
   try {
-    const { messages, user_id } = await req.json()
+    const { messages } = await req.json()
 
     if (!messages || !Array.isArray(messages)) {
       return new Response(JSON.stringify({ error: 'Messages array is required' }), {
@@ -29,17 +29,41 @@ serve(async (req) => {
       })
     }
 
-    // Initialize Supabase Client to fetch context data
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    const supabase = createClient(supabaseUrl, supabaseKey)
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')
+    if (!supabaseUrl || !supabaseAnonKey) {
+      return new Response(JSON.stringify({ error: 'Supabase env not set' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 500,
+      })
+    }
 
-    // --- FETCH CONTEXT DATA ---
-    // Get current date context
+    const authHeader = req.headers.get('authorization') || req.headers.get('Authorization')
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: 'Missing Authorization header' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 401,
+      })
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } },
+      auth: { persistSession: false },
+    })
+
     const today = new Date().toISOString().split('T')[0]
-    
-    // Fetch user profile
-    const { data: profile } = await supabase.from('profiles').select('*').eq('id', user_id).single()
+
+    const { data: authData, error: authError } = await supabase.auth.getUser()
+    if (authError || !authData?.user?.id) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 401,
+      })
+    }
+
+    const userId = authData.user.id
+
+    const { data: profile } = await supabase.from('profiles').select('*').eq('id', userId).single()
     
     // Fetch today's absences
     const { data: absences } = await supabase
@@ -61,8 +85,9 @@ serve(async (req) => {
         .select('*', { count: 'exact', head: true })
         .eq('status', 'open')
 
-    // Fetch total production (this month)
-    const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
+    const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1)
+      .toISOString()
+      .split('T')[0]
     const { data: production } = await supabase
         .from('production_entries')
         .select('commission_amount')
@@ -94,14 +119,14 @@ Wenn der Nutzer nach Dingen fragt, die nicht im Kontext stehen (z.B. spezifische
     // Add System Prompt as the first user message (workaround for Gemini flash if system_instruction is not supported in this exact endpoint format, but usually we can use systemInstruction)
     
     const requestBody = {
-      system_instruction: {
-        parts: [{ text: systemPrompt }]
-      },
-      contents: geminiMessages,
+      contents: [
+        { role: 'user', parts: [{ text: systemPrompt }] },
+        ...geminiMessages,
+      ],
       generationConfig: {
         temperature: 0.7,
         maxOutputTokens: 800,
-      }
+      },
     }
 
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
@@ -116,7 +141,10 @@ Wenn der Nutzer nach Dingen fragt, die nicht im Kontext stehen (z.B. spezifische
         throw new Error(result.error.message)
     }
 
-    const aiText = result.candidates?.[0]?.content?.parts?.[0]?.text || 'Tut mir leid, ich konnte keine Antwort generieren.'
+    const aiParts = result.candidates?.[0]?.content?.parts || []
+    const aiText =
+      aiParts.map((p: any) => p?.text).filter(Boolean).join('') ||
+      'Tut mir leid, ich konnte keine Antwort generieren.'
 
     return new Response(JSON.stringify({ text: aiText }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
