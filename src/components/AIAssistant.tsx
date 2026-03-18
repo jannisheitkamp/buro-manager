@@ -1,11 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, X, Bot, ArrowRight, Minimize2, Maximize2, Loader2 } from 'lucide-react';
+import { Send, X, Bot, ArrowRight, Minimize2, Maximize2 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { useStore } from '@/store/useStore';
-import ReactMarkdown from 'react-markdown';
+import { endOfMonth, endOfWeek, startOfMonth, startOfWeek, subMonths } from 'date-fns';
 
 type Message = {
     id: string;
@@ -14,6 +14,30 @@ type Message = {
     timestamp: Date;
     actions?: { label: string; action: () => void }[];
 };
+
+type BotResponse = {
+    text: string;
+    actions?: Message['actions'];
+};
+
+type IntentHandler = {
+    id: string;
+    keywords: string[];
+    handler: (ctx: { userId: string; navigate: ReturnType<typeof useNavigate>; input: string }) => Promise<BotResponse>;
+};
+
+const fmtEur = (n: number) => new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(n);
+
+const normalize = (s: string) =>
+    s
+        .toLowerCase()
+        .trim()
+        .replace(/[ä]/g, 'ae')
+        .replace(/[ö]/g, 'oe')
+        .replace(/[ü]/g, 'ue')
+        .replace(/[ß]/g, 'ss');
+
+const includesAny = (text: string, keywords: string[]) => keywords.some(k => text.includes(k));
 
 export const AIAssistant = () => {
     const { user } = useStore();
@@ -26,7 +50,7 @@ export const AIAssistant = () => {
         {
             id: '1',
             role: 'bot',
-            content: 'Hallo! Ich bin dein neuer, intelligenter Büro Manager KI-Assistent. Frag mich nach Umsätzen, offenen Leads, wer heute krank ist oder lass mich dir bei anderen Dingen helfen! 🚀',
+            content: 'Hallo! Ich bin dein Büro Manager Assistent (ohne externe KI). Frag mich z.B.: "Umsatz diesen Monat", "Offene Leads", "Offene Rückrufe" oder "Wer ist heute abwesend?".',
             timestamp: new Date()
         }
     ]);
@@ -40,47 +64,278 @@ export const AIAssistant = () => {
 
     const processInput = async (userInput: string) => {
         if (!user) return;
-        
-        try {
-            // Get last 10 messages for context
-            const history = messages.slice(-10).map(m => ({
-                role: m.role,
-                content: m.content
-            }));
-            
-            // Add new user message
-            history.push({ role: 'user', content: userInput });
 
-            const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-            const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        const input = normalize(userInput);
 
-            const { data: sessionData } = await supabase.auth.getSession();
-            const accessToken = sessionData.session?.access_token;
+        const INTENTS: IntentHandler[] = [
+            {
+                id: 'help',
+                keywords: ['hilfe', 'help', 'was kannst du', 'funktionen', 'befehle'],
+                handler: async () => ({
+                    text:
+                        'Ich kann dir u.a. helfen mit:\n' +
+                        '- Umsatz: "Umsatz diesen Monat" / "Umsatz letzten Monat"\n' +
+                        '- Leads: "Offene Leads"\n' +
+                        '- Rückrufe: "Offene Rückrufe"\n' +
+                        '- Pakete: "Pakete"\n' +
+                        '- Abwesenheiten: "Wer ist heute abwesend?"\n' +
+                        'Du kannst auch sagen: "Öffne Produktion/Leads/Kalender/Callbacks/Pakete".',
+                }),
+            },
+            {
+                id: 'navigate',
+                keywords: ['oeffne', 'geh zu', 'zeige', 'bring mich zu'],
+                handler: async ({ navigate, input }) => {
+                    const map: { keywords: string[]; href: string; label: string }[] = [
+                        { keywords: ['produktion', 'umsatz'], href: '/production', label: 'Produktion öffnen' },
+                        { keywords: ['leads', 'pipeline'], href: '/leads', label: 'Leads öffnen' },
+                        { keywords: ['kalender', 'termine'], href: '/general-calendar', label: 'Kalender öffnen' },
+                        { keywords: ['rueckruf', 'callbacks', 'anrufe'], href: '/callbacks', label: 'Rückrufe öffnen' },
+                        { keywords: ['pakete', 'paket'], href: '/parcels', label: 'Pakete öffnen' },
+                        { keywords: ['pinnwand', 'board'], href: '/board', label: 'Pinnwand öffnen' },
+                        { keywords: ['dokumente', 'documents'], href: '/documents', label: 'Dokumente öffnen' },
+                    ];
 
-            const res = await fetch(`${supabaseUrl}/functions/v1/chat-assistant`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    apikey: supabaseAnonKey,
-                    Authorization: accessToken ? `Bearer ${accessToken}` : '',
+                    const hit = map.find(m => includesAny(input, m.keywords));
+                    if (!hit) {
+                        return { text: 'Wohin genau soll ich dich bringen? Z.B. "Öffne Leads" oder "Öffne Produktion".' };
+                    }
+                    return {
+                        text: `Alles klar: **${hit.label}**.`,
+                        actions: [{ label: hit.label, action: () => navigate(hit.href) }],
+                    };
                 },
-                body: JSON.stringify({ messages: history }),
-            });
+            },
+            {
+                id: 'revenue',
+                keywords: ['umsatz', 'provision', 'einnahmen', 'verdient'],
+                handler: async ({ userId, navigate, input }) => {
+                    const now = new Date();
+                    const wantsLastMonth = input.includes('letzten monat') || input.includes('vergangenen monat');
+                    const wantsThisMonth = input.includes('diesen monat') || input.includes('aktuellen monat') || input.includes('dieser monat');
+                    const wantsThisWeek = input.includes('diese woche') || input.includes('aktuelle woche');
+                    const wantsLastWeek = input.includes('letzte woche') || input.includes('vergangene woche');
 
-            const payload = await res.json().catch(() => ({}));
+                    let start = '1900-01-01';
+                    let end = '2100-01-01';
+                    let label = 'Umsatz gesamt';
 
-            if (!res.ok) {
-                const msg = payload?.error || `Fehler ${res.status}`;
-                throw new Error(msg);
-            }
+                    if (wantsLastMonth) {
+                        const lastMonth = subMonths(now, 1);
+                        start = startOfMonth(lastMonth).toISOString().split('T')[0];
+                        end = endOfMonth(lastMonth).toISOString().split('T')[0];
+                        label = 'Umsatz letzten Monat';
+                    } else if (wantsThisMonth) {
+                        start = startOfMonth(now).toISOString().split('T')[0];
+                        end = endOfMonth(now).toISOString().split('T')[0];
+                        label = 'Umsatz diesen Monat';
+                    } else if (wantsLastWeek) {
+                        const lastWeek = new Date(now);
+                        lastWeek.setDate(now.getDate() - 7);
+                        start = startOfWeek(lastWeek, { weekStartsOn: 1 }).toISOString().split('T')[0];
+                        end = endOfWeek(lastWeek, { weekStartsOn: 1 }).toISOString().split('T')[0];
+                        label = 'Umsatz letzte Woche';
+                    } else if (wantsThisWeek) {
+                        start = startOfWeek(now, { weekStartsOn: 1 }).toISOString().split('T')[0];
+                        end = endOfWeek(now, { weekStartsOn: 1 }).toISOString().split('T')[0];
+                        label = 'Umsatz diese Woche';
+                    }
 
-            addBotMessage({ text: payload.text });
-            
+                    const personal = input.includes('mein') || input.includes('ich') || input.includes('persoenlich');
+
+                    let q = supabase
+                        .from('production_entries')
+                        .select('commission_amount', { count: 'exact' })
+                        .gte('submission_date', start)
+                        .lte('submission_date', end);
+
+                    if (personal) q = q.eq('user_id', userId);
+
+                    const { data, error } = await q;
+                    if (error) return { text: `Ich konnte den Umsatz gerade nicht laden. (${error.message})` };
+
+                    const total = (data || []).reduce((acc: number, curr: any) => acc + (Number(curr.commission_amount) || 0), 0);
+                    const who = personal ? ' (dein Bereich)' : ' (Team)';
+
+                    return {
+                        text: `${label}${who}: **${fmtEur(total)}**`,
+                        actions: [{ label: 'Produktion öffnen', action: () => navigate('/production') }],
+                    };
+                },
+            },
+            {
+                id: 'leads',
+                keywords: ['lead', 'leads', 'pipeline', 'offen', 'offene leads'],
+                handler: async ({ navigate }) => {
+                    const { count, error } = await supabase
+                        .from('leads')
+                        .select('*', { count: 'exact', head: true })
+                        .in('status', ['new', 'contacted', 'proposal']);
+
+                    if (error) return { text: `Ich konnte die Leads gerade nicht laden. (${error.message})` };
+
+                    return {
+                        text: `Offene Leads: **${count || 0}**`,
+                        actions: [{ label: 'Leads öffnen', action: () => navigate('/leads') }],
+                    };
+                },
+            },
+            {
+                id: 'callbacks',
+                keywords: ['rueckruf', 'rueckrufe', 'callback', 'callbacks', 'anrufen'],
+                handler: async ({ userId, navigate }) => {
+                    const { count, error } = await supabase
+                        .from('callbacks')
+                        .select('*', { count: 'exact', head: true })
+                        .eq('assigned_to', userId)
+                        .neq('status', 'done');
+
+                    if (error) return { text: `Ich konnte die Rückrufe gerade nicht laden. (${error.message})` };
+
+                    return {
+                        text: `Offene Rückrufe (für dich): **${count || 0}**`,
+                        actions: [{ label: 'Rückrufe öffnen', action: () => navigate('/callbacks') }],
+                    };
+                },
+            },
+            {
+                id: 'parcels',
+                keywords: ['paket', 'pakete', 'post', 'lieferung'],
+                handler: async ({ userId, navigate }) => {
+                    const { count, error } = await supabase
+                        .from('parcels')
+                        .select('*', { count: 'exact', head: true })
+                        .eq('recipient_id', userId)
+                        .in('status', ['pending', 'expected']);
+
+                    if (error) return { text: `Ich konnte die Pakete gerade nicht laden. (${error.message})` };
+
+                    return {
+                        text: `Pakete (für dich, offen/unterwegs): **${count || 0}**`,
+                        actions: [{ label: 'Pakete öffnen', action: () => navigate('/parcels') }],
+                    };
+                },
+            },
+            {
+                id: 'absences',
+                keywords: ['krank', 'abwesend', 'urlaub', 'wer fehlt', 'wer ist nicht da'],
+                handler: async ({ navigate }) => {
+                    const today = new Date().toISOString().split('T')[0];
+                    const { data, error } = await supabase
+                        .from('absences')
+                        .select('type, profiles(full_name)')
+                        .eq('status', 'approved')
+                        .lte('start_date', today)
+                        .gte('end_date', today);
+
+                    if (error) return { text: `Ich konnte die Abwesenheiten gerade nicht laden. (${error.message})` };
+
+                    if (!data || data.length === 0) {
+                        return { text: 'Heute ist niemand als abwesend eingetragen.', actions: [{ label: 'Kalender öffnen', action: () => navigate('/general-calendar') }] };
+                    }
+
+                    const names = data.map((a: any) => `${a.profiles?.full_name || '-'} (${a.type})`).join(', ');
+
+                    return {
+                        text: `Heute abwesend: **${names}**`,
+                        actions: [{ label: 'Kalender öffnen', action: () => navigate('/general-calendar') }],
+                    };
+                },
+            },
+            {
+                id: 'calendar',
+                keywords: ['kalender', 'termin', 'termine', 'naechster termin', 'heute termine'],
+                handler: async ({ userId, navigate, input }) => {
+                    const now = new Date();
+                    const todayStart = new Date(now);
+                    todayStart.setHours(0, 0, 0, 0);
+                    const todayEnd = new Date(now);
+                    todayEnd.setHours(23, 59, 59, 999);
+
+                    const personal = input.includes('mein') || input.includes('ich') || input.includes('persoenlich');
+                    const nextOnly = input.includes('naechster');
+
+                    let q = supabase
+                        .from('calendar_events')
+                        .select('title, start_time')
+                        .order('start_time', { ascending: true })
+                        .limit(3);
+
+                    if (personal) q = q.eq('user_id', userId);
+
+                    if (nextOnly) {
+                        q = q.gte('start_time', now.toISOString());
+                    } else {
+                        q = q.gte('start_time', todayStart.toISOString()).lte('start_time', todayEnd.toISOString());
+                    }
+
+                    const { data, error } = await q;
+                    if (error) return { text: `Ich konnte die Termine gerade nicht laden. (${error.message})` };
+
+                    if (!data || data.length === 0) {
+                        return { text: nextOnly ? 'Kein nächster Termin gefunden.' : 'Heute sind keine Termine eingetragen.', actions: [{ label: 'Kalender öffnen', action: () => navigate('/general-calendar') }] };
+                    }
+
+                    const lines = data.map((e: any) => {
+                        const t = new Date(e.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                        return `- ${t} ${e.title}`;
+                    });
+
+                    return {
+                        text: `${nextOnly ? 'Nächste Termine' : 'Termine heute'}:\n${lines.join('\n')}`,
+                        actions: [{ label: 'Kalender öffnen', action: () => navigate('/general-calendar') }],
+                    };
+                },
+            },
+            {
+                id: 'board',
+                keywords: ['pinnwand', 'board', 'nachrichten', 'ankuendigung'],
+                handler: async ({ userId, navigate }) => {
+                    const since = new Date();
+                    since.setDate(since.getDate() - 1);
+
+                    const { count, error } = await supabase
+                        .from('board_messages')
+                        .select('*', { count: 'exact', head: true })
+                        .gte('created_at', since.toISOString())
+                        .neq('user_id', userId);
+
+                    if (error) return { text: `Ich konnte die Pinnwand gerade nicht laden. (${error.message})` };
+
+                    return {
+                        text: `Neue Pinnwand-Beiträge (letzte 24h, ohne deine): **${count || 0}**`,
+                        actions: [{ label: 'Pinnwand öffnen', action: () => navigate('/board') }],
+                    };
+                },
+            },
+            {
+                id: 'fallback',
+                keywords: [],
+                handler: async ({ navigate }) => ({
+                    text: 'Ich bin ein Offline-Assistent. Schreib z.B. "Hilfe" oder "Öffne Leads".',
+                    actions: [{ label: 'Dashboard öffnen', action: () => navigate('/') }],
+                }),
+            },
+        ];
+
+        try {
+            const scored = INTENTS
+                .map(i => ({
+                    intent: i,
+                    score:
+                        i.id === 'fallback'
+                            ? 0
+                            : i.keywords.reduce((acc, k) => (input.includes(normalize(k)) ? acc + 1 : acc), 0),
+                }))
+                .filter(x => x.intent.id === 'fallback' || x.score > 0)
+                .sort((a, b) => b.score - a.score);
+
+            const best = scored[0]?.intent || INTENTS.find(i => i.id === 'fallback')!;
+            const response = await best.handler({ userId: user.id, navigate, input });
+            addBotMessage(response);
         } catch (error) {
-            console.error('AI Chat Error:', error);
-            addBotMessage({ 
-                text: `Entschuldigung, ich bekomme gerade keine Antwort von der KI. (${(error as Error)?.message || 'Unbekannter Fehler'})` 
-            });
+            const msg = (error as Error)?.message || 'Unbekannter Fehler';
+            addBotMessage({ text: `Ich konnte das gerade nicht ausführen. (${msg})` });
         }
     };
 
@@ -114,7 +369,6 @@ export const AIAssistant = () => {
         await processInput(userText);
     };
 
-    // Helper to render text with bold markdown
     const renderContent = (text: string) => {
         const parts = text.split(/(\*\*.*?\*\*)/g);
         return parts.map((part, index) => {
@@ -208,9 +462,7 @@ export const AIAssistant = () => {
                                                     ? "bg-indigo-600 text-white rounded-tr-none" 
                                                     : "bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 border border-gray-100 dark:border-gray-700 rounded-tl-none"
                                             )}>
-                                                <div className={cn("prose prose-sm max-w-none", msg.role === 'user' ? "text-white prose-p:text-white prose-strong:text-white" : "dark:prose-invert prose-indigo")}>
-                                                    <ReactMarkdown>{msg.content}</ReactMarkdown>
-                                                </div>
+                                                <p className="leading-relaxed whitespace-pre-wrap">{renderContent(msg.content)}</p>
                                                 {msg.actions && msg.actions.length > 0 && (
                                                     <div className="mt-3 flex flex-wrap gap-2">
                                                         {msg.actions.map((action, idx) => (
