@@ -51,28 +51,35 @@ export const AIAssistant = () => {
             // Add new user message
             history.push({ role: 'user', content: userInput });
 
-            const { data, error } = await supabase.functions.invoke('chat-assistant', {
-                body: { 
-                    messages: history,
-                    user_id: user.id
-                }
+            const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+            const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+            const { data: sessionData } = await supabase.auth.getSession();
+            const accessToken = sessionData.session?.access_token;
+
+            const res = await fetch(`${supabaseUrl}/functions/v1/chat-assistant`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    apikey: supabaseAnonKey,
+                    Authorization: accessToken ? `Bearer ${accessToken}` : '',
+                },
+                body: JSON.stringify({ messages: history }),
             });
 
-            if (error) {
-                // Fallback if function is not deployed or fails
-                console.error(error);
-                addBotMessage({ 
-                    text: "Ups, ich habe gerade keine Verbindung zu meinem KI-Gehirn (Edge Function). Bitte stelle sicher, dass die Funktion deployed und der API Key gesetzt ist. 🔌" 
-                });
-                return;
+            const payload = await res.json().catch(() => ({}));
+
+            if (!res.ok) {
+                const msg = payload?.error || `Fehler ${res.status}`;
+                throw new Error(msg);
             }
 
-            addBotMessage({ text: data.text });
+            addBotMessage({ text: payload.text });
             
         } catch (error) {
             console.error('AI Chat Error:', error);
             addBotMessage({ 
-                text: "Entschuldigung, ich habe gerade Verbindungsprobleme zu meinem KI-Gehirn. Bitte versuche es später noch einmal. 🔌" 
+                text: `Entschuldigung, ich bekomme gerade keine Antwort von der KI. (${(error as Error)?.message || 'Unbekannter Fehler'})` 
             });
         }
     };
