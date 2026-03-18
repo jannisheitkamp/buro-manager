@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, X, Bot, ArrowRight, Minimize2, Maximize2 } from 'lucide-react';
+import { Send, X, Bot, ArrowRight, Minimize2, Maximize2, Loader2 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
-import { startOfMonth, endOfMonth, subMonths, startOfDay, isWithinInterval, parseISO, endOfDay } from 'date-fns';
+import { useStore } from '@/store/useStore';
+import ReactMarkdown from 'react-markdown';
 
 type Message = {
     id: string;
@@ -14,217 +15,9 @@ type Message = {
     actions?: { label: string; action: () => void }[];
 };
 
-type IntentHandler = {
-    id: string;
-    keywords: string[]; 
-    handler: (navigate: any, userInput: string) => Promise<{ text: string; actions?: Message['actions'] }>;
-};
-
-// Helper to format currency
-const fmt = (n: number) => new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(n);
-
-const INTENTS: IntentHandler[] = [
-    {
-        id: 'revenue',
-        keywords: ['umsatz', 'geld', 'verdient', 'provision', 'einnahmen', 'finanzen', 'cash', 'betrag', 'summe'],
-        handler: async (navigate, userInput) => {
-            const now = new Date();
-            const lowerInput = userInput.toLowerCase();
-            let start = new Date(0).toISOString(); // Default: All time
-            let end = new Date(2100, 0, 1).toISOString();
-            let label = "Gesamtumsatz";
-
-            if (lowerInput.includes('letzten monat') || lowerInput.includes('vergangenen monat')) {
-                const lastMonth = subMonths(now, 1);
-                start = startOfMonth(lastMonth).toISOString();
-                end = endOfMonth(lastMonth).toISOString();
-                label = "Umsatz im letzten Monat";
-            } else if (lowerInput.includes('diesen monat') || lowerInput.includes('aktuellen monat')) {
-                start = startOfMonth(now).toISOString();
-                end = endOfMonth(now).toISOString();
-                label = "Umsatz diesen Monat";
-            }
-
-            // Fetch data
-            const { data } = await supabase
-                .from('production_entries')
-                .select('commission_amount, created_at')
-                .gte('created_at', start)
-                .lte('created_at', end);
-            
-            const total = data?.reduce((acc, curr) => acc + (curr.commission_amount || 0), 0) || 0;
-            
-            return {
-                text: `${label}: **${fmt(total)}**. ${total > 0 ? 'Weiter so! 🚀' : 'Da geht noch was! 💪'}`,
-                actions: [{ label: 'Details ansehen', action: () => navigate('/production') }]
-            };
-        }
-    },
-    {
-        id: 'sick_leave',
-        keywords: ['krank', 'krankheit', 'fehlt', 'abwesend', 'wer ist nicht da'],
-        handler: async (navigate) => {
-            const today = new Date();
-            
-            // Fetch active absences
-            const { data } = await supabase
-                .from('absences')
-                .select('*, profiles(full_name)')
-                .eq('status', 'approved')
-                .gte('end_date', startOfDay(today).toISOString());
-
-            if (!data || data.length === 0) {
-                return { text: "Aktuell ist niemand krank gemeldet. Alle an Deck! ⚓️" };
-            }
-
-            // Filter for actually active today
-            const activeAbsences = data.filter(a => {
-                const start = parseISO(a.start_date);
-                const end = endOfDay(parseISO(a.end_date));
-                return isWithinInterval(today, { start, end });
-            });
-
-            if (activeAbsences.length === 0) {
-                 return { text: "Heute ist niemand abwesend." };
-            }
-
-            const sickPeople = activeAbsences.filter(a => a.type === 'sick_leave');
-            const vacationPeople = activeAbsences.filter(a => a.type === 'vacation');
-
-            let responseText = "";
-
-            if (sickPeople.length > 0) {
-                const names = sickPeople.map(p => p.profiles?.full_name).join(', ');
-                responseText += `Krank gemeldet: **${names}**. 🤒\n`;
-            }
-            
-            if (vacationPeople.length > 0) {
-                const names = vacationPeople.map(p => p.profiles?.full_name).join(', ');
-                responseText += `Im Urlaub: **${names}**. 🌴`;
-            }
-
-            if (!responseText) responseText = "Einige Kollegen sind heute abwesend.";
-
-            return {
-                text: responseText,
-                actions: [{ label: 'Kalender öffnen', action: () => navigate('/calendar') }]
-            };
-        }
-    },
-    {
-        id: 'callbacks',
-        keywords: ['rückruf', 'anrufen', 'telefon', 'wen', 'kontaktieren', 'anruf', 'telefonieren', 'liste'],
-        handler: async (navigate) => {
-            const { count } = await supabase.from('callbacks').select('*', { count: 'exact', head: true }).neq('status', 'done');
-            if (count === 0) return { text: "Alles erledigt! Keine offenen Rückrufe. 🎉" };
-            return {
-                text: `Du hast noch **${count} offene Rückrufe** auf der Liste.`,
-                actions: [{ label: 'Liste öffnen', action: () => navigate('/callbacks') }]
-            };
-        }
-    },
-    {
-        id: 'open_tasks',
-        keywords: ['offen', 'aufgaben', 'tasks', 'zu tun', 'todo', 'status', 'lage', 'was liegt an'],
-        handler: async (navigate) => {
-             // Parallel fetch
-             const [cb, l, p] = await Promise.all([
-                 supabase.from('callbacks').select('*', { count: 'exact', head: true }).neq('status', 'done'),
-                 supabase.from('leads').select('*', { count: 'exact', head: true }).eq('status', 'new'),
-                 supabase.from('parcels').select('*', { count: 'exact', head: true }).eq('status', 'pending')
-             ]);
-             
-             const total = (cb.count || 0) + (l.count || 0) + (p.count || 0);
-             
-             if (total === 0) return { text: "Du bist komplett sauber! Nichts offen. 🏖️" };
-
-             return {
-                 text: `Du hast **${total} offene Dinge**: ${cb.count} Rückrufe, ${l.count} neue Leads und ${p.count} Pakete.`,
-                 actions: [
-                     { label: 'Rückrufe', action: () => navigate('/callbacks') },
-                     { label: 'Leads', action: () => navigate('/leads') }
-                 ]
-             };
-        }
-    },
-    {
-        id: 'parcels',
-        keywords: ['paket', 'lieferung', 'dhl', 'post', 'hermes', 'dpd', 'zustellung', 'erwarte'],
-        handler: async (navigate) => {
-            const { count } = await supabase.from('parcels').select('*', { count: 'exact', head: true }).eq('status', 'pending');
-            if (count === 0) return { text: "Im Moment liegen keine Pakete für dich im Büro." };
-            return {
-                text: `Es liegen **${count} Pakete** zur Abholung bereit. 📦`,
-                actions: [{ label: 'Pakete ansehen', action: () => navigate('/parcels') }]
-            };
-        }
-    },
-    {
-        id: 'leads',
-        keywords: ['lead', 'pipeline', 'verkaufschance', 'potenzial', 'neuer kunde'],
-        handler: async (navigate) => {
-            const { count } = await supabase.from('leads').select('*', { count: 'exact', head: true }).eq('status', 'new');
-            return {
-                text: `Du hast **${count || 0} neue Leads** in der Pipeline.`,
-                actions: [{ label: 'Pipeline öffnen', action: () => navigate('/leads') }]
-            };
-        }
-    },
-    {
-        id: 'calendar',
-        keywords: ['kalender', 'termin', 'wann', 'zeit', 'datum', 'heute', 'morgen', 'woche', 'agenda'],
-        handler: async (navigate) => {
-            return {
-                text: "Ich öffne deinen Kalender für dich.",
-                actions: [{ label: 'Zum Kalender', action: () => navigate('/calendar') }]
-            };
-        }
-    },
-    {
-        id: 'bookings',
-        keywords: ['raum', 'buchung', 'auto', 'wagen', 'beamer', 'reservieren', 'meeting'],
-        handler: async (navigate) => {
-            return {
-                text: "Du kannst Räume, Autos und Equipment direkt hier buchen.",
-                actions: [{ label: 'Zur Buchung', action: () => navigate('/bookings') }]
-            };
-        }
-    },
-    {
-        id: 'greeting',
-        keywords: ['hallo', 'hi', 'moin', 'servus', 'guten', 'hey', 'na'],
-        handler: async () => {
-            return { text: "Moin! 👋 Wie kann ich dich heute unterstützen?" };
-        }
-    },
-
-    {
-        id: 'joke',
-        keywords: ['witz', 'lachen', 'lustig', 'spaß', 'humor'],
-        handler: async () => {
-            const jokes = [
-                "Was ist ein Keks unter einem Baum? Ein schattiges Plätzchen.",
-                "Treffen sich zwei Magneten. Sagt der eine: 'Was soll ich bloß anziehen?'",
-                "Egal wie gut du schläfst, Albert schläft wie Einstein.",
-                "Was macht ein Pirat am Computer? Er drückt die Enter-Taste!",
-                "Warum gehen Ameisen nicht in die Kirche? Weil sie In-Sekten sind.",
-                "Wie nennt man einen Bumerang, der nicht zurückkommt? Stock."
-            ];
-            return { text: jokes[Math.floor(Math.random() * jokes.length)] };
-        }
-    },
-    {
-        id: 'help',
-        keywords: ['hilfe', 'help', 'kannst', 'funktionen', 'befehle', 'was geht'],
-        handler: async () => {
-            return { 
-                text: "Ich kann dir Infos zu **Umsatz** (auch 'letzten Monat'), **Krankmeldungen**, **Leads** und **Paketen** geben. Frag einfach frei heraus!" 
-            };
-        }
-    }
-];
-
 export const AIAssistant = () => {
+    const { user } = useStore();
+    const navigate = useNavigate();
     const [isOpen, setIsOpen] = useState(false);
     const [isMinimized, setIsMinimized] = useState(false);
     const [input, setInput] = useState('');
@@ -233,49 +26,54 @@ export const AIAssistant = () => {
         {
             id: '1',
             role: 'bot',
-            content: 'Hi! Ich bin dein Büro-Assistent. Frag mich z.B. "Wer ist heute krank?" oder "Wie war mein Umsatz letzten Monat?"',
+            content: 'Hallo! Ich bin dein neuer, intelligenter Büro Manager KI-Assistent. Frag mich nach Umsätzen, offenen Leads, wer heute krank ist oder lass mich dir bei anderen Dingen helfen! 🚀',
             timestamp: new Date()
         }
     ]);
     
     const messagesEndRef = useRef<HTMLDivElement>(null);
-    const navigate = useNavigate();
 
     // Auto-scroll
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [messages, isOpen]);
+    }, [messages, isOpen, isTyping]);
 
-    // --- THE BRAIN LOGIC ---
     const processInput = async (userInput: string) => {
-        const normalized = userInput.toLowerCase();
+        if (!user) return;
         
-        // Scoring System
-        let bestMatch: { intent: IntentHandler; score: number } | null = null;
+        try {
+            // Get last 10 messages for context
+            const history = messages.slice(-10).map(m => ({
+                role: m.role,
+                content: m.content
+            }));
+            
+            // Add new user message
+            history.push({ role: 'user', content: userInput });
 
-        for (const intent of INTENTS) {
-            let score = 0;
-            intent.keywords.forEach(keyword => {
-                if (normalized.includes(keyword)) score += 1;
+            const { data, error } = await supabase.functions.invoke('chat-assistant', {
+                body: { 
+                    messages: history,
+                    user_id: user.id
+                }
             });
 
-            // Bonus points for exact matches or strong combinations could go here
-            if (score > 0) {
-                if (!bestMatch || score > bestMatch.score) {
-                    bestMatch = { intent, score };
-                }
+            if (error) {
+                // Fallback if function is not deployed or fails
+                console.error(error);
+                addBotMessage({ 
+                    text: "Ups, ich habe gerade keine Verbindung zu meinem KI-Gehirn (Edge Function). Bitte stelle sicher, dass die Funktion deployed und der API Key gesetzt ist. 🔌" 
+                });
+                return;
             }
-        }
 
-        // Execute Match or Fallback
-        if (bestMatch) {
-            return await bestMatch.intent.handler(navigate, userInput);
-        } else {
-            // Generic Fallback
-            return {
-                text: "Das habe ich nicht ganz verstanden. 🤔 Frag mich nach Umsatz, Aufgaben oder Paketen.",
-                actions: [{ label: 'Hilfe anzeigen', action: () => processInput('hilfe').then(res => addBotMessage(res)) }]
-            };
+            addBotMessage({ text: data.text });
+            
+        } catch (error) {
+            console.error('AI Chat Error:', error);
+            addBotMessage({ 
+                text: "Entschuldigung, ich habe gerade Verbindungsprobleme zu meinem KI-Gehirn. Bitte versuche es später noch einmal. 🔌" 
+            });
         }
     };
 
@@ -306,11 +104,7 @@ export const AIAssistant = () => {
         setInput('');
         setIsTyping(true);
 
-        // Simulate "Thinking" time for realism
-        setTimeout(async () => {
-            const response = await processInput(userText);
-            addBotMessage(response);
-        }, 600 + Math.random() * 400);
+        await processInput(userText);
     };
 
     // Helper to render text with bold markdown
@@ -407,7 +201,9 @@ export const AIAssistant = () => {
                                                     ? "bg-indigo-600 text-white rounded-tr-none" 
                                                     : "bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 border border-gray-100 dark:border-gray-700 rounded-tl-none"
                                             )}>
-                                                <p className="leading-relaxed">{renderContent(msg.content)}</p>
+                                                <div className={cn("prose prose-sm max-w-none", msg.role === 'user' ? "text-white prose-p:text-white prose-strong:text-white" : "dark:prose-invert prose-indigo")}>
+                                                    <ReactMarkdown>{msg.content}</ReactMarkdown>
+                                                </div>
                                                 {msg.actions && msg.actions.length > 0 && (
                                                     <div className="mt-3 flex flex-wrap gap-2">
                                                         {msg.actions.map((action, idx) => (
