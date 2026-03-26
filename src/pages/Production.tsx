@@ -118,7 +118,10 @@ export const Production = () => {
       else if (lower.includes('jaehrlich') || lower.includes('jährlich')) result.payment_method = 'yearly';
       else if (lower.includes('einmalig') || lower.includes('einmalzahlung')) result.payment_method = 'one_time';
 
-      if (/\bkfz\b/i.test(text) || lower.includes('kraftfahrt') || lower.includes('fahrzeug')) {
+      if (lower.includes('tierhalter') || lower.includes('pferdehaftpflicht') || lower.includes('hundehaftpflicht')) {
+          result.category = 'property';
+          result.sub_category = 'Sach'; // Oder PHV, je nachdem was im Buro Manager Standard ist
+      } else if (/\bkfz\b/i.test(text) || lower.includes('kraftfahrt') || lower.includes('autoversicherung')) {
           result.category = 'car';
           result.sub_category = 'KFZ';
       } else if (lower.includes('hausrat')) {
@@ -127,6 +130,9 @@ export const Production = () => {
       } else if (lower.includes('privathaftpflicht') || /\bphv\b/i.test(text)) {
           result.category = 'property';
           result.sub_category = 'PHV';
+      } else if (lower.includes('unfallversicherung') || /\bunf\b/i.test(text)) {
+          result.category = 'property';
+          result.sub_category = 'UNF';
       } else if (lower.includes('berufsunfaehigkeit') || lower.includes('berufsunfähigkeit') || /\bbu\b/i.test(text)) {
           result.category = 'life';
           result.sub_category = 'BU';
@@ -138,6 +144,9 @@ export const Production = () => {
           result.sub_category = 'Rechtsschutz';
       } else if (lower.includes('krankenversicherung') || /\bkv\b/i.test(text)) {
           result.category = 'health';
+      } else if (lower.includes('sachversicherung')) {
+          result.category = 'property';
+          result.sub_category = 'Sach';
       }
 
       return result;
