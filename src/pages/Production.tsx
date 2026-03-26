@@ -49,44 +49,57 @@ export const Production = () => {
   const [documentUrl, setDocumentUrl] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
+  const openProductionDoc = async (pathOrUrl: string) => {
+      if (!pathOrUrl) return;
+      try {
+          if (pathOrUrl.startsWith('http://') || pathOrUrl.startsWith('https://')) {
+              window.open(pathOrUrl, '_blank', 'noopener,noreferrer');
+              return;
+          }
+
+          const { data, error } = await supabase.storage
+              .from('production_docs')
+              .createSignedUrl(pathOrUrl, 60 * 10);
+
+          if (error) throw error;
+          if (!data?.signedUrl) throw new Error('Keine Download-URL erhalten.');
+          window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
+      } catch (e) {
+          const msg = (e as Error)?.message || 'Unbekannter Fehler';
+          toast.error(`Dokument konnte nicht geöffnet werden: ${msg}`);
+      }
+  };
+
   const handleAIAnalysis = async () => {
       if (!selectedFile) return;
       setIsAnalyzing(true);
       
       try {
-          // 1. Prepare file for analysis (Base64 or FormData)
+          // 1. Prepare file for analysis
           const formData = new FormData();
           formData.append('file', selectedFile);
 
-          // 2. Call Supabase Edge Function
-          // Note: This requires the function 'analyze-contract' to be deployed to Supabase
-          const { data, error } = await supabase.functions.invoke('analyze-contract', {
+          // 2. Call Supabase Edge Function via fetch (ensures apikey header is sent)
+          const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+          const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+          const { data: sessionData } = await supabase.auth.getSession();
+          const accessToken = sessionData.session?.access_token;
+
+          const res = await fetch(`${supabaseUrl}/functions/v1/analyze-contract`, {
+              method: 'POST',
+              headers: {
+                  apikey: supabaseAnonKey,
+                  Authorization: accessToken ? `Bearer ${accessToken}` : '',
+              },
               body: formData,
           });
 
-          if (error) {
-              console.warn('Edge Function failed or not deployed, falling back to mock:', error);
-              // MOCK FALLBACK for demonstration if function is not deployed yet
-              await new Promise(resolve => setTimeout(resolve, 2000));
-              const fileName = selectedFile.name.toLowerCase();
-              if (fileName.includes('huk') || fileName.includes('allianz') || fileName.includes('ergo')) {
-                  toast.success('KI-Analyse erfolgreich (Mock)!');
-                  if (fileName.includes('müller')) {
-                      setCustomerName('Müller');
-                      setCustomerFirstname('Thomas');
-                  }
-                  if (fileName.includes('kfz') || fileName.includes('auto')) {
-                      setCategory('car');
-                      setSubCategory('KFZ');
-                  } else if (fileName.includes('hausrat') || fileName.includes('hr')) {
-                      setCategory('property');
-                      setSubCategory('HR');
-                  }
-                  setPolicyNumber('DE-' + Math.floor(100000 + Math.random() * 900000));
-              } else {
-                  toast('KI hat das Dokument analysiert, konnte aber keine eindeutigen Daten extrahieren.', { icon: '🤖' });
-              }
-              return;
+          const data = await res.json().catch(() => ({}));
+
+          if (!res.ok) {
+              const msg = data?.error || `Fehler ${res.status}`;
+              throw new Error(msg);
           }
 
           // 3. Process Real AI Data
@@ -102,7 +115,29 @@ export const Production = () => {
           }
       } catch (error) {
           console.error('AI Analysis Error:', error);
-          toast.error('Fehler bei der KI-Analyse.');
+          const msg = (error as Error)?.message || 'Unbekannter Fehler';
+
+          const lower = msg.toLowerCase();
+          if (lower.includes('quota') || lower.includes('billing') || lower.includes('limit: 0')) {
+              toast.error('KI-Analyse ist aktuell deaktiviert (Gemini Quota/Billing).');
+              const fileName = selectedFile.name.toLowerCase();
+              if (fileName.includes('kfz') || fileName.includes('auto')) {
+                  setCategory('car');
+                  setSubCategory('KFZ');
+              } else if (fileName.includes('hausrat') || fileName.includes('hr')) {
+                  setCategory('property');
+                  setSubCategory('HR');
+              } else if (fileName.includes('bu')) {
+                  setCategory('life');
+                  setSubCategory('BU');
+              } else if (fileName.includes('leben')) {
+                  setCategory('life');
+                  setSubCategory('Leben');
+              }
+              return;
+          }
+
+          toast.error(`Fehler bei der KI-Analyse: ${msg}`);
       } finally {
           setIsAnalyzing(false);
       }
@@ -341,27 +376,28 @@ export const Production = () => {
 
         // Upload file if selected
         if (selectedFile) {
-            const fileExt = selectedFile.name.split('.').pop();
-            const fileName = `${user.id}/${Math.random()}.${fileExt}`;
-            const filePath = `production_docs/${fileName}`;
+            try {
+                const fileExt = selectedFile.name.split('.').pop();
+                const safeExt = fileExt ? fileExt : 'bin';
+                const fileName = `${user.id}/${crypto.randomUUID()}.${safeExt}`;
 
-            const { error: uploadError } = await supabase.storage
-                .from('production_docs')
-                .upload(fileName, selectedFile);
+                const { error: uploadError } = await supabase.storage
+                    .from('production_docs')
+                    .upload(fileName, selectedFile, { upsert: true });
 
-            if (uploadError) throw uploadError;
-
-            // Get public URL (or private signed URL if needed, but here let's use public for simplicity if bucket allows, or just store path)
-            const { data: { publicUrl } } = supabase.storage
-                .from('production_docs')
-                .getPublicUrl(fileName);
-            
-            finalDocumentUrl = publicUrl;
+                if (uploadError) {
+                    toast.error(`Dokument Upload fehlgeschlagen: ${uploadError.message}`);
+                } else {
+                    finalDocumentUrl = fileName;
+                }
+            } catch (e) {
+                const msg = (e as Error)?.message || 'Unbekannter Fehler';
+                toast.error(`Dokument Upload fehlgeschlagen: ${msg}`);
+            }
         }
 
-        const payload = {
-            user_id: closedBy || user.id, // Use selected closer OR current user
-            managed_by: managedBy || closedBy || user.id, // Default to closer/self if empty
+        const basePayload = {
+            managed_by: managedBy || closedBy || user.id, // Can be another user
             submission_date: submissionDate,
             policy_number: policyNumber,
             customer_name: customerName,
@@ -374,9 +410,7 @@ export const Production = () => {
             payment_method: paymentMethod,
             duration,
             net_premium: Number(netPremium),
-            net_premium_yearly: netPremiumYearly,
             gross_premium: Number(grossPremium),
-            gross_premium_yearly: grossPremiumYearly,
             commission_rate: Number(commissionRate),
             valuation_sum: valuationSum,
             commission_amount: commissionAmount,
@@ -392,15 +426,39 @@ export const Production = () => {
             // Update everything including user_id if changed
             const { error } = await supabase
                 .from('production_entries')
-                .update(payload)
+                .update(basePayload)
                 .eq('id', editingId);
-            if (error) throw error;
+            if (error) {
+                if (error.message?.toLowerCase().includes('document_url') && error.message?.toLowerCase().includes('column')) {
+                    toast.error('Dokumente sind in der DB noch nicht aktiviert. Bitte SQL Migration ausführen.');
+                    const { error: retryError } = await supabase
+                        .from('production_entries')
+                        .update({ ...basePayload, document_url: undefined })
+                        .eq('id', editingId);
+                    if (retryError) throw retryError;
+                } else {
+                    throw error;
+                }
+            }
             toast.success('Vertrag aktualisiert!');
         } else {
             const { error } = await supabase
                 .from('production_entries')
-                .insert(payload);
-            if (error) throw error;
+                .insert({ ...basePayload, user_id: user.id });
+
+            if (error) {
+                if (error.message?.toLowerCase().includes('document_url') && error.message?.toLowerCase().includes('column')) {
+                    toast.error('Dokumente sind in der DB noch nicht aktiviert. Bitte SQL Migration ausführen.');
+                    const { error: retryError } = await supabase
+                        .from('production_entries')
+                        .insert({ ...basePayload, document_url: undefined, user_id: user.id });
+                    if (retryError) throw retryError;
+                } else if (error.message?.toLowerCase().includes('row-level security')) {
+                    throw new Error('Keine Berechtigung (RLS): Du kannst nur Verträge für deinen User speichern.');
+                } else {
+                    throw error;
+                }
+            }
             toast.success('Vertrag erfasst!');
         }
 
@@ -409,7 +467,8 @@ export const Production = () => {
         fetchEntries();
     } catch (err) {
         console.error(err);
-        toast.error('Fehler beim Speichern.');
+        const msg = (err as Error)?.message || 'Unbekannter Fehler';
+        toast.error(`Fehler beim Speichern: ${msg}`);
     } finally {
         setSubmitting(false);
     }
@@ -1173,16 +1232,14 @@ export const Production = () => {
                                                 <div className="flex items-center gap-2 mt-0.5">
                                                     <span className="text-xs text-gray-500 font-mono">{entry.policy_number || '-'}</span>
                                                     {entry.document_url && (
-                                                        <a 
-                                                            href={entry.document_url} 
-                                                            target="_blank" 
-                                                            rel="noopener noreferrer"
-                                                            onClick={(e) => e.stopPropagation()}
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => { e.stopPropagation(); openProductionDoc(entry.document_url); }}
                                                             className="p-1 text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg transition-colors"
                                                             title="Dokument öffnen"
                                                         >
                                                             <FileText className="w-3.5 h-3.5" />
-                                                        </a>
+                                                        </button>
                                                     )}
                                                 </div>
                                             </td>
@@ -1262,15 +1319,13 @@ export const Production = () => {
                                             <div className="flex items-center gap-2">
                                                 <h3 className="font-bold text-gray-900 dark:text-white truncate">{entry.customer_name}, {entry.customer_firstname}</h3>
                                                 {entry.document_url && (
-                                                    <a 
-                                                        href={entry.document_url} 
-                                                        target="_blank" 
-                                                        rel="noopener noreferrer"
-                                                        onClick={(e) => e.stopPropagation()}
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => { e.stopPropagation(); openProductionDoc(entry.document_url); }}
                                                         className="p-1 text-indigo-500 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg shrink-0"
                                                     >
                                                         <FileText className="w-3 h-3" />
-                                                    </a>
+                                                    </button>
                                                 )}
                                             </div>
                                             <p className="text-xs text-gray-500 font-mono truncate">{entry.policy_number || 'Keine Schein-Nr.'}</p>
@@ -1491,9 +1546,13 @@ export const Production = () => {
                                     )}
                                 </div>
                                 {documentUrl && !selectedFile && (
-                                    <a href={documentUrl} target="_blank" rel="noopener noreferrer" className="text-indigo-600 dark:text-indigo-400 text-xs font-bold flex items-center gap-1 shrink-0">
+                                    <button
+                                        type="button"
+                                        onClick={() => openProductionDoc(documentUrl)}
+                                        className="text-indigo-600 dark:text-indigo-400 text-xs font-bold flex items-center gap-1 shrink-0"
+                                    >
                                         <Download className="w-3 h-3" /> Vorhanden
-                                    </a>
+                                    </button>
                                 )}
                             </div>
                         </div>
