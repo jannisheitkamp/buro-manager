@@ -103,7 +103,7 @@ export const Production = () => {
           }
 
           // 3. Process Real AI Data
-          if (data) {
+          if (data && Object.keys(data).length > 0 && !data.error) {
               toast.success('KI-Analyse erfolgreich! Formular vorbefüllt.');
               if (data.customer_name) setCustomerName(data.customer_name);
               if (data.customer_firstname) setCustomerFirstname(data.customer_firstname);
@@ -112,14 +112,21 @@ export const Production = () => {
               if (data.sub_category) setSubCategory(data.sub_category);
               if (data.net_premium) setNetPremium(data.net_premium);
               if (data.payment_method) setPaymentMethod(data.payment_method);
+          } else {
+              throw new Error('KI konnte keine Daten extrahieren');
           }
       } catch (error) {
           console.error('AI Analysis Error:', error);
           const msg = (error as Error)?.message || 'Unbekannter Fehler';
 
           const lower = msg.toLowerCase();
-          if (lower.includes('quota') || lower.includes('billing') || lower.includes('limit: 0')) {
-              toast.error('KI-Analyse ist aktuell deaktiviert (Gemini Quota/Billing).');
+          if (lower.includes('quota') || lower.includes('billing') || lower.includes('limit: 0') || lower.includes('keine daten extrahieren')) {
+              toast.error(lower.includes('keine daten extrahieren') 
+                  ? 'KI hat das Dokument analysiert, konnte aber keine eindeutigen Daten extrahieren.' 
+                  : 'KI-Analyse ist aktuell deaktiviert (Gemini Quota/Billing).'
+              );
+              
+              // Fallback based on filename
               const fileName = selectedFile.name.toLowerCase();
               if (fileName.includes('kfz') || fileName.includes('auto')) {
                   setCategory('car');

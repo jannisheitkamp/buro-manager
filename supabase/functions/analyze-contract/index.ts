@@ -60,8 +60,26 @@ serve(async (req) => {
     const aiText = result.candidates?.[0]?.content?.parts?.[0]?.text || ''
     
     // Clean JSON from markdown if necessary
-    const jsonStr = aiText.replace(/```json|```/g, '').trim()
-    const extractedData = JSON.parse(jsonStr)
+    let jsonStr = aiText.replace(/```json|```/g, '').trim()
+    
+    // Handle empty or invalid response
+    if (!jsonStr) {
+      return new Response(JSON.stringify({ error: 'Could not extract valid data' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400,
+      })
+    }
+
+    let extractedData = {}
+    try {
+      extractedData = JSON.parse(jsonStr)
+    } catch (e) {
+      console.error("Failed to parse JSON:", jsonStr)
+      return new Response(JSON.stringify({ error: 'Invalid JSON returned from AI' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400,
+      })
+    }
 
     return new Response(JSON.stringify(extractedData), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
