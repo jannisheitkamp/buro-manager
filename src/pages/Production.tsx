@@ -84,23 +84,67 @@ export const Production = () => {
           customer_name?: string;
           customer_firstname?: string;
           policy_number?: string;
+          start_date?: string;
           category?: string;
           sub_category?: string;
           net_premium?: number;
           payment_method?: string;
       } = {};
 
+      const toIsoDate = (d: string) => {
+          const m = d.match(/(\d{1,2})(?:\.|-|\/)(\d{1,2})(?:\.|-|\/)(\d{2,4})/);
+          if (!m) return null;
+          const day = m[1].padStart(2, '0');
+          const month = m[2].padStart(2, '0');
+          const year = m[3].length === 2 ? `20${m[3]}` : m[3];
+          return `${year}-${month}-${day}`;
+      };
+
       const policyMatch =
           text.match(/(?:Versicherungs-?schein(?:nummer)?|Police(?:n)?(?:nummer)?|Schein-?Nr\.?)\s*[:#]?\s*([A-Z0-9\/.\-]{5,})/i) ||
           text.match(/\bVN[- ]?Nr\.?\s*[:#]?\s*([A-Z0-9\/.\-]{5,})/i);
       if (policyMatch?.[1]) result.policy_number = policyMatch[1].trim();
 
-      const nameMatch =
-          text.match(/Versicherungsnehmer(?:in)?\s*[:#]?\s*([A-Za-zÄÖÜäöüß\- ]{2,})\s+([A-Za-zÄÖÜäöüß\- ]{2,})/i) ||
-          text.match(/\bName\s*[:#]?\s*([A-Za-zÄÖÜäöüß\- ]{2,})\s+\bVorname\s*[:#]?\s*([A-Za-zÄÖÜäöüß\- ]{2,})/i);
-      if (nameMatch?.[1] && nameMatch?.[2]) {
-          result.customer_name = nameMatch[1].trim();
-          result.customer_firstname = nameMatch[2].trim();
+      const vnBlock =
+          text.match(/Versicherungsnehmer(?:in)?\s*[:#]?\s*([A-Za-zÄÖÜäöüß -]{3,120})/i)?.[1] ||
+          text.match(/Antragsteller(?:in)?\s*[:#]?\s*([A-Za-zÄÖÜäöüß -]{3,120})/i)?.[1] ||
+          text.match(/\bVN\b\s*[:#]?\s*([A-Za-zÄÖÜäöüß -]{3,120})/i)?.[1] ||
+          '';
+
+      const vnTokens = vnBlock
+          .replace(/\s{2,}/g, ' ')
+          .replace(/(geb\\.|geboren|geburtsdatum).*/i, '')
+          .trim();
+
+      const lastFirstMatch =
+          vnTokens.match(/^([A-Za-zÄÖÜäöüß-]{2,})\s+([A-Za-zÄÖÜäöüß-]{2,})(?:\s|$)/) ||
+          null;
+
+      const labelMatch =
+          text.match(/\bVorname\s*[:#]?\s*([A-Za-zÄÖÜäöüß -]{2,40})\s+(?:Nachname|Name)\s*[:#]?\s*([A-Za-zÄÖÜäöüß -]{2,60})/i) ||
+          text.match(/\bNachname\s*[:#]?\s*([A-Za-zÄÖÜäöüß -]{2,60})\s+Vorname\s*[:#]?\s*([A-Za-zÄÖÜäöüß -]{2,40})/i) ||
+          null;
+
+      if (labelMatch?.[1] && labelMatch?.[2]) {
+          const a = labelMatch[1].trim();
+          const b = labelMatch[2].trim();
+          const first = lower.includes('vorname') && labelMatch[0].toLowerCase().indexOf('vorname') < labelMatch[0].toLowerCase().indexOf('nachname')
+              ? a
+              : b;
+          const last = first === a ? b : a;
+          result.customer_firstname = first.split(' ')[0];
+          result.customer_name = last.split(' ')[0];
+      } else if (lastFirstMatch?.[1] && lastFirstMatch?.[2]) {
+          result.customer_name = lastFirstMatch[1].trim();
+          result.customer_firstname = lastFirstMatch[2].trim();
+      }
+
+      const startMatch =
+          text.match(/(?:Versicherungsbeginn|Vertragsbeginn|Beginn(?:\s+des\s+Versicherungsschutzes)?)\s*[:#]?\s*(\d{1,2}(?:\.|-|\/)\d{1,2}(?:\.|-|\/)\d{2,4})/i) ||
+          null;
+      if (startMatch?.[1]) {
+          const iso = toIsoDate(startMatch[1]);
+          if (iso) result.start_date = iso;
       }
 
       const premiumMatch =
@@ -202,6 +246,7 @@ export const Production = () => {
                   Boolean(parsed.customer_firstname) ||
                   Boolean(parsed.policy_number) ||
                   Boolean(parsed.net_premium) ||
+                  Boolean(parsed.start_date) ||
                   Boolean(parsed.sub_category);
 
               if (!hasAny) {
@@ -213,6 +258,7 @@ export const Production = () => {
               if (parsed.customer_name) setCustomerName(parsed.customer_name);
               if (parsed.customer_firstname) setCustomerFirstname(parsed.customer_firstname);
               if (parsed.policy_number) setPolicyNumber(parsed.policy_number);
+              if (parsed.start_date) setStartDate(parsed.start_date);
               if (parsed.category) setCategory(parsed.category);
               if (parsed.sub_category) setSubCategory(parsed.sub_category);
               if (parsed.net_premium !== undefined) setNetPremium(parsed.net_premium);
