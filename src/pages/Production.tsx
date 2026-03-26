@@ -49,6 +49,100 @@ export const Production = () => {
   const [documentUrl, setDocumentUrl] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
+  const getPdfText = async (file: File, maxPages: number) => {
+      const pdfjs: any = await import('pdfjs-dist/legacy/build/pdf.mjs');
+      pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+          'pdfjs-dist/legacy/build/pdf.worker.min.mjs',
+          import.meta.url
+      ).toString();
+
+      const ab = await file.arrayBuffer();
+      const doc = await pdfjs.getDocument({ data: ab }).promise;
+
+      const pages = Math.min(doc.numPages || 0, maxPages);
+      let text = '';
+
+      for (let i = 1; i <= pages; i += 1) {
+          const page = await doc.getPage(i);
+          const content = await page.getTextContent();
+          const strings = (content.items || [])
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              .map((it: any) => it?.str)
+              .filter(Boolean)
+              .join(' ');
+          text += `\n${strings}`;
+      }
+
+      return text.trim();
+  };
+
+  const parseContractFromText = (raw: string) => {
+      const text = raw.replace(/\s+/g, ' ').trim();
+      const lower = text.toLowerCase();
+
+      const result: {
+          customer_name?: string;
+          customer_firstname?: string;
+          policy_number?: string;
+          category?: string;
+          sub_category?: string;
+          net_premium?: number;
+          payment_method?: string;
+      } = {};
+
+      const policyMatch =
+          text.match(/(?:Versicherungs-?schein(?:nummer)?|Police(?:n)?(?:nummer)?|Schein-?Nr\.?)\s*[:#]?\s*([A-Z0-9\/.\-]{5,})/i) ||
+          text.match(/\bVN[- ]?Nr\.?\s*[:#]?\s*([A-Z0-9\/.\-]{5,})/i);
+      if (policyMatch?.[1]) result.policy_number = policyMatch[1].trim();
+
+      const nameMatch =
+          text.match(/Versicherungsnehmer(?:in)?\s*[:#]?\s*([A-Za-zÄÖÜäöüß\- ]{2,})\s+([A-Za-zÄÖÜäöüß\- ]{2,})/i) ||
+          text.match(/\bName\s*[:#]?\s*([A-Za-zÄÖÜäöüß\- ]{2,})\s+\bVorname\s*[:#]?\s*([A-Za-zÄÖÜäöüß\- ]{2,})/i);
+      if (nameMatch?.[1] && nameMatch?.[2]) {
+          result.customer_name = nameMatch[1].trim();
+          result.customer_firstname = nameMatch[2].trim();
+      }
+
+      const premiumMatch =
+          text.match(/(?:Monatsbeitrag|Jahresbeitrag|Gesamtbeitrag|Beitrag)\s*[:#]?\s*([0-9]{1,3}(?:\.[0-9]{3})*(?:,[0-9]{2})?)\s*(?:€|EUR)/i) ||
+          text.match(/([0-9]{1,3}(?:\.[0-9]{3})*(?:,[0-9]{2})?)\s*(?:€|EUR)\s*(?:monatlich|jaehrlich|vierteljaehrlich|halbjaehrlich)/i);
+      if (premiumMatch?.[1]) {
+          const v = premiumMatch[1].replace(/\./g, '').replace(',', '.');
+          const n = Number(v);
+          if (!Number.isNaN(n)) result.net_premium = n;
+      }
+
+      if (lower.includes('monatlich')) result.payment_method = 'monthly';
+      else if (lower.includes('vierteljaehrlich') || lower.includes('vierteljährlich')) result.payment_method = 'quarterly';
+      else if (lower.includes('halbjaehrlich') || lower.includes('halbjährlich')) result.payment_method = 'half_yearly';
+      else if (lower.includes('jaehrlich') || lower.includes('jährlich')) result.payment_method = 'yearly';
+      else if (lower.includes('einmalig') || lower.includes('einmalzahlung')) result.payment_method = 'one_time';
+
+      if (/\bkfz\b/i.test(text) || lower.includes('kraftfahrt') || lower.includes('fahrzeug')) {
+          result.category = 'car';
+          result.sub_category = 'KFZ';
+      } else if (lower.includes('hausrat')) {
+          result.category = 'property';
+          result.sub_category = 'HR';
+      } else if (lower.includes('privathaftpflicht') || /\bphv\b/i.test(text)) {
+          result.category = 'property';
+          result.sub_category = 'PHV';
+      } else if (lower.includes('berufsunfaehigkeit') || lower.includes('berufsunfähigkeit') || /\bbu\b/i.test(text)) {
+          result.category = 'life';
+          result.sub_category = 'BU';
+      } else if (lower.includes('lebensversicherung') || /\bleben\b/i.test(text)) {
+          result.category = 'life';
+          result.sub_category = 'Leben';
+      } else if (lower.includes('rechtsschutz')) {
+          result.category = 'legal';
+          result.sub_category = 'Rechtsschutz';
+      } else if (lower.includes('krankenversicherung') || /\bkv\b/i.test(text)) {
+          result.category = 'health';
+      }
+
+      return result;
+  };
+
   const openProductionDoc = async (pathOrUrl: string) => {
       if (!pathOrUrl) return;
       try {
@@ -75,6 +169,37 @@ export const Production = () => {
       setIsAnalyzing(true);
       
       try {
+          if (selectedFile.type === 'application/pdf') {
+              const extractedText = await getPdfText(selectedFile, 3);
+              if (!extractedText || extractedText.length < 50) {
+                  toast.error('PDF scheint ein Scan zu sein (kein Text). Ohne OCR kann ich daraus nichts lesen.');
+                  return;
+              }
+
+              const parsed = parseContractFromText(extractedText);
+              const hasAny =
+                  Boolean(parsed.customer_name) ||
+                  Boolean(parsed.customer_firstname) ||
+                  Boolean(parsed.policy_number) ||
+                  Boolean(parsed.net_premium) ||
+                  Boolean(parsed.sub_category);
+
+              if (!hasAny) {
+                  toast.error('KI hat das Dokument analysiert, konnte aber keine eindeutigen Daten extrahieren.');
+                  return;
+              }
+
+              toast.success('Daten aus PDF-Text extrahiert und vorbefüllt.');
+              if (parsed.customer_name) setCustomerName(parsed.customer_name);
+              if (parsed.customer_firstname) setCustomerFirstname(parsed.customer_firstname);
+              if (parsed.policy_number) setPolicyNumber(parsed.policy_number);
+              if (parsed.category) setCategory(parsed.category);
+              if (parsed.sub_category) setSubCategory(parsed.sub_category);
+              if (parsed.net_premium !== undefined) setNetPremium(parsed.net_premium);
+              if (parsed.payment_method) setPaymentMethod(parsed.payment_method);
+              return;
+          }
+
           // 1. Prepare file for analysis
           const formData = new FormData();
           formData.append('file', selectedFile);
