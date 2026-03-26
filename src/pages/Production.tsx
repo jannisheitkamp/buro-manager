@@ -91,6 +91,32 @@ export const Production = () => {
           payment_method?: string;
       } = {};
 
+      const isLikelyStreet = (v: string) => {
+          const s = v.toLowerCase();
+          if (/\d/.test(s)) return true;
+          return (
+              s.includes('strasse') ||
+              s.includes('straße') ||
+              /\bstr\.\b/.test(s) ||
+              s.includes('weg') ||
+              s.includes('allee') ||
+              s.includes('gasse') ||
+              s.includes('platz') ||
+              s.includes('ring') ||
+              s.includes('damm')
+          );
+      };
+
+      const cleanNameToken = (v: string) => {
+          const s = v.trim().replace(/\s+/g, ' ');
+          if (!s) return null;
+          const first = s.split(' ')[0].trim();
+          if (!first) return null;
+          if (isLikelyStreet(first)) return null;
+          if (!/^[A-Za-zÄÖÜäöüß-]{2,30}$/.test(first)) return null;
+          return first;
+      };
+
       const toIsoDate = (d: string) => {
           const m = d.match(/(\d{1,2})(?:\.|-|\/)(\d{1,2})(?:\.|-|\/)(\d{2,4})/);
           if (!m) return null;
@@ -126,17 +152,23 @@ export const Production = () => {
           null;
 
       if (labelMatch?.[1] && labelMatch?.[2]) {
-          const a = labelMatch[1].trim();
-          const b = labelMatch[2].trim();
-          const first = lower.includes('vorname') && labelMatch[0].toLowerCase().indexOf('vorname') < labelMatch[0].toLowerCase().indexOf('nachname')
-              ? a
-              : b;
-          const last = first === a ? b : a;
-          result.customer_firstname = first.split(' ')[0];
-          result.customer_name = last.split(' ')[0];
+          const full = labelMatch[0].toLowerCase();
+          const isVornameFirst = full.indexOf('vorname') !== -1 && full.indexOf('nachname') !== -1 && full.indexOf('vorname') < full.indexOf('nachname');
+          const rawFirst = isVornameFirst ? labelMatch[1] : labelMatch[2];
+          const rawLast = isVornameFirst ? labelMatch[2] : labelMatch[1];
+
+          const first = cleanNameToken(rawFirst);
+          const last = cleanNameToken(rawLast);
+
+          if (first) result.customer_firstname = first;
+          if (last) result.customer_name = last;
       } else if (lastFirstMatch?.[1] && lastFirstMatch?.[2]) {
-          result.customer_name = lastFirstMatch[1].trim();
-          result.customer_firstname = lastFirstMatch[2].trim();
+          const token1 = cleanNameToken(lastFirstMatch[1]);
+          const token2 = cleanNameToken(lastFirstMatch[2]);
+          if (token1 && token2) {
+              result.customer_firstname = token1;
+              result.customer_name = token2;
+          }
       }
 
       const startMatch =
