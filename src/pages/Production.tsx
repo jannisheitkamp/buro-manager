@@ -169,8 +169,19 @@ export const Production = () => {
       setIsAnalyzing(true);
       
       try {
-          if (selectedFile.type === 'application/pdf') {
-              const extractedText = await getPdfText(selectedFile, 3);
+          const isPdf =
+              selectedFile.type.toLowerCase().includes('pdf') ||
+              selectedFile.name.toLowerCase().endsWith('.pdf');
+
+          if (isPdf) {
+              let extractedText = '';
+              try {
+                  extractedText = await getPdfText(selectedFile, 3);
+              } catch (e) {
+                  const msg = (e as Error)?.message || 'Unbekannter Fehler';
+                  toast.error(`PDF konnte nicht gelesen werden: ${msg}`);
+                  return;
+              }
               if (!extractedText || extractedText.length < 50) {
                   toast.error('PDF scheint ein Scan zu sein (kein Text). Ohne OCR kann ich daraus nichts lesen.');
                   return;
