@@ -120,10 +120,22 @@ export const Production = () => {
           const msg = (error as Error)?.message || 'Unbekannter Fehler';
 
           const lower = msg.toLowerCase();
-          if (lower.includes('quota') || lower.includes('billing') || lower.includes('limit: 0') || lower.includes('keine daten extrahieren')) {
-              toast.error(lower.includes('keine daten extrahieren') 
-                  ? 'KI hat das Dokument analysiert, konnte aber keine eindeutigen Daten extrahieren.' 
-                  : 'KI-Analyse ist aktuell deaktiviert (Gemini Quota/Billing).'
+          if (
+              lower.includes('quota') ||
+              lower.includes('billing') ||
+              lower.includes('limit: 0') ||
+              lower.includes('keine daten extrahieren') ||
+              lower.includes('could not extract valid data') ||
+              lower.includes('invalid json returned')
+          ) {
+              const isNoExtract =
+                  lower.includes('keine daten extrahieren') ||
+                  lower.includes('could not extract valid data') ||
+                  lower.includes('invalid json returned');
+              toast.error(
+                  isNoExtract
+                      ? 'KI hat das Dokument analysiert, konnte aber keine eindeutigen Daten extrahieren.'
+                      : 'KI-Analyse ist aktuell deaktiviert (Gemini Quota/Billing).'
               );
               
               // Fallback based on filename

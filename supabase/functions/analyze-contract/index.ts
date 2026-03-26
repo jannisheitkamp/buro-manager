@@ -61,8 +61,21 @@ serve(async (req) => {
       })
     })
 
-    const result = await response.json()
-    const aiText = result.candidates?.[0]?.content?.parts?.[0]?.text || ''
+    const result = await response.json().catch(() => ({} as any))
+    const upstreamErrorMsg = (result as any)?.error?.message
+    if (!response.ok || upstreamErrorMsg) {
+      const msg = upstreamErrorMsg || `Upstream error ${response.status}`
+      const lower = msg.toLowerCase()
+      const status =
+        lower.includes('quota') || lower.includes('billing') || lower.includes('rate') ? 429 : 502
+      return new Response(JSON.stringify({ error: msg }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status,
+      })
+    }
+
+    const aiParts = (result as any)?.candidates?.[0]?.content?.parts || []
+    const aiText = aiParts.map((p: any) => p?.text).filter(Boolean).join('') || ''
     
     // Clean JSON from markdown if necessary
     let jsonStr = aiText.replace(/```json|```/g, '').trim()
@@ -71,7 +84,7 @@ serve(async (req) => {
     if (!jsonStr) {
       return new Response(JSON.stringify({ error: 'Could not extract valid data' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 400,
+        status: 422,
       })
     }
 
