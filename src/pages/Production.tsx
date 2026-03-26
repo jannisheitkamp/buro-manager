@@ -65,19 +65,40 @@ export const Production = () => {
       for (let i = 1; i <= pages; i += 1) {
           const page = await doc.getPage(i);
           const content = await page.getTextContent();
-          const strings = (content.items || [])
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              .map((it: any) => it?.str)
-              .filter(Boolean)
-              .join(' ');
-          text += `\n${strings}`;
+          const rows = new Map<number, { y: number; parts: { x: number; str: string }[] }>();
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const items: any[] = content.items || [];
+
+          items.forEach(it => {
+              const str = (it?.str || '').toString().trim();
+              const tr = it?.transform;
+              const x = Array.isArray(tr) ? Number(tr[4] || 0) : 0;
+              const y = Array.isArray(tr) ? Number(tr[5] || 0) : 0;
+              if (!str) return;
+
+              const key = Math.round(y / 2) * 2;
+              const row = rows.get(key) || { y, parts: [] };
+              row.parts.push({ x, str });
+              rows.set(key, row);
+          });
+
+          const lines = Array.from(rows.values())
+              .sort((a, b) => b.y - a.y)
+              .map(r => r.parts.sort((a, b) => a.x - b.x).map(p => p.str).join(' ').trim())
+              .filter(Boolean);
+
+          text += `\n${lines.join('\n')}\n`;
       }
 
       return text.trim();
   };
 
   const parseContractFromText = (raw: string) => {
-      const text = raw.replace(/\s+/g, ' ').trim();
+      const lines = raw
+          .split('\n')
+          .map(l => l.trim())
+          .filter(Boolean);
+      const text = lines.join(' ').replace(/\s+/g, ' ').trim();
       const lower = text.toLowerCase();
 
       const result: {
@@ -117,6 +138,19 @@ export const Production = () => {
           return first;
       };
 
+      const findValue = (label: RegExp) => {
+          for (let i = 0; i < lines.length; i += 1) {
+              const line = lines[i];
+              const m = line.match(label);
+              if (m?.[1]) return m[1].trim();
+              if (label.test(line) && (line.replace(label, '').trim() === '' || line.trim().length <= 12)) {
+                  const next = lines[i + 1];
+                  if (next) return next.trim();
+              }
+          }
+          return null;
+      };
+
       const toIsoDate = (d: string) => {
           const m = d.match(/(\d{1,2})(?:\.|-|\/)(\d{1,2})(?:\.|-|\/)(\d{2,4})/);
           if (!m) return null;
@@ -131,10 +165,18 @@ export const Production = () => {
           text.match(/\bVN[- ]?Nr\.?\s*[:#]?\s*([A-Z0-9\/.\-]{5,})/i);
       if (policyMatch?.[1]) result.policy_number = policyMatch[1].trim();
 
+      const directFirst = findValue(/\bVorname\b\s*[:#]?\s*(.+)$/i);
+      const directLast = findValue(/\b(?:Nachname|Familienname|Name)\b\s*[:#]?\s*(.+)$/i);
+      const firstToken = directFirst ? cleanNameToken(directFirst) : null;
+      const lastToken = directLast ? cleanNameToken(directLast) : null;
+
+      if (firstToken) result.customer_firstname = firstToken;
+      if (lastToken) result.customer_name = lastToken;
+
       const vnBlock =
-          text.match(/Versicherungsnehmer(?:in)?\s*[:#]?\s*([A-Za-zÄÖÜäöüß -]{3,120})/i)?.[1] ||
-          text.match(/Antragsteller(?:in)?\s*[:#]?\s*([A-Za-zÄÖÜäöüß -]{3,120})/i)?.[1] ||
-          text.match(/\bVN\b\s*[:#]?\s*([A-Za-zÄÖÜäöüß -]{3,120})/i)?.[1] ||
+          findValue(/Versicherungsnehmer(?:in)?\s*[:#]?\s*(.+)$/i) ||
+          findValue(/Antragsteller(?:in)?\s*[:#]?\s*(.+)$/i) ||
+          findValue(/\bVN\b\s*[:#]?\s*(.+)$/i) ||
           '';
 
       const vnTokens = vnBlock
@@ -151,23 +193,33 @@ export const Production = () => {
           text.match(/\bNachname\s*[:#]?\s*([A-Za-zÄÖÜäöüß -]{2,60})\s+Vorname\s*[:#]?\s*([A-Za-zÄÖÜäöüß -]{2,40})/i) ||
           null;
 
-      if (labelMatch?.[1] && labelMatch?.[2]) {
-          const full = labelMatch[0].toLowerCase();
-          const isVornameFirst = full.indexOf('vorname') !== -1 && full.indexOf('nachname') !== -1 && full.indexOf('vorname') < full.indexOf('nachname');
-          const rawFirst = isVornameFirst ? labelMatch[1] : labelMatch[2];
-          const rawLast = isVornameFirst ? labelMatch[2] : labelMatch[1];
+      if (!result.customer_firstname || !result.customer_name) {
+          const labelMatch =
+              text.match(/\bVorname\s*[:#]?\s*([A-Za-zÄÖÜäöüß -]{2,40})\s+(?:Nachname|Name)\s*[:#]?\s*([A-Za-zÄÖÜäöüß -]{2,60})/i) ||
+              text.match(/\bNachname\s*[:#]?\s*([A-Za-zÄÖÜäöüß -]{2,60})\s+Vorname\s*[:#]?\s*([A-Za-zÄÖÜäöüß -]{2,40})/i) ||
+              null;
 
-          const first = cleanNameToken(rawFirst);
-          const last = cleanNameToken(rawLast);
+          if (labelMatch?.[1] && labelMatch?.[2]) {
+              const full = labelMatch[0].toLowerCase();
+              const isVornameFirst =
+                  full.indexOf('vorname') !== -1 &&
+                  full.indexOf('nachname') !== -1 &&
+                  full.indexOf('vorname') < full.indexOf('nachname');
+              const rawFirst = isVornameFirst ? labelMatch[1] : labelMatch[2];
+              const rawLast = isVornameFirst ? labelMatch[2] : labelMatch[1];
 
-          if (first) result.customer_firstname = first;
-          if (last) result.customer_name = last;
-      } else if (lastFirstMatch?.[1] && lastFirstMatch?.[2]) {
-          const token1 = cleanNameToken(lastFirstMatch[1]);
-          const token2 = cleanNameToken(lastFirstMatch[2]);
-          if (token1 && token2) {
-              result.customer_firstname = token1;
-              result.customer_name = token2;
+              const first = cleanNameToken(rawFirst);
+              const last = cleanNameToken(rawLast);
+
+              if (first && !result.customer_firstname) result.customer_firstname = first;
+              if (last && !result.customer_name) result.customer_name = last;
+          } else if (lastFirstMatch?.[1] && lastFirstMatch?.[2]) {
+              const token1 = cleanNameToken(lastFirstMatch[1]);
+              const token2 = cleanNameToken(lastFirstMatch[2]);
+              if (token1 && token2) {
+                  if (!result.customer_firstname) result.customer_firstname = token1;
+                  if (!result.customer_name) result.customer_name = token2;
+              }
           }
       }
 
