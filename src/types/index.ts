@@ -78,6 +78,7 @@ export type Absence = {
   note?: string; // New: Reason for 'other'
   is_recurring?: boolean; // New: For 'school'
   recurrence_interval?: 'weekly' | 'biweekly' | 'monthly'; // New
+  deduct_vacation_days?: boolean | null;
 };
 
 export type Post = {

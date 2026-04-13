@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Absence, Profile } from '@/types';
 import { useStore } from '@/store/useStore';
-import { format, parseISO, isAfter, startOfDay, isSameYear } from 'date-fns';
+import { format, parseISO, isAfter, startOfDay } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { Plus, Check, X, Clock, Calendar as CalendarIcon, Trash2, Download, Palmtree, ThermometerSun, HelpCircle, GraduationCap, Repeat, Briefcase } from 'lucide-react';
 import { Modal } from '@/components/Modal';
@@ -28,7 +28,8 @@ export const Calendar = () => {
     end_date: '',
     note: '',
     is_recurring: false,
-    recurrence_interval: 'weekly'
+    recurrence_interval: 'weekly',
+    deduct_vacation_days: true
   });
 
   const fetchAbsences = async () => {
@@ -84,7 +85,8 @@ export const Calendar = () => {
         start_date: formData.start_date,
         end_date: formData.end_date,
         status: status,
-        note: formData.note
+        note: formData.note,
+        deduct_vacation_days: formData.type === 'vacation' ? formData.deduct_vacation_days : true
       };
 
       if (formData.type === 'school' && formData.is_recurring) {
@@ -107,7 +109,8 @@ export const Calendar = () => {
           end_date: '', 
           note: '',
           is_recurring: false,
-          recurrence_interval: 'weekly'
+          recurrence_interval: 'weekly',
+          deduct_vacation_days: true
       });
       fetchAbsences();
       toast.success('Abwesenheit erfolgreich erstellt.');
@@ -172,7 +175,7 @@ export const Calendar = () => {
 
   // Calculate used days based on approved/pending vacations for the current year
   const usedVacationDays = absences
-    .filter(a => a.user_id === user?.id && a.type === 'vacation' && a.status !== 'rejected')
+    .filter(a => a.user_id === user?.id && a.type === 'vacation' && a.status !== 'rejected' && (a.deduct_vacation_days ?? true))
     .filter(a => {
         // Only count if it touches the current year
         const start = parseISO(a.start_date);
@@ -642,6 +645,20 @@ export const Calendar = () => {
                           </div>
                       </div>
                   )}
+              </div>
+          )}
+
+          {formData.type === 'vacation' && (
+              <div className="bg-indigo-50 dark:bg-indigo-900/10 p-4 rounded-xl border border-indigo-100 dark:border-indigo-900/30 flex items-center justify-between animate-in fade-in slide-in-from-top-2">
+                  <label className="text-sm font-bold text-indigo-900 dark:text-indigo-300 flex items-center gap-2">
+                      <Palmtree className="w-4 h-4" /> Urlaubstage abziehen
+                  </label>
+                  <input
+                      type="checkbox"
+                      checked={formData.deduct_vacation_days}
+                      onChange={e => setFormData({ ...formData, deduct_vacation_days: e.target.checked })}
+                      className="w-5 h-5 rounded-lg border-indigo-300 text-indigo-600 focus:ring-indigo-500"
+                  />
               </div>
           )}
 

@@ -24,6 +24,7 @@ const Documents = lazy(() => import('@/pages/Documents').then(module => ({ defau
 const ProfilePage = lazy(() => import('@/pages/Profile').then(module => ({ default: module.ProfilePage })));
 const GeneralCalendar = lazy(() => import('@/pages/GeneralCalendar').then(module => ({ default: module.GeneralCalendar })));
 const Production = lazy(() => import('@/pages/Production').then(module => ({ default: module.Production })));
+const Vacation = lazy(() => import('@/pages/Vacation').then(module => ({ default: module.Vacation })));
 const Admin = lazy(() => import('@/pages/Admin').then(module => ({ default: module.Admin })));
 const Onboarding = lazy(() => import('@/pages/Onboarding').then(module => ({ default: module.Onboarding })));
 const MfaSetup = lazy(() => import('@/pages/MfaSetup').then(module => ({ default: module.MfaSetup })));
@@ -92,6 +93,7 @@ function App() {
                 <Route path="/leads" element={<Layout><PageTransition><Leads /></PageTransition></Layout>} />
                 <Route path="/general-calendar" element={<Layout><PageTransition><GeneralCalendar /></PageTransition></Layout>} />
                 <Route path="/calendar" element={<Layout><PageTransition><Calendar /></PageTransition></Layout>} />
+                <Route path="/vacation" element={<Layout><PageTransition><Vacation /></PageTransition></Layout>} />
                 <Route path="/bookings" element={<Layout><PageTransition><Bookings /></PageTransition></Layout>} />
                 <Route path="/production" element={<Layout><PageTransition><Production /></PageTransition></Layout>} />
                 <Route path="/board" element={<Layout><PageTransition><Board /></PageTransition></Layout>} />

@@ -18,7 +18,8 @@ import {
   Shield,
   Kanban,
   FileText,
-  CheckSquare
+  CheckSquare,
+  Palmtree
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { useState, useEffect } from 'react';
@@ -34,6 +35,7 @@ const navigation = [
   { name: 'Leads', href: '/leads', icon: Kanban },
   { name: 'Kalender', href: '/general-calendar', icon: CalendarDays },
   { name: 'Abwesenheiten', href: '/calendar', icon: CalendarDays },
+  { name: 'Urlaubskonto', href: '/vacation', icon: Palmtree },
   { name: 'Buchungen', href: '/bookings', icon: Building2 },
   { name: 'Produktion', href: '/production', icon: TrendingUp },
   { name: 'Schwarzes Brett', href: '/board', icon: ClipboardList },

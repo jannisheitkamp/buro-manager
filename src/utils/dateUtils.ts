@@ -1,18 +1,14 @@
-import { isWeekend, isWithinInterval, parseISO, startOfDay } from 'date-fns';
+import { isWeekend, parseISO, startOfDay } from 'date-fns';
 
-// Static holidays in Germany
-// We compute Easter-dependent holidays dynamically for the given year.
 export function getHolidays(year: number): Date[] {
     const holidays: Date[] = [];
     
-    // Fixed dates
-    holidays.push(new Date(year, 0, 1));   // Neujahr
-    holidays.push(new Date(year, 4, 1));   // Tag der Arbeit
-    holidays.push(new Date(year, 9, 3));   // Tag der Deutschen Einheit
-    holidays.push(new Date(year, 11, 25)); // 1. Weihnachtstag
-    holidays.push(new Date(year, 11, 26)); // 2. Weihnachtstag
+    holidays.push(new Date(year, 0, 1));
+    holidays.push(new Date(year, 4, 1));
+    holidays.push(new Date(year, 9, 3));
+    holidays.push(new Date(year, 11, 25));
+    holidays.push(new Date(year, 11, 26));
 
-    // Calculate Easter Sunday using Computus (Gauss algorithm)
     const a = year % 19;
     const b = Math.floor(year / 100);
     const c = year % 100;
@@ -25,12 +21,11 @@ export function getHolidays(year: number): Date[] {
     const k = c % 4;
     const l = (32 + 2 * e + 2 * i - h - k) % 7;
     const m = Math.floor((a + 11 * h + 22 * l) / 451);
-    const month = Math.floor((h + l - 7 * m + 114) / 31) - 1; // 0-indexed
+    const month = Math.floor((h + l - 7 * m + 114) / 31) - 1;
     const day = ((h + l - 7 * m + 114) % 31) + 1;
     
     const easterSunday = new Date(year, month, day);
 
-    // Dynamic dates
     const karfreitag = new Date(easterSunday);
     karfreitag.setDate(easterSunday.getDate() - 2);
     holidays.push(karfreitag);
@@ -47,12 +42,10 @@ export function getHolidays(year: number): Date[] {
     pfingstmontag.setDate(easterSunday.getDate() + 50);
     holidays.push(pfingstmontag);
 
-    // Optional / Regional (Fronleichnam - NRW, BW, BY, HE, RP, SL)
     const fronleichnam = new Date(easterSunday);
     fronleichnam.setDate(easterSunday.getDate() + 60);
     holidays.push(fronleichnam);
     
-    // Allerheiligen (NRW, BW, BY, RP, SL)
     holidays.push(new Date(year, 10, 1)); 
 
     return holidays;
