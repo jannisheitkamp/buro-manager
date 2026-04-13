@@ -7,6 +7,7 @@ export type Profile = {
   webhook_secret?: string | null; // New for Apple Shortcuts
   monthly_goal?: number | null; // New: Revenue Goal
   yearly_goal?: number | null;
+  total_vacation_days?: number | null; // New: Vacation days per year
   avatar_url: string | null;
   roles: string[];
   address?: string | null;

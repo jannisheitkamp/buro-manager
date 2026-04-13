@@ -2,15 +2,16 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Absence, Profile } from '@/types';
 import { useStore } from '@/store/useStore';
-import { format, parseISO, isAfter, startOfDay } from 'date-fns';
+import { format, parseISO, isAfter, startOfDay, isSameYear } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { Plus, Check, X, Clock, Calendar as CalendarIcon, Trash2, Download, Palmtree, ThermometerSun, HelpCircle, GraduationCap, Repeat } from 'lucide-react';
+import { Plus, Check, X, Clock, Calendar as CalendarIcon, Trash2, Download, Palmtree, ThermometerSun, HelpCircle, GraduationCap, Repeat, Briefcase } from 'lucide-react';
 import { Modal } from '@/components/Modal';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { cn } from '@/utils/cn';
 import { toast } from 'react-hot-toast';
 import { generateVacationRequestPDF } from '@/utils/pdfGenerator';
 import { motion, AnimatePresence } from 'framer-motion';
+import { getWorkingDays } from '@/utils/dateUtils';
 
 export const Calendar = () => {
   const { user, profile } = useStore();
@@ -163,7 +164,34 @@ export const Calendar = () => {
 
     const end = parseISO(a.end_date);
     return isAfter(end, startOfDay(new Date())) || end.getTime() === startOfDay(new Date()).getTime();
-  });
+  }).sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime());
+
+  // --- Vacation Stats Logic ---
+  const currentYear = new Date().getFullYear();
+  const totalVacationDays = profile?.total_vacation_days ?? 30;
+
+  // Calculate used days based on approved/pending vacations for the current year
+  const usedVacationDays = absences
+    .filter(a => a.user_id === user?.id && a.type === 'vacation' && a.status !== 'rejected')
+    .filter(a => {
+        // Only count if it touches the current year
+        const start = parseISO(a.start_date);
+        const end = parseISO(a.end_date);
+        return start.getFullYear() === currentYear || end.getFullYear() === currentYear;
+    })
+    .reduce((total, a) => {
+        // Only calculate working days that fall in the current year
+        let start = parseISO(a.start_date);
+        let end = parseISO(a.end_date);
+        
+        if (start.getFullYear() < currentYear) start = new Date(currentYear, 0, 1);
+        if (end.getFullYear() > currentYear) end = new Date(currentYear, 11, 31);
+
+        return total + getWorkingDays(start, end);
+    }, 0);
+
+  const remainingVacationDays = Math.max(0, totalVacationDays - usedVacationDays);
+  // --- End Vacation Stats Logic ---
 
   const isAdmin = profile?.roles?.includes('admin');
   const myRoles = profile?.roles || [];
@@ -265,6 +293,45 @@ export const Calendar = () => {
           <span className="font-semibold">Antrag stellen</span>
         </motion.button>
       </div>
+
+      {/* Vacation Overview Cards */}
+      <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="grid grid-cols-1 md:grid-cols-3 gap-4"
+      >
+          <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 flex items-center gap-4">
+              <div className="p-4 bg-indigo-50 dark:bg-indigo-900/30 rounded-2xl text-indigo-600 dark:text-indigo-400">
+                  <Briefcase className="w-6 h-6" />
+              </div>
+              <div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">Jahresurlaub {currentYear}</p>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">{totalVacationDays} Tage</p>
+              </div>
+          </div>
+          
+          <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 flex items-center gap-4">
+              <div className="p-4 bg-emerald-50 dark:bg-emerald-900/30 rounded-2xl text-emerald-600 dark:text-emerald-400">
+                  <Check className="w-6 h-6" />
+              </div>
+              <div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">Genutzt / Geplant</p>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">{usedVacationDays} Tage</p>
+              </div>
+          </div>
+
+          <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 flex items-center gap-4">
+              <div className={cn("p-4 rounded-2xl", remainingVacationDays > 0 ? "bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400" : "bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400")}>
+                  <Palmtree className="w-6 h-6" />
+              </div>
+              <div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">Verbleibend</p>
+                  <p className={cn("text-2xl font-bold", remainingVacationDays > 0 ? "text-gray-900 dark:text-white" : "text-red-600 dark:text-red-400")}>
+                      {remainingVacationDays} Tage
+                  </p>
+              </div>
+          </div>
+      </motion.div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Upcoming Approved Absences */}

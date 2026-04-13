@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useStore } from '@/store/useStore';
 import { motion } from 'framer-motion';
-import { User, Lock, Save, Briefcase, Mail, Key, Shield, Upload, DollarSign, Command, Copy, Check, Target } from 'lucide-react';
+import { User, Lock, Save, Briefcase, Mail, Key, Shield, Upload, DollarSign, Command, Copy, Check, Target, Palmtree } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { cn } from '@/utils/cn';
 
@@ -19,6 +19,7 @@ export const ProfilePage = () => {
     const [webhookSecret, setWebhookSecret] = useState(''); // New: Webhook Secret
     const [monthlyGoal, setMonthlyGoal] = useState<number>(10000); // New: Monthly Goal (Default 10k)
     const [yearlyGoal, setYearlyGoal] = useState<number>(120000); // New: Yearly Goal (Default 120k)
+    const [totalVacationDays, setTotalVacationDays] = useState<number>(30); // New: Vacation Days
     const [avatarUrl, setAvatarUrl] = useState('');
     
     // Password State
@@ -50,6 +51,7 @@ export const ProfilePage = () => {
             setWebhookSecret(profile.webhook_secret || ''); // Load
             setMonthlyGoal(profile.monthly_goal || 10000); // Load
             setYearlyGoal(profile.yearly_goal || (profile.monthly_goal ? profile.monthly_goal * 12 : 120000)); // Load or calc
+            setTotalVacationDays(profile.total_vacation_days ?? 30);
             setAvatarUrl(profile.avatar_url || '');
             fetchUserRates();
         }
@@ -161,6 +163,7 @@ export const ProfilePage = () => {
                     address: address, // Save
                     monthly_goal: monthlyGoal, // Save
                     yearly_goal: yearlyGoal, // Save
+                    total_vacation_days: totalVacationDays, // Save
                     avatar_url: avatarUrl 
                 })
                 .eq('id', user.id);
@@ -365,6 +368,20 @@ export const ProfilePage = () => {
                                             setYearlyGoal(val * 12); // Auto-calc yearly
                                         }}
                                         placeholder="10000"
+                                        className="w-full rounded-xl bg-gray-50 dark:bg-gray-900 border-transparent focus:bg-white focus:ring-2 focus:ring-indigo-500/20 pl-10 px-4 py-2.5 text-sm transition-all"
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Jahresurlaub (Tage)</label>
+                                <div className="relative">
+                                    <Palmtree className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
+                                    <input 
+                                        type="number" 
+                                        value={totalVacationDays}
+                                        onChange={e => setTotalVacationDays(Number(e.target.value))}
+                                        placeholder="30"
                                         className="w-full rounded-xl bg-gray-50 dark:bg-gray-900 border-transparent focus:bg-white focus:ring-2 focus:ring-indigo-500/20 pl-10 px-4 py-2.5 text-sm transition-all"
                                     />
                                 </div>
