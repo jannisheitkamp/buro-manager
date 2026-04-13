@@ -7,7 +7,7 @@ import { toast } from 'react-hot-toast';
 import { cn } from '@/utils/cn';
 
 export const ProfilePage = () => {
-    const { user, profile } = useStore();
+    const { user, profile, fetchProfile } = useStore();
     const [loading, setLoading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -103,6 +103,8 @@ export const ProfilePage = () => {
 
             if (updateError) throw updateError;
             
+            await fetchProfile();
+            
             toast.success('Profilbild aktualisiert!');
         } catch (error) {
             console.error('Error uploading avatar:', error);
@@ -124,6 +126,7 @@ export const ProfilePage = () => {
             
             if (error) throw error;
             setWebhookSecret(newSecret);
+            await fetchProfile();
             toast.success('Neuer Secret generiert');
         } catch (error) {
             console.error(error);
@@ -169,10 +172,18 @@ export const ProfilePage = () => {
                 .eq('id', user.id);
 
             if (error) throw error;
+            
+            // Fetch updated profile to keep the global store in sync
+            await fetchProfile();
+            
             toast.success('Profil aktualisiert');
-        } catch (error) {
+        } catch (error: any) {
             console.error(error);
-            toast.error('Fehler beim Speichern');
+            if (error.message?.includes('total_vacation_days') || error.details?.includes('total_vacation_days')) {
+                toast.error('Datenbank-Spalte für Urlaubstage fehlt. Bitte im Supabase SQL-Editor anlegen!');
+            } else {
+                toast.error('Fehler beim Speichern: ' + (error.message || ''));
+            }
         } finally {
             setLoading(false);
         }
