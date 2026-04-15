@@ -19,7 +19,8 @@ import {
   Kanban,
   FileText,
   CheckSquare,
-  Palmtree
+  Palmtree,
+  Headset
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { useState, useEffect } from 'react';
@@ -36,6 +37,7 @@ const navigation = [
   { name: 'Kalender', href: '/general-calendar', icon: CalendarDays },
   { name: 'Abwesenheiten', href: '/calendar', icon: CalendarDays },
   { name: 'Urlaubskonto', href: '/vacation', icon: Palmtree },
+  { name: 'Empfang', href: '/reception', icon: Headset },
   { name: 'Buchungen', href: '/bookings', icon: Building2 },
   { name: 'Produktion', href: '/production', icon: TrendingUp },
   { name: 'Schwarzes Brett', href: '/board', icon: ClipboardList },
