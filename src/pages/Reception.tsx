@@ -2,38 +2,56 @@ import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useStore } from '@/store/useStore';
 import { motion } from 'framer-motion';
-import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, isSameMonth, isSameDay, parseISO, startOfDay, addMonths, subMonths } from 'date-fns';
+import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, isSameMonth, isSameDay, addMonths, subMonths } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight, Download, Upload, Users } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { toast } from 'react-hot-toast';
 import { getHolidays } from '@/utils/dateUtils';
 
-type ReceptionPerson = 'Florent' | 'Lucas' | 'Jannis';
+type ReceptionPerson = 'Florent' | 'Lucas' | 'Jannis' | 'Marcio';
 
 const STORAGE_BUCKET = 'documents';
 const STORAGE_PATH = 'office/empfangsplan.pdf';
 
-const PERSONS: ReceptionPerson[] = ['Florent', 'Lucas', 'Jannis'];
-const DEFAULT_ROTATION_START = '2026-01-05'; // Montag
-const DEFAULT_START_PERSON: ReceptionPerson = 'Florent';
+const PERSONS: ReceptionPerson[] = ['Florent', 'Lucas', 'Jannis', 'Marcio'];
+
+const DEFAULT_WEEKDAY_MAP: Record<number, ReceptionPerson> = {
+    1: 'Lucas',
+    2: 'Marcio',
+    3: 'Florent',
+    4: 'Jannis',
+    5: 'Lucas'
+};
 
 const localStorageKey = (k: string) => `reception:${k}`;
 
 export const Reception = () => {
     const { user } = useStore();
     const [currentDate, setCurrentDate] = useState(new Date());
-    const [rotationStart, setRotationStart] = useState<string>(() => localStorage.getItem(localStorageKey('start')) || DEFAULT_ROTATION_START);
-    const [startPerson, setStartPerson] = useState<ReceptionPerson>(() => (localStorage.getItem(localStorageKey('person')) as ReceptionPerson) || DEFAULT_START_PERSON);
+    const [weekdayMap, setWeekdayMap] = useState<Record<number, ReceptionPerson>>(() => {
+        const raw = localStorage.getItem(localStorageKey('weekday_map'));
+        if (!raw) return DEFAULT_WEEKDAY_MAP;
+        try {
+            const parsed = JSON.parse(raw) as Record<string, ReceptionPerson>;
+            const out: Record<number, ReceptionPerson> = { ...DEFAULT_WEEKDAY_MAP };
+            Object.keys(parsed || {}).forEach(k => {
+                const n = Number(k);
+                const v = parsed[k];
+                if (Number.isFinite(n) && n >= 1 && n <= 5 && PERSONS.includes(v)) {
+                    out[n] = v;
+                }
+            });
+            return out;
+        } catch {
+            return DEFAULT_WEEKDAY_MAP;
+        }
+    });
     const [uploading, setUploading] = useState(false);
 
     useEffect(() => {
-        localStorage.setItem(localStorageKey('start'), rotationStart);
-    }, [rotationStart]);
-
-    useEffect(() => {
-        localStorage.setItem(localStorageKey('person'), startPerson);
-    }, [startPerson]);
+        localStorage.setItem(localStorageKey('weekday_map'), JSON.stringify(weekdayMap));
+    }, [weekdayMap]);
 
     const holidays = useMemo(() => {
         const year = currentDate.getFullYear();
@@ -52,14 +70,8 @@ export const Reception = () => {
 
     const getAssignee = (day: Date): ReceptionPerson | null => {
         if (isWeekend(day) || isHoliday(day)) return null;
-
-        const base = startOfWeek(parseISO(rotationStart), { weekStartsOn: 1 });
-        const current = startOfWeek(day, { weekStartsOn: 1 });
-        const diffWeeks = Math.floor((startOfDay(current).getTime() - startOfDay(base).getTime()) / (1000 * 60 * 60 * 24 * 7));
-
-        const baseIdx = PERSONS.indexOf(startPerson);
-        const idx = ((baseIdx + diffWeeks) % PERSONS.length + PERSONS.length) % PERSONS.length;
-        return PERSONS[idx];
+        const dow = day.getDay();
+        return weekdayMap[dow] || null;
     };
 
     const monthStart = startOfMonth(currentDate);
@@ -112,7 +124,7 @@ export const Reception = () => {
                         Empfangsplan
                     </h1>
                     <p className="text-gray-500 dark:text-gray-400 mt-2 ml-1">
-                        Automatische Wochenrotation (Florent, Lucas, Jannis). Wochenenden &amp; Feiertage werden ignoriert.
+                        Fester Wochenplan (Mo–Fr). Wochenenden &amp; Feiertage werden als geschlossen markiert.
                     </p>
                 </motion.div>
 
@@ -170,28 +182,27 @@ export const Reception = () => {
                         </button>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Rotation Start (Montag)</label>
-                            <input
-                                type="date"
-                                value={rotationStart}
-                                onChange={e => setRotationStart(e.target.value)}
-                                className="w-full rounded-xl bg-gray-50 dark:bg-gray-900 border-transparent focus:bg-white focus:ring-2 focus:ring-indigo-500/20 px-4 py-2.5 text-sm transition-all"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Start-Person</label>
-                            <select
-                                value={startPerson}
-                                onChange={e => setStartPerson(e.target.value as ReceptionPerson)}
-                                className="w-full rounded-xl bg-gray-50 dark:bg-gray-900 border-transparent focus:bg-white focus:ring-2 focus:ring-indigo-500/20 px-4 py-2.5 text-sm transition-all"
-                            >
-                                {PERSONS.map(p => (
-                                    <option key={p} value={p}>{p}</option>
-                                ))}
-                            </select>
-                        </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
+                        {[
+                            { key: 1, label: 'Mo' },
+                            { key: 2, label: 'Di' },
+                            { key: 3, label: 'Mi' },
+                            { key: 4, label: 'Do' },
+                            { key: 5, label: 'Fr' }
+                        ].map(wd => (
+                            <div key={wd.key}>
+                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">{wd.label}</label>
+                                <select
+                                    value={weekdayMap[wd.key]}
+                                    onChange={e => setWeekdayMap(prev => ({ ...prev, [wd.key]: e.target.value as ReceptionPerson }))}
+                                    className="w-full rounded-xl bg-gray-50 dark:bg-gray-900 border-transparent focus:bg-white focus:ring-2 focus:ring-indigo-500/20 px-4 py-2.5 text-sm transition-all"
+                                >
+                                    {PERSONS.map(p => (
+                                        <option key={p} value={p}>{p}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        ))}
                     </div>
                 </div>
 
