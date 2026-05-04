@@ -4,13 +4,14 @@ import { useStore } from '@/store/useStore';
 import { useLocation } from 'react-router-dom';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { TrendingUp, Plus, Search, Filter, Euro, FileText, Trash2, Download, Pencil, FileDown, PieChart, BarChart as BarChartIcon, Medal, Trophy, LayoutGrid, List, Sparkles, Loader2 } from 'lucide-react';
+import { TrendingUp, Plus, Search, Euro, FileText, Trash2, Download, Pencil, FileDown, PieChart, BarChart as BarChartIcon, Medal, Trophy, LayoutGrid, Sparkles, Loader2 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { Modal } from '@/components/Modal';
 import { toast } from 'react-hot-toast';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { motion, AnimatePresence } from 'framer-motion';
+import { LiabilityTrackerModal } from '@/components/LiabilityTrackerModal';
 import { 
   BarChart, 
   Bar, 
@@ -26,8 +27,6 @@ import {
   AreaChart,
   Area
 } from 'recharts';
-
-// Helper to format currency safely
 const formatCurrency = (amount: number | null | undefined) => {
   if (amount === null || amount === undefined || isNaN(amount)) return '0,00 €';
   return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(amount);
@@ -48,6 +47,7 @@ export const Production = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [documentUrl, setDocumentUrl] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isLiabilityModalOpen, setIsLiabilityModalOpen] = useState(false);
 
   const getPdfText = async (file: File, maxPages: number) => {
       const pdfjs: any = await import('pdfjs-dist/legacy/build/pdf.mjs');
@@ -636,6 +636,7 @@ export const Production = () => {
       if (parent && parent.id !== category) {
           setCategory(parent.id);
       }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subCategory]);
 
 
@@ -1266,12 +1267,18 @@ export const Production = () => {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.4 }}
-                    className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-3xl p-6 border border-white/20 shadow-xl relative overflow-hidden group"
+                    className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-3xl p-6 border border-white/20 shadow-xl relative overflow-hidden group cursor-pointer hover:bg-orange-50 dark:hover:bg-orange-900/10"
+                    onClick={() => setIsLiabilityModalOpen(true)}
                     >
                         <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
                             <TrendingUp className="w-24 h-24 text-orange-500" />
                         </div>
-                        <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Haftungsreserve (Total)</p>
+                        <div className="flex items-center justify-between">
+                            <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Haftungsreserve (Total)</p>
+                            <span className="text-xs bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400 px-2 py-1 rounded-lg font-semibold group-hover:scale-105 transition-transform">
+                                Details ansehen
+                            </span>
+                        </div>
                         <p className="text-3xl font-black text-orange-500 dark:text-orange-400 mt-2">{formatCurrency(totalLiability)}</p>
                     </motion.div>
                 </div>
@@ -2030,6 +2037,12 @@ export const Production = () => {
                 </div>
             </form>
         </Modal>
+
+        <LiabilityTrackerModal 
+            isOpen={isLiabilityModalOpen} 
+            onClose={() => setIsLiabilityModalOpen(false)} 
+            entries={filteredEntries} 
+        />
     </div>
   );
 };

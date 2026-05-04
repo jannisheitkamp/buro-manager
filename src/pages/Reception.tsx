@@ -4,7 +4,7 @@ import { useStore } from '@/store/useStore';
 import { motion } from 'framer-motion';
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, isSameMonth, isSameDay, addMonths, subMonths } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, Download, Upload, Users } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, Upload, Users, AlertTriangle } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { toast } from 'react-hot-toast';
 import { getHolidays } from '@/utils/dateUtils';
@@ -79,6 +79,37 @@ export const Reception = () => {
     const gridStart = startOfWeek(monthStart, { weekStartsOn: 1 });
     const gridEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const [absences, setAbsences] = useState<any[]>([]);
+
+    useEffect(() => {
+        const fetchAbsences = async () => {
+            const startStr = format(gridStart, 'yyyy-MM-dd');
+            const endStr = format(gridEnd, 'yyyy-MM-dd');
+
+            const { data, error } = await supabase
+                .from('absences')
+                .select('start_date, end_date, status, profiles(full_name)')
+                .in('status', ['pending', 'approved'])
+                .gte('end_date', startStr)
+                .lte('start_date', endStr);
+
+            if (!error && data) {
+                setAbsences(data);
+            }
+        };
+        fetchAbsences();
+    }, [gridStart, gridEnd]);
+
+    const isAbsent = (d: Date, personName: string) => {
+        const dStr = format(d, 'yyyy-MM-dd');
+        return absences.some(a => {
+            const matchName = a.profiles?.full_name?.toLowerCase().includes(personName.toLowerCase());
+            if (!matchName) return false;
+            return dStr >= a.start_date && dStr <= a.end_date;
+        });
+    };
+
     const days = useMemo(() => {
         const out: Date[] = [];
         let d = gridStart;
@@ -87,6 +118,7 @@ export const Reception = () => {
             d = addDays(d, 1);
         }
         return out;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [gridStart.getTime(), gridEnd.getTime()]);
 
     const openPdf = () => {
@@ -218,14 +250,16 @@ export const Reception = () => {
                         const today = isSameDay(day, new Date());
                         const closed = isWeekend(day) || isHoliday(day);
                         const assignee = getAssignee(day);
+                        const absent = assignee && !closed ? isAbsent(day, assignee) : false;
 
                         return (
                             <div
                                 key={day.toISOString()}
                                 className={cn(
-                                    "rounded-2xl border p-3 min-h-[86px] transition-colors",
+                                    "rounded-2xl border p-3 min-h-[86px] transition-colors relative overflow-hidden",
                                     inMonth ? "bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700" : "bg-gray-50 dark:bg-gray-900/40 border-transparent opacity-60",
-                                    today ? "ring-2 ring-indigo-500/50" : ""
+                                    today ? "ring-2 ring-indigo-500/50" : "",
+                                    absent ? "bg-red-50/50 dark:bg-red-900/10 border-red-100 dark:border-red-900/30" : ""
                                 )}
                             >
                                 <div className="flex items-center justify-between">
@@ -240,11 +274,17 @@ export const Reception = () => {
                                 </div>
 
                                 <div className={cn(
-                                    "mt-3 text-sm font-bold truncate",
-                                    closed ? "text-gray-400 dark:text-gray-500" : "text-gray-900 dark:text-white"
+                                    "mt-3 text-sm font-bold truncate flex items-center gap-1.5",
+                                    closed ? "text-gray-400 dark:text-gray-500" : (absent ? "text-red-600 dark:text-red-400" : "text-gray-900 dark:text-white")
                                 )}>
                                     {closed ? 'Geschlossen' : assignee}
+                                    {absent && <AlertTriangle className="w-3.5 h-3.5 text-red-500" />}
                                 </div>
+                                {absent && (
+                                    <div className="text-[10px] font-semibold text-red-500 mt-1 truncate">
+                                        Vertretung nötig!
+                                    </div>
+                                )}
                             </div>
                         );
                     })}
