@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useStore } from '@/store/useStore';
 import { motion } from 'framer-motion';
-import { User, Lock, Save, Briefcase, Mail, Key, Shield, Upload, DollarSign, Command, Copy, Check, Target, Palmtree } from 'lucide-react';
+import { User, Lock, Save, Briefcase, Mail, Key, Shield, Upload, DollarSign, Command, Copy, Check, Target, Palmtree, Trophy } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { cn } from '@/utils/cn';
 
@@ -42,6 +42,8 @@ export const ProfilePage = () => {
         'Sonstige': 5.0
     });
 
+    const [badges, setBadges] = useState<any[]>([]);
+
     useEffect(() => {
         if (profile) {
             setFullName(profile.full_name || '');
@@ -54,8 +56,15 @@ export const ProfilePage = () => {
             setTotalVacationDays(profile.total_vacation_days ?? 30);
             setAvatarUrl(profile.avatar_url || '');
             fetchUserRates();
+            fetchBadges();
         }
     }, [profile]);
+
+    const fetchBadges = async () => {
+        if (!user) return;
+        const { data } = await supabase.from('user_badges').select('*').eq('user_id', user.id).order('awarded_at', { ascending: false });
+        if (data) setBadges(data);
+    };
 
     const fetchUserRates = async () => {
         if (!user) return;
@@ -261,6 +270,33 @@ export const ProfilePage = () => {
                 </div>
                 Mein Profil
             </motion.h1>
+
+            {/* Badges Section */}
+            {badges.length > 0 && (
+                <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 mb-8"
+                >
+                    <h2 className="font-bold text-lg mb-4 flex items-center gap-2">
+                        <Trophy className="w-5 h-5 text-yellow-500" />
+                        Meine Auszeichnungen
+                    </h2>
+                    <div className="flex flex-wrap gap-4">
+                        {badges.map(badge => (
+                            <div key={badge.id} className="flex items-center gap-3 bg-gray-50 dark:bg-gray-900 p-3 rounded-2xl border border-gray-100 dark:border-gray-800" title={badge.description}>
+                                <div className={`p-2 rounded-xl bg-${badge.badge_color}-100 dark:bg-${badge.badge_color}-900/30 text-${badge.badge_color}-600 dark:text-${badge.badge_color}-400`}>
+                                    <span className="text-xl">{badge.badge_icon}</span>
+                                </div>
+                                <div>
+                                    <p className="font-bold text-sm text-gray-900 dark:text-white">{badge.badge_name}</p>
+                                    <p className="text-xs text-gray-500">{new Date(badge.awarded_at).toLocaleDateString('de-DE')}</p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </motion.div>
+            )}
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 
