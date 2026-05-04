@@ -568,8 +568,11 @@ export const Production = () => {
     // Get rate from loaded user settings (or default if not loaded yet)
     rate = userRates[subCategory] || 0;
 
+    // NEW RULE: Provisionsberechnung und Lebenswert berechnung wird immer auf maximal 35 Jahre berechnet, EGAL welche Sparte
+    const cappedDuration = Math.min(duration, 35);
+
     if (subCategory === 'Leben' || subCategory === 'BU') {
-        valSum = grossYearly * duration;
+        valSum = grossYearly * cappedDuration;
         comm = valSum * (rate / 1000);
     } 
     else if (['KV Voll', 'KV Zusatz'].includes(subCategory)) {
@@ -1900,7 +1903,12 @@ export const Production = () => {
                             </div>
                             <div>
                                 <label className="block text-xs font-medium text-gray-500 mb-1.5">Laufzeit (J)</label>
-                                <input type="number" value={duration} onChange={e => setDuration(Number(e.target.value))} className="w-full rounded-xl border-transparent bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500/20 shadow-sm" />
+                                <input 
+                                    type="number" 
+                                    value={duration} 
+                                    onChange={e => setDuration(Number(e.target.value))} 
+                                    className="w-full rounded-xl border-transparent bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500/20 shadow-sm" 
+                                />
                             </div>
                         </div>
 
