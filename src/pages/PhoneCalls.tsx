@@ -170,7 +170,7 @@ export const PhoneCalls = () => {
           return;
       }
 
-      let updateData: any = { last_call_at: new Date().toISOString() };
+      const updateData: any = { last_call_at: new Date().toISOString() };
       
       if (result === 'no_interest') {
           updateData.status = 'lost';

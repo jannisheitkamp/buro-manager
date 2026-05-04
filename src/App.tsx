@@ -73,7 +73,7 @@ function App() {
     });
 
     return () => subscription.unsubscribe();
-  }, [setUser, fetchProfile]);
+  }, [setUser, fetchProfile, setLoading]);
 
   return (
     <BrowserRouter>

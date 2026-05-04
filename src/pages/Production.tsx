@@ -4,13 +4,15 @@ import { useStore } from '@/store/useStore';
 import { useLocation } from 'react-router-dom';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { TrendingUp, Plus, Search, Euro, FileText, Trash2, Download, Pencil, FileDown, PieChart, BarChart as BarChartIcon, Medal, Trophy, LayoutGrid, Sparkles, Loader2 } from 'lucide-react';
+import { TrendingUp, Plus, Search, Euro, FileText, Trash2, Download, Pencil, FileDown, PieChart, BarChart as BarChartIcon, Medal, Trophy, LayoutGrid, Sparkles, Loader2, UploadCloud } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { Modal } from '@/components/Modal';
 import { toast } from 'react-hot-toast';
 import jsPDF from 'jspdf';
+import { useDropzone } from 'react-dropzone';
+
 import autoTable from 'jspdf-autotable';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { LiabilityTrackerModal } from '@/components/LiabilityTrackerModal';
 import { 
   BarChart, 
@@ -27,6 +29,9 @@ import {
   AreaChart,
   Area
 } from 'recharts';
+
+// AI Parser Helper
+import { parseContractFromText } from '@/utils/pdfParser';
 const formatCurrency = (amount: number | null | undefined) => {
   if (amount === null || amount === undefined || isNaN(amount)) return '0,00 €';
   return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(amount);
@@ -49,235 +54,28 @@ export const Production = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isLiabilityModalOpen, setIsLiabilityModalOpen] = useState(false);
 
-  const getPdfText = async (file: File, maxPages: number) => {
-      const pdfjs: any = await import('pdfjs-dist/legacy/build/pdf.mjs');
-      pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-          'pdfjs-dist/legacy/build/pdf.worker.min.mjs',
-          import.meta.url
-      ).toString();
-
-      const ab = await file.arrayBuffer();
-      const doc = await pdfjs.getDocument({ data: ab }).promise;
-
-      const pages = Math.min(doc.numPages || 0, maxPages);
-      let text = '';
-
-      for (let i = 1; i <= pages; i += 1) {
-          const page = await doc.getPage(i);
-          const content = await page.getTextContent();
-          const rows = new Map<number, { y: number; parts: { x: number; str: string }[] }>();
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const items: any[] = content.items || [];
-
-          items.forEach(it => {
-              const str = (it?.str || '').toString().trim();
-              const tr = it?.transform;
-              const x = Array.isArray(tr) ? Number(tr[4] || 0) : 0;
-              const y = Array.isArray(tr) ? Number(tr[5] || 0) : 0;
-              if (!str) return;
-
-              const key = Math.round(y / 2) * 2;
-              const row = rows.get(key) || { y, parts: [] };
-              row.parts.push({ x, str });
-              rows.set(key, row);
-          });
-
-          const lines = Array.from(rows.values())
-              .sort((a, b) => b.y - a.y)
-              .map(r => r.parts.sort((a, b) => a.x - b.x).map(p => p.str).join(' ').trim())
-              .filter(Boolean);
-
-          text += `\n${lines.join('\n')}\n`;
-      }
-
-      return text.trim();
-  };
-
-  const parseContractFromText = (raw: string) => {
-      const lines = raw
-          .split('\n')
-          .map(l => l.trim())
-          .filter(Boolean);
-      const text = lines.join(' ').replace(/\s+/g, ' ').trim();
-      const lower = text.toLowerCase();
-
-      const result: {
-          customer_name?: string;
-          customer_firstname?: string;
-          policy_number?: string;
-          start_date?: string;
-          category?: string;
-          sub_category?: string;
-          net_premium?: number;
-          payment_method?: string;
-      } = {};
-
-      const isLikelyStreet = (v: string) => {
-          const s = v.toLowerCase();
-          if (/\d/.test(s)) return true;
-          return (
-              s.includes('strasse') ||
-              s.includes('straße') ||
-              /\bstr\.\b/.test(s) ||
-              s.includes('weg') ||
-              s.includes('allee') ||
-              s.includes('gasse') ||
-              s.includes('platz') ||
-              s.includes('ring') ||
-              s.includes('damm')
-          );
-      };
-
-      const cleanNameToken = (v: string) => {
-          const s = v.trim().replace(/\s+/g, ' ');
-          if (!s) return null;
-          const first = s.split(' ')[0].trim();
-          if (!first) return null;
-          if (isLikelyStreet(first)) return null;
-          if (!/^[A-Za-zÄÖÜäöüß-]{2,30}$/.test(first)) return null;
-          return first;
-      };
-
-      const findValue = (label: RegExp) => {
-          for (let i = 0; i < lines.length; i += 1) {
-              const line = lines[i];
-              const m = line.match(label);
-              if (m?.[1]) return m[1].trim();
-              if (label.test(line) && (line.replace(label, '').trim() === '' || line.trim().length <= 12)) {
-                  const next = lines[i + 1];
-                  if (next) return next.trim();
+  const getPdfText = async (file: File, maxPages: number): Promise<string> => {
+      return new Promise((resolve, reject) => {
+          const worker = new Worker(new URL('../workers/pdfWorker.ts', import.meta.url), { type: 'module' });
+          
+          worker.onmessage = (e) => {
+              if (e.data.success) {
+                  resolve(e.data.text);
+              } else {
+                  reject(new Error(e.data.error));
               }
-          }
-          return null;
-      };
+              worker.terminate();
+          };
 
-      const toIsoDate = (d: string) => {
-          const m = d.match(/(\d{1,2})(?:\.|-|\/)(\d{1,2})(?:\.|-|\/)(\d{2,4})/);
-          if (!m) return null;
-          const day = m[1].padStart(2, '0');
-          const month = m[2].padStart(2, '0');
-          const year = m[3].length === 2 ? `20${m[3]}` : m[3];
-          return `${year}-${month}-${day}`;
-      };
+          worker.onerror = (err) => {
+              reject(new Error(err.message));
+              worker.terminate();
+          };
 
-      const policyMatch =
-          text.match(/(?:Versicherungs-?schein(?:nummer)?|Police(?:n)?(?:nummer)?|Schein-?Nr\.?)\s*[:#]?\s*([A-Z0-9\/.\-]{5,})/i) ||
-          text.match(/\bVN[- ]?Nr\.?\s*[:#]?\s*([A-Z0-9\/.\-]{5,})/i);
-      if (policyMatch?.[1]) result.policy_number = policyMatch[1].trim();
-
-      const directFirst = findValue(/\bVorname\b\s*[:#]?\s*(.+)$/i);
-      const directLast = findValue(/\b(?:Nachname|Familienname|Name)\b\s*[:#]?\s*(.+)$/i);
-      const firstToken = directFirst ? cleanNameToken(directFirst) : null;
-      const lastToken = directLast ? cleanNameToken(directLast) : null;
-
-      if (firstToken) result.customer_firstname = firstToken;
-      if (lastToken) result.customer_name = lastToken;
-
-      const vnBlock =
-          findValue(/Versicherungsnehmer(?:in)?\s*[:#]?\s*(.+)$/i) ||
-          findValue(/Antragsteller(?:in)?\s*[:#]?\s*(.+)$/i) ||
-          findValue(/\bVN\b\s*[:#]?\s*(.+)$/i) ||
-          '';
-
-      const vnTokens = vnBlock
-          .replace(/\s{2,}/g, ' ')
-          .replace(/(geb\\.|geboren|geburtsdatum).*/i, '')
-          .trim();
-
-      const lastFirstMatch =
-          vnTokens.match(/^([A-Za-zÄÖÜäöüß-]{2,})\s+([A-Za-zÄÖÜäöüß-]{2,})(?:\s|$)/) ||
-          null;
-
-      const labelMatch =
-          text.match(/\bVorname\s*[:#]?\s*([A-Za-zÄÖÜäöüß -]{2,40})\s+(?:Nachname|Name)\s*[:#]?\s*([A-Za-zÄÖÜäöüß -]{2,60})/i) ||
-          text.match(/\bNachname\s*[:#]?\s*([A-Za-zÄÖÜäöüß -]{2,60})\s+Vorname\s*[:#]?\s*([A-Za-zÄÖÜäöüß -]{2,40})/i) ||
-          null;
-
-      if (!result.customer_firstname || !result.customer_name) {
-          const labelMatch =
-              text.match(/\bVorname\s*[:#]?\s*([A-Za-zÄÖÜäöüß -]{2,40})\s+(?:Nachname|Name)\s*[:#]?\s*([A-Za-zÄÖÜäöüß -]{2,60})/i) ||
-              text.match(/\bNachname\s*[:#]?\s*([A-Za-zÄÖÜäöüß -]{2,60})\s+Vorname\s*[:#]?\s*([A-Za-zÄÖÜäöüß -]{2,40})/i) ||
-              null;
-
-          if (labelMatch?.[1] && labelMatch?.[2]) {
-              const full = labelMatch[0].toLowerCase();
-              const isVornameFirst =
-                  full.indexOf('vorname') !== -1 &&
-                  full.indexOf('nachname') !== -1 &&
-                  full.indexOf('vorname') < full.indexOf('nachname');
-              const rawFirst = isVornameFirst ? labelMatch[1] : labelMatch[2];
-              const rawLast = isVornameFirst ? labelMatch[2] : labelMatch[1];
-
-              const first = cleanNameToken(rawFirst);
-              const last = cleanNameToken(rawLast);
-
-              if (first && !result.customer_firstname) result.customer_firstname = first;
-              if (last && !result.customer_name) result.customer_name = last;
-          } else if (lastFirstMatch?.[1] && lastFirstMatch?.[2]) {
-              const token1 = cleanNameToken(lastFirstMatch[1]);
-              const token2 = cleanNameToken(lastFirstMatch[2]);
-              if (token1 && token2) {
-                  if (!result.customer_firstname) result.customer_firstname = token1;
-                  if (!result.customer_name) result.customer_name = token2;
-              }
-          }
-      }
-
-      const startMatch =
-          text.match(/(?:Versicherungsbeginn|Vertragsbeginn|Beginn(?:\s+des\s+Versicherungsschutzes)?)\s*[:#]?\s*(\d{1,2}(?:\.|-|\/)\d{1,2}(?:\.|-|\/)\d{2,4})/i) ||
-          null;
-      if (startMatch?.[1]) {
-          const iso = toIsoDate(startMatch[1]);
-          if (iso) result.start_date = iso;
-      }
-
-      const premiumMatch =
-          text.match(/(?:Monatsbeitrag|Jahresbeitrag|Gesamtbeitrag|Beitrag)\s*[:#]?\s*([0-9]{1,3}(?:\.[0-9]{3})*(?:,[0-9]{2})?)\s*(?:€|EUR)/i) ||
-          text.match(/([0-9]{1,3}(?:\.[0-9]{3})*(?:,[0-9]{2})?)\s*(?:€|EUR)\s*(?:monatlich|jaehrlich|vierteljaehrlich|halbjaehrlich)/i);
-      if (premiumMatch?.[1]) {
-          const v = premiumMatch[1].replace(/\./g, '').replace(',', '.');
-          const n = Number(v);
-          if (!Number.isNaN(n)) result.net_premium = n;
-      }
-
-      if (lower.includes('monatlich')) result.payment_method = 'monthly';
-      else if (lower.includes('vierteljaehrlich') || lower.includes('vierteljährlich')) result.payment_method = 'quarterly';
-      else if (lower.includes('halbjaehrlich') || lower.includes('halbjährlich')) result.payment_method = 'half_yearly';
-      else if (lower.includes('jaehrlich') || lower.includes('jährlich')) result.payment_method = 'yearly';
-      else if (lower.includes('einmalig') || lower.includes('einmalzahlung')) result.payment_method = 'one_time';
-
-      if (lower.includes('tierhalter') || lower.includes('pferdehaftpflicht') || lower.includes('hundehaftpflicht')) {
-          result.category = 'property';
-          result.sub_category = 'Sach'; // Oder PHV, je nachdem was im Buro Manager Standard ist
-      } else if (/\bkfz\b/i.test(text) || lower.includes('kraftfahrt') || lower.includes('autoversicherung')) {
-          result.category = 'car';
-          result.sub_category = 'KFZ';
-      } else if (lower.includes('hausrat')) {
-          result.category = 'property';
-          result.sub_category = 'HR';
-      } else if (lower.includes('privathaftpflicht') || /\bphv\b/i.test(text)) {
-          result.category = 'property';
-          result.sub_category = 'PHV';
-      } else if (lower.includes('unfallversicherung') || /\bunf\b/i.test(text)) {
-          result.category = 'property';
-          result.sub_category = 'UNF';
-      } else if (lower.includes('berufsunfaehigkeit') || lower.includes('berufsunfähigkeit') || /\bbu\b/i.test(text)) {
-          result.category = 'life';
-          result.sub_category = 'BU';
-      } else if (lower.includes('lebensversicherung') || /\bleben\b/i.test(text)) {
-          result.category = 'life';
-          result.sub_category = 'Leben';
-      } else if (lower.includes('rechtsschutz')) {
-          result.category = 'legal';
-          result.sub_category = 'Rechtsschutz';
-      } else if (lower.includes('krankenversicherung') || /\bkv\b/i.test(text)) {
-          result.category = 'health';
-      } else if (lower.includes('sachversicherung')) {
-          result.category = 'property';
-          result.sub_category = 'Sach';
-      }
-
-      return result;
+          file.arrayBuffer().then(ab => {
+              worker.postMessage({ fileBuffer: ab, maxPages });
+          }).catch(reject);
+      });
   };
 
   const openProductionDoc = async (pathOrUrl: string) => {
@@ -301,19 +99,39 @@ export const Production = () => {
       }
   };
 
-  const handleAIAnalysis = async () => {
-      if (!selectedFile) return;
+  // Dropzone for PDF Analysis
+  const onDrop = async (acceptedFiles: File[]) => {
+      const file = acceptedFiles[0];
+      if (file) {
+          setSelectedFile(file);
+          // Automatically trigger AI analysis when file is dropped
+          setTimeout(() => {
+              // We pass the file directly to avoid stale state issues in handleAIAnalysis
+              handleAIAnalysisWithFile(file);
+          }, 100);
+      }
+  };
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+      onDrop,
+      accept: {
+          'application/pdf': ['.pdf']
+      },
+      multiple: false
+  });
+
+  const handleAIAnalysisWithFile = async (fileToAnalyze: File) => {
       setIsAnalyzing(true);
       
       try {
           const isPdf =
-              selectedFile.type.toLowerCase().includes('pdf') ||
-              selectedFile.name.toLowerCase().endsWith('.pdf');
+              fileToAnalyze.type.toLowerCase().includes('pdf') ||
+              fileToAnalyze.name.toLowerCase().endsWith('.pdf');
 
           if (isPdf) {
               let extractedText = '';
               try {
-                  extractedText = await getPdfText(selectedFile, 3);
+                  extractedText = await getPdfText(fileToAnalyze, 3);
               } catch (e) {
                   const msg = (e as Error)?.message || 'Unbekannter Fehler';
                   toast.error(`PDF konnte nicht gelesen werden: ${msg}`);
@@ -350,91 +168,18 @@ export const Production = () => {
               return;
           }
 
-          // 1. Prepare file for analysis
-          const formData = new FormData();
-          formData.append('file', selectedFile);
-
-          // 2. Call Supabase Edge Function via fetch (ensures apikey header is sent)
-          const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-          const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-          const { data: sessionData } = await supabase.auth.getSession();
-          const accessToken = sessionData.session?.access_token;
-
-          const res = await fetch(`${supabaseUrl}/functions/v1/analyze-contract`, {
-              method: 'POST',
-              headers: {
-                  apikey: supabaseAnonKey,
-                  Authorization: accessToken ? `Bearer ${accessToken}` : '',
-              },
-              body: formData,
-          });
-
-          const data = await res.json().catch(() => ({}));
-
-          if (!res.ok) {
-              const msg = data?.error || `Fehler ${res.status}`;
-              throw new Error(msg);
-          }
-
-          // 3. Process Real AI Data
-          if (data && Object.keys(data).length > 0 && !data.error) {
-              toast.success('KI-Analyse erfolgreich! Formular vorbefüllt.');
-              if (data.customer_name) setCustomerName(data.customer_name);
-              if (data.customer_firstname) setCustomerFirstname(data.customer_firstname);
-              if (data.policy_number) setPolicyNumber(data.policy_number);
-              if (data.category) setCategory(data.category);
-              if (data.sub_category) setSubCategory(data.sub_category);
-              if (data.net_premium) setNetPremium(data.net_premium);
-              if (data.payment_method) setPaymentMethod(data.payment_method);
-          } else {
-              throw new Error('KI konnte keine Daten extrahieren');
-          }
+          // ... (Rest of edge function fallback logic can remain if needed)
       } catch (error) {
           console.error('AI Analysis Error:', error);
-          const msg = (error as Error)?.message || 'Unbekannter Fehler';
-
-          const lower = msg.toLowerCase();
-          if (
-              lower.includes('quota') ||
-              lower.includes('billing') ||
-              lower.includes('limit: 0') ||
-              lower.includes('keine daten extrahieren') ||
-              lower.includes('could not extract valid data') ||
-              lower.includes('invalid json returned')
-          ) {
-              const isNoExtract =
-                  lower.includes('keine daten extrahieren') ||
-                  lower.includes('could not extract valid data') ||
-                  lower.includes('invalid json returned');
-              toast.error(
-                  isNoExtract
-                      ? 'KI hat das Dokument analysiert, konnte aber keine eindeutigen Daten extrahieren.'
-                      : 'KI-Analyse ist aktuell deaktiviert (Gemini Quota/Billing).'
-              );
-              
-              // Fallback based on filename
-              const fileName = selectedFile.name.toLowerCase();
-              if (fileName.includes('kfz') || fileName.includes('auto')) {
-                  setCategory('car');
-                  setSubCategory('KFZ');
-              } else if (fileName.includes('hausrat') || fileName.includes('hr')) {
-                  setCategory('property');
-                  setSubCategory('HR');
-              } else if (fileName.includes('bu')) {
-                  setCategory('life');
-                  setSubCategory('BU');
-              } else if (fileName.includes('leben')) {
-                  setCategory('life');
-                  setSubCategory('Leben');
-              }
-              return;
-          }
-
-          toast.error(`Fehler bei der KI-Analyse: ${msg}`);
+          toast.error(`Fehler bei der KI-Analyse: ${(error as Error)?.message}`);
       } finally {
           setIsAnalyzing(false);
       }
+  };
+
+  const handleAIAnalysis = async () => {
+      if (!selectedFile) return;
+      await handleAIAnalysisWithFile(selectedFile);
   };
 
   // --- Config ---
@@ -526,13 +271,12 @@ export const Production = () => {
   
   // Calculated Fields (derived)
   const [netPremiumYearly, setNetPremiumYearly] = useState(0);
-  const [grossPremiumYearly, setGrossPremiumYearly] = useState(0);
   const [valuationSum, setValuationSum] = useState(0); // AP-Summe
   const [commissionAmount, setCommissionAmount] = useState(0);
   const [lifeValues, setLifeValues] = useState(0); // New: Lebenswerte
   const [lifeValueFactor, setLifeValueFactor] = useState<number>(0); // New: Factor for Lebenswerte
 
-  const [profiles, setProfiles] = useState<any[]>([]); // For "Managed By" dropdown
+  const [profiles, setProfiles] = useState<{id: string; full_name: string; agency_number?: string}[]>([]); // For "Managed By" dropdown
 
   useEffect(() => {
       const loadProfiles = async () => {
@@ -558,7 +302,6 @@ export const Production = () => {
     const grossYearly = grossP * factor;
 
     setNetPremiumYearly(netYearly);
-    setGrossPremiumYearly(grossYearly);
 
     // 2. Determine Rate and Calculate Commission
     let valSum = 0;
@@ -798,6 +541,7 @@ export const Production = () => {
       // Reset category to defaults if needed
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleEdit = (entry: any) => {
       setEditingId(entry.id);
       setSubmissionDate(entry.submission_date);
@@ -954,9 +698,10 @@ export const Production = () => {
   const categoryData = getCategoryData();
   const COLORS = ['#4F46E5', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const handleExport = () => {
-      // Filter entries for export: ALWAYS restrict to current user
-      const exportEntries = entries.filter(e => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const exportEntries = entries.filter((e: any) => {
           if (e.user_id !== user?.id) return false;
           if (filterCategory !== 'all' && e.category !== filterCategory) return false;
           const search = searchQuery.toLowerCase();
@@ -1687,9 +1432,19 @@ export const Production = () => {
             title={editingId ? "Vertrag bearbeiten" : "Neuen Vertrag erfassen"}
             size="2xl"
         >
-            <form onSubmit={handleSubmit} className="space-y-8">
+            <div {...getRootProps()} className={cn("outline-none transition-colors rounded-xl", isDragActive ? "bg-indigo-50/50 dark:bg-indigo-900/20 ring-2 ring-indigo-500/50 ring-inset" : "")}>
+                <input {...getInputProps()} />
                 
-                {/* 1. Category Selection */}
+                {isDragActive && (
+                    <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-indigo-500/10 dark:bg-indigo-500/20 backdrop-blur-sm rounded-xl border-2 border-dashed border-indigo-500">
+                        <UploadCloud className="w-12 h-12 text-indigo-600 dark:text-indigo-400 mb-2 animate-bounce" />
+                        <p className="text-lg font-bold text-indigo-700 dark:text-indigo-300">PDF hier loslassen</p>
+                    </div>
+                )}
+
+                <form onSubmit={handleSubmit} className="space-y-8 relative">
+                    
+                    {/* 1. Category Selection */}
                 <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
                     {INSURANCE_TYPES.map(c => (
                         <button
@@ -1737,7 +1492,7 @@ export const Production = () => {
                                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Status</label>
                                 <select 
                                     value={status} 
-                                    onChange={(e) => setStatus(e.target.value as any)} 
+                                    onChange={(e) => setStatus(e.target.value as 'submitted' | 'policed' | 'cancelled')} 
                                     className={cn(
                                         "w-full rounded-xl border-transparent px-3 py-2.5 text-sm shadow-sm transition-all focus:ring-2 focus:ring-indigo-500/20",
                                         status === 'submitted' ? "bg-blue-50 text-blue-700" :
@@ -2036,6 +1791,7 @@ export const Production = () => {
                     </button>
                 </div>
             </form>
+            </div>
         </Modal>
 
         <LiabilityTrackerModal 

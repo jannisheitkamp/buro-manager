@@ -78,7 +78,7 @@ serve(async (req) => {
     const aiText = aiParts.map((p: any) => p?.text).filter(Boolean).join('') || ''
     
     // Clean JSON from markdown if necessary
-    let jsonStr = aiText.replace(/```json|```/g, '').trim()
+    const jsonStr = aiText.replace(/```json|```/g, '').trim()
     
     // Handle empty or invalid response
     if (!jsonStr) {

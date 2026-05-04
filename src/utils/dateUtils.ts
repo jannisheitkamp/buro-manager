@@ -65,7 +65,7 @@ export function getWorkingDays(startDate: Date | string, endDate: Date | string)
     }
 
     let count = 0;
-    let current = new Date(start);
+    const current = new Date(start);
 
     while (current <= end) {
         const isWknd = isWeekend(current);
