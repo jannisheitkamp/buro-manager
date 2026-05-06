@@ -1,7 +1,7 @@
-import * as pdfjs from 'pdfjs-dist/build/pdf.mjs';
-import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+import * as pdfjs from 'pdfjs-dist';
+import PdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?worker';
 
-pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
+pdfjs.GlobalWorkerOptions.workerPort = new PdfWorker();
 
 export const extractPdfText = async (file: File, maxPages: number): Promise<string> => {
     const fileBuffer = await file.arrayBuffer();
