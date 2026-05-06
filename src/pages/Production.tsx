@@ -16,6 +16,7 @@ import { motion } from 'framer-motion';
 import { LiabilityTrackerModal } from '@/components/LiabilityTrackerModal';
 import { ProductionStats } from '@/components/Production/ProductionStats';
 import { ProductionCharts } from '@/components/Production/ProductionCharts';
+import { extractPdfText } from '@/utils/extractPdfText';
 // AI Parser Helper
 import { parseContractFromText } from '@/utils/pdfParser';
 const formatCurrency = (amount: number | null | undefined) => {
@@ -41,31 +42,6 @@ export const Production = () => {
   const [documentUrl, setDocumentUrl] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isLiabilityModalOpen, setIsLiabilityModalOpen] = useState(false);
-
-  const getPdfText = async (file: File, maxPages: number): Promise<string> => {
-      return new Promise((resolve, reject) => {
-          const worker = new Worker(new URL('../workers/pdfWorker.ts', import.meta.url), { type: 'module' });
-          
-          worker.onmessage = (e) => {
-              if (e.data.success) {
-                  resolve(e.data.text);
-              } else {
-                  reject(new Error(e.data.error));
-              }
-              worker.terminate();
-          };
-
-          worker.onerror = (err) => {
-              console.error('Worker error:', err);
-              reject(new Error(err.message || 'Worker initialization or execution failed.'));
-              worker.terminate();
-          };
-
-          file.arrayBuffer().then(ab => {
-              worker.postMessage({ fileBuffer: ab, maxPages });
-          }).catch(reject);
-      });
-  };
 
   const openProductionDoc = async (pathOrUrl: string) => {
       if (!pathOrUrl) return;
@@ -122,7 +98,7 @@ export const Production = () => {
           if (isPdf) {
               let extractedText = '';
               try {
-                  extractedText = await getPdfText(fileToAnalyze, 3);
+                  extractedText = await extractPdfText(fileToAnalyze, 3);
               } catch (e) {
                   const msg = (e as Error)?.message || 'Unbekannter Fehler';
                   toast.error(`PDF konnte nicht gelesen werden: ${msg}`);
