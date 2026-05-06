@@ -1,5 +1,5 @@
-import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
-import workerUrl from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url';
+import * as pdfjs from 'pdfjs-dist/build/pdf.mjs';
+import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
@@ -40,7 +40,8 @@ self.onmessage = async (e: MessageEvent) => {
         }
 
         self.postMessage({ success: true, text: text.trim() });
-    } catch (error) {
-        self.postMessage({ success: false, error: (error as Error).message });
+    } catch (error: any) {
+        console.error('PDF Worker internal error:', error);
+        self.postMessage({ success: false, error: error?.message || String(error) });
     }
 };

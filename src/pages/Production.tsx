@@ -56,7 +56,8 @@ export const Production = () => {
           };
 
           worker.onerror = (err) => {
-              reject(new Error(err.message));
+              console.error('Worker error:', err);
+              reject(new Error(err.message || 'Worker initialization or execution failed.'));
               worker.terminate();
           };
 
