@@ -99,8 +99,9 @@ export const Production = () => {
               let extractedText = '';
               try {
                   extractedText = await extractPdfText(fileToAnalyze, 3);
-              } catch (e) {
-                  const msg = (e as Error)?.message || 'Unbekannter Fehler';
+              } catch (e: any) {
+                  console.error('PDF Extraction Error Full:', e);
+                  const msg = e?.message || String(e) || 'Unbekannter Fehler';
                   toast.error(`PDF konnte nicht gelesen werden: ${msg}`);
                   return;
               }
@@ -632,7 +633,7 @@ export const Production = () => {
             .filter(e => e.submission_date.startsWith(monthKey))
             .reduce((acc, curr) => acc + (curr.life_values || 0), 0);
 
-          return { name: monthLabel, value: total, life_values: totalLifeValues };
+          return { name: monthLabel, value: total, lifeValues: totalLifeValues };
       });
   };
   
