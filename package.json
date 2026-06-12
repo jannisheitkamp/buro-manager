@@ -25,6 +25,8 @@
     "@tiptap/extension-underline": "^3.15.3",
     "@tiptap/react": "^3.15.3",
     "@tiptap/starter-kit": "^3.15.3",
+    "baseline-browser-mapping": "^2.10.36",
+    "caniuse-lite": "^1.0.30001799",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "framer-motion": "^12.23.26",

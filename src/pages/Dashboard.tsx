@@ -235,14 +235,22 @@ export const Dashboard = () => {
           meta: c.phone,
           priority: c.priority
         })),
-        ...followUps.map(f => ({
-          id: f.id,
-          type: 'wiedervorlage',
-          title: `Wiedervorlage: ${f.customer_name}`,
-          time: new Date(f.follow_up_date), // it's a date string, using it as time
-          meta: f.phone_number || 'Keine Nummer',
-          priority: 'high'
-        })),
+        ...followUps.map(f => {
+          // Kombiniere Datum und Uhrzeit, falls vorhanden
+          let timeObj = new Date(f.follow_up_date);
+          if (f.follow_up_time) {
+             const [hours, minutes] = f.follow_up_time.split(':');
+             timeObj.setHours(parseInt(hours, 10), parseInt(minutes, 10), 0, 0);
+          }
+          return {
+            id: f.id,
+            type: 'wiedervorlage',
+            title: `Wiedervorlage: ${f.customer_name}`,
+            time: timeObj,
+            meta: f.phone_number || 'Keine Nummer',
+            priority: 'high'
+          };
+        }),
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         ...myMissedCalls.map((c: any) => ({
           id: c.id,
