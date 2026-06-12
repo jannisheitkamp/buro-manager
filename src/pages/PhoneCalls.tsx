@@ -32,6 +32,13 @@ export const PhoneCalls = () => {
   const [logStatus, setLogStatus] = useState('erledigt');
   const [logNotes, setLogNotes] = useState('');
   const [logFollowUpDate, setLogFollowUpDate] = useState('');
+  
+  const getCurrentTime = () => {
+      const now = new Date();
+      return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  };
+  const [logReachTime, setLogReachTime] = useState(getCurrentTime());
+  const [logFollowUpTime, setLogFollowUpTime] = useState('10:00');
 
 
   // --- DIALER STATE ---
@@ -435,7 +442,9 @@ export const PhoneCalls = () => {
               reachability: logReachability,
               status: logStatus,
               notes: logNotes,
-              follow_up_date: logStatus === 'wiedervorlage' ? logFollowUpDate : null
+              reach_time: logReachability === 'erreicht' ? (logReachTime || null) : null,
+              follow_up_date: logStatus === 'wiedervorlage' ? logFollowUpDate : null,
+              follow_up_time: logStatus === 'wiedervorlage' ? (logFollowUpTime || null) : null
           });
           if (error) throw error;
           toast.success('Anruf protokolliert!');
@@ -446,6 +455,8 @@ export const PhoneCalls = () => {
           setLogStatus('erledigt');
           setLogNotes('');
           setLogFollowUpDate('');
+          setLogReachTime(getCurrentTime());
+          setLogFollowUpTime('10:00');
           fetchCallLogs();
       } catch (error) {
           console.error(error);
@@ -1129,6 +1140,12 @@ export const PhoneCalls = () => {
                                               )}>
                                                   {log.reachability.replace('_', ' ').toUpperCase()}
                                               </span>
+                                              {log.reachability === 'erreicht' && log.reach_time && (
+                                                  <div className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                                                      <Clock className="w-3 h-3" />
+                                                      {log.reach_time.substring(0, 5)} Uhr
+                                                  </div>
+                                              )}
                                           </td>
                                           <td className="px-6 py-4">
                                               <span className={cn(
@@ -1143,6 +1160,7 @@ export const PhoneCalls = () => {
                                                   <div className="text-xs text-purple-600 mt-1 flex items-center gap-1">
                                                       <Clock className="w-3 h-3" />
                                                       {format(new Date(log.follow_up_date), 'dd.MM.yyyy')}
+                                                      {log.follow_up_time ? ` ${log.follow_up_time.substring(0, 5)} Uhr` : ''}
                                                   </div>
                                               )}
                                           </td>
@@ -1201,11 +1219,26 @@ export const PhoneCalls = () => {
                       </select>
                   </div>
               </div>
+
+              {logReachability === 'erreicht' && (
+                  <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} className="overflow-hidden">
+                      <label className="block text-xs font-semibold text-gray-500 uppercase mb-1 mt-2">Erreicht um (Uhrzeit)</label>
+                      <input type="time" value={logReachTime} onChange={e => setLogReachTime(e.target.value)} className="w-full rounded-xl border-gray-300 p-2 text-sm" />
+                  </motion.div>
+              )}
               
               {logStatus === 'wiedervorlage' && (
                   <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} className="overflow-hidden">
-                      <label className="block text-xs font-semibold text-gray-500 uppercase mb-1 mt-2">Wiedervorlage am *</label>
-                      <input required type="date" value={logFollowUpDate} onChange={e => setLogFollowUpDate(e.target.value)} className="w-full rounded-xl border-gray-300 p-2 text-sm" />
+                      <div className="grid grid-cols-2 gap-4 mt-2">
+                          <div>
+                              <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Wiedervorlage am *</label>
+                              <input required type="date" value={logFollowUpDate} onChange={e => setLogFollowUpDate(e.target.value)} className="w-full rounded-xl border-gray-300 p-2 text-sm" />
+                          </div>
+                          <div>
+                              <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Uhrzeit</label>
+                              <input type="time" value={logFollowUpTime} onChange={e => setLogFollowUpTime(e.target.value)} className="w-full rounded-xl border-gray-300 p-2 text-sm" />
+                          </div>
+                      </div>
                   </motion.div>
               )}
 
