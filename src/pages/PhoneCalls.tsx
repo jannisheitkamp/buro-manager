@@ -1221,15 +1221,15 @@ export const PhoneCalls = () => {
               </div>
 
               {logReachability === 'erreicht' && (
-                  <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} className="overflow-hidden">
-                      <label className="block text-xs font-semibold text-gray-500 uppercase mb-1 mt-2">Erreicht um (Uhrzeit)</label>
+                  <div className="overflow-hidden mt-2">
+                      <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Erreicht um (Uhrzeit)</label>
                       <input type="time" value={logReachTime} onChange={e => setLogReachTime(e.target.value)} className="w-full rounded-xl border-gray-300 p-2 text-sm" />
-                  </motion.div>
+                  </div>
               )}
               
               {logStatus === 'wiedervorlage' && (
-                  <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} className="overflow-hidden">
-                      <div className="grid grid-cols-2 gap-4 mt-2">
+                  <div className="overflow-hidden mt-2">
+                      <div className="grid grid-cols-2 gap-4">
                           <div>
                               <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Wiedervorlage am *</label>
                               <input required type="date" value={logFollowUpDate} onChange={e => setLogFollowUpDate(e.target.value)} className="w-full rounded-xl border-gray-300 p-2 text-sm" />
@@ -1239,7 +1239,7 @@ export const PhoneCalls = () => {
                               <input type="time" value={logFollowUpTime} onChange={e => setLogFollowUpTime(e.target.value)} className="w-full rounded-xl border-gray-300 p-2 text-sm" />
                           </div>
                       </div>
-                  </motion.div>
+                  </div>
               )}
 
               <div>
