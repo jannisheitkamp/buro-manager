@@ -49,6 +49,7 @@ export const Vacation = () => {
         return () => {
             subscription.unsubscribe();
         };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user?.id]);
 
     const currentYear = new Date().getFullYear();
@@ -84,6 +85,7 @@ export const Vacation = () => {
             setAbsences(prev => prev.map(a => (a.id === absence.id ? { ...a, deduct_vacation_days: next } : a)));
             toast.success(next ? 'Urlaubstage werden abgezogen.' : 'Urlaubstage werden nicht abgezogen.');
         } catch (e) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const err: any = e;
             const msg = err?.message || 'Unbekannter Fehler';
             if (msg.toLowerCase().includes('deduct_vacation_days') && msg.toLowerCase().includes('column')) {

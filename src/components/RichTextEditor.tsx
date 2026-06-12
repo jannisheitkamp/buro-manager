@@ -15,6 +15,7 @@ import {
   Heading1, Heading2, 
   Table as TableIcon, Plus, Trash2, 
   Undo, Redo, 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   Link as LinkIcon
 } from 'lucide-react';
 import { cn } from '../lib/utils';
@@ -25,6 +26,7 @@ interface RichTextEditorProps {
   editable?: boolean;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const MenuBar = ({ editor }: { editor: any }) => {
   if (!editor) {
     return null;

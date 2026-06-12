@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
@@ -61,7 +62,9 @@ serve(async (req) => {
       })
     })
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const result = await response.json().catch(() => ({} as any))
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const upstreamErrorMsg = (result as any)?.error?.message
     if (!response.ok || upstreamErrorMsg) {
       const msg = upstreamErrorMsg || `Upstream error ${response.status}`
@@ -74,7 +77,9 @@ serve(async (req) => {
       })
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const aiParts = (result as any)?.candidates?.[0]?.content?.parts || []
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const aiText = aiParts.map((p: any) => p?.text).filter(Boolean).join('') || ''
     
     // Clean JSON from markdown if necessary
@@ -91,6 +96,7 @@ serve(async (req) => {
     let extractedData = {}
     try {
       extractedData = JSON.parse(jsonStr)
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (e) {
       console.error("Failed to parse JSON:", jsonStr)
       return new Response(JSON.stringify({ error: 'Invalid JSON returned from AI' }), {

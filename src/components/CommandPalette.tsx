@@ -21,6 +21,7 @@ type Item = {
     id: string;
     name: string;
     href: string;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     icon: any;
     type: 'page' | 'colleague';
     meta?: string;

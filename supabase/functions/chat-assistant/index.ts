@@ -112,6 +112,7 @@ Wenn der Nutzer nach Dingen fragt, die nicht im Kontext stehen (z.B. spezifische
 
     // Format messages for Gemini API
     // Gemini format: { role: 'user' | 'model', parts: [{ text: '...' }] }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const geminiMessages = messages.map((msg: any) => ({
       role: msg.role === 'assistant' || msg.role === 'bot' ? 'model' : 'user',
       parts: [{ text: msg.content }]
@@ -144,6 +145,7 @@ Wenn der Nutzer nach Dingen fragt, die nicht im Kontext stehen (z.B. spezifische
 
     const aiParts = result.candidates?.[0]?.content?.parts || []
     const aiText =
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       aiParts.map((p: any) => p?.text).filter(Boolean).join('') ||
       'Tut mir leid, ich konnte keine Antwort generieren.'
 

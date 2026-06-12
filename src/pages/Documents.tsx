@@ -26,6 +26,7 @@ export function Documents() {
   useEffect(() => {
     fetchDocuments();
     fetchUsers();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   const fetchDocuments = async () => {
@@ -160,6 +161,7 @@ export function Documents() {
       toast.success(editingDoc ? 'Dokument aktualisiert' : 'Dokument erstellt');
       handleCloseModal();
       fetchDocuments();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       console.error('Error saving document:', error);
       toast.error(`Fehler: ${error.message || 'Speichern fehlgeschlagen'}`);

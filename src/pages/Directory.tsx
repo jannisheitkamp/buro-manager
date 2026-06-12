@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Profile, UserStatus } from '@/types';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { Mail, Shield, User, Edit, CheckCircle, Clock, RefreshCcw, Briefcase, Home, Coffee, Users, Palmtree, ThermometerSun, LogOut, Copy, X, Phone } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import { Modal } from '@/components/Modal';

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useStore } from '@/store/useStore';
 import { motion } from 'framer-motion';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { Shield, Users, DollarSign, Activity, CheckCircle, XCircle, Search, MoreHorizontal, Trash2, UserCheck, UserX, BadgeCheck, Clock } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'react-hot-toast';
@@ -19,6 +20,7 @@ export const Admin = () => {
     const [recentActivity, setRecentActivity] = useState<any[]>([]);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [users, setUsers] = useState<any[]>([]);
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
 

@@ -154,7 +154,7 @@ export const AIAssistant = () => {
                     const { data, error } = await q;
                     if (error) return { text: `Ich konnte den Umsatz gerade nicht laden. (${error.message})` };
 
-                    const total = (data || []).reduce((acc: number, curr: any) => acc + (Number(curr.commission_amount) || 0), 0);
+                    const total = (data || []).reduce((acc: number, curr: { commission_amount: number | string }) => acc + (Number(curr.commission_amount) || 0), 0);
                     const who = personal ? ' (dein Bereich)' : ' (Team)';
 
                     return {
@@ -234,6 +234,7 @@ export const AIAssistant = () => {
                         return { text: 'Heute ist niemand als abwesend eingetragen.', actions: [{ label: 'Kalender öffnen', action: () => navigate('/general-calendar') }] };
                     }
 
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     const names = data.map((a: any) => `${a.profiles?.full_name || '-'} (${a.type})`).join(', ');
 
                     return {
@@ -276,6 +277,7 @@ export const AIAssistant = () => {
                         return { text: nextOnly ? 'Kein nächster Termin gefunden.' : 'Heute sind keine Termine eingetragen.', actions: [{ label: 'Kalender öffnen', action: () => navigate('/general-calendar') }] };
                     }
 
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     const lines = data.map((e: any) => {
                         const t = new Date(e.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
                         return `- ${t} ${e.title}`;

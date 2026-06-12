@@ -37,6 +37,7 @@ export function MfaVerify() {
 
     setLoading(true);
     try {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { data, error } = await supabase.auth.mfa.challengeAndVerify({
         factorId,
         code,

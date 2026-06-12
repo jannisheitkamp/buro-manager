@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Phone, PhoneMissed, PhoneIncoming, Clock, CheckCircle, XCircle, Search, ClipboardList, Plus, AlertCircle, Trash2, ArrowRight, PenTool, Check, MessageSquare, PhoneOutgoing, Calendar, UserPlus } from 'lucide-react';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+import { Phone, PhoneMissed, PhoneIncoming, Clock, CheckCircle, XCircle, Search, ClipboardList, Plus, AlertCircle, Trash2, ArrowRight, PenTool, Check, MessageSquare, PhoneOutgoing, Calendar, UserPlus, BookOpen } from 'lucide-react';
 import { format, addDays } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { cn } from '@/utils/cn';
@@ -15,11 +16,26 @@ import { useSearchParams } from 'react-router-dom';
 export const PhoneCalls = () => {
   const { user, profile } = useStore();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [activeTab, setActiveTab] = useState<'live' | 'tasks' | 'dialer'>(
-      (searchParams.get('tab') as 'live' | 'tasks' | 'dialer') || 'live'
+  const [activeTab, setActiveTab] = useState<'live' | 'tasks' | 'dialer' | 'history'>(
+      (searchParams.get('tab') as 'live' | 'tasks' | 'dialer' | 'history') || 'live'
   );
 
+  // --- CALL LOGS STATE ---
+  const [callLogs, setCallLogs] = useState<any[]>([]);
+  const [loadingCallLogs, setLoadingCallLogs] = useState(true);
+  const [logSearchQuery, setLogSearchQuery] = useState('');
+  const [isLogModalOpen, setIsLogModalOpen] = useState(false);
+  const [submittingLog, setSubmittingLog] = useState(false);
+  const [logCustomerName, setLogCustomerName] = useState('');
+  const [logPhone, setLogPhone] = useState('');
+  const [logReachability, setLogReachability] = useState('erreicht');
+  const [logStatus, setLogStatus] = useState('erledigt');
+  const [logNotes, setLogNotes] = useState('');
+  const [logFollowUpDate, setLogFollowUpDate] = useState('');
+
+
   // --- DIALER STATE ---
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [leads, setLeads] = useState<any[]>([]);
   const [currentLeadIndex, setCurrentLeadIndex] = useState(0);
   const [dialerMode, setDialerMode] = useState<'idle' | 'calling'>('idle');
@@ -170,6 +186,7 @@ export const PhoneCalls = () => {
           return;
       }
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const updateData: any = { last_call_at: new Date().toISOString() };
       
       if (result === 'no_interest') {
@@ -206,6 +223,7 @@ export const PhoneCalls = () => {
   }, [activeTab, setSearchParams]);
   
   // --- STATE FOR LIVE CALLS ---
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [calls, setCalls] = useState<any[]>([]);
   const [loadingCalls, setLoadingCalls] = useState(true);
   const [filterCalls, setFilterCalls] = useState<'all' | 'missed'>('all');
@@ -271,6 +289,7 @@ export const PhoneCalls = () => {
       }
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleCreateTaskFromCall = (call: any) => {
       setCustomerName(call.notes?.replace('Anrufer: ', '') || 'Unbekannt');
       setPhone(call.caller_number || '');
@@ -279,6 +298,7 @@ export const PhoneCalls = () => {
       setActiveTab('tasks'); // Switch to tasks tab so user sees the modal in context
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const isDone = (call: any) => call.notes?.includes('erledigt');
 
   // --- RENDER HELPERS ---
@@ -361,6 +381,7 @@ export const PhoneCalls = () => {
         
         if (error) throw error;
         toast.success('Erledigt! ✅');
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (error) {
         toast.error('Fehler.');
     }
@@ -372,6 +393,7 @@ export const PhoneCalls = () => {
         await supabase.from('callbacks').delete().eq('id', deleteId);
         toast.success('Gelöscht.');
         setDeleteId(null);
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (error) {
         toast.error('Fehler beim Löschen.');
     }
@@ -385,12 +407,77 @@ export const PhoneCalls = () => {
   
   const isAdmin = profile?.roles?.includes('admin');
 
+  // --- CALL LOGS LOGIC ---
+  const fetchCallLogs = async () => {
+      try {
+          const { data, error } = await supabase
+              .from('call_logs')
+              .select(`*, user:user_id(full_name)`)
+              .order('call_time', { ascending: false });
+          if (error) throw error;
+          setCallLogs(data || []);
+      } catch (error) {
+          console.error(error);
+      } finally {
+          setLoadingCallLogs(false);
+      }
+  };
+
+  const handleCreateCallLog = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!user) return;
+      setSubmittingLog(true);
+      try {
+          const { error } = await supabase.from('call_logs').insert({
+              user_id: user.id,
+              customer_name: logCustomerName,
+              phone_number: logPhone,
+              reachability: logReachability,
+              status: logStatus,
+              notes: logNotes,
+              follow_up_date: logStatus === 'wiedervorlage' ? logFollowUpDate : null
+          });
+          if (error) throw error;
+          toast.success('Anruf protokolliert!');
+          setIsLogModalOpen(false);
+          setLogCustomerName('');
+          setLogPhone('');
+          setLogReachability('erreicht');
+          setLogStatus('erledigt');
+          setLogNotes('');
+          setLogFollowUpDate('');
+          fetchCallLogs();
+      } catch (error) {
+          console.error(error);
+          toast.error('Fehler beim Speichern.');
+      } finally {
+          setSubmittingLog(false);
+      }
+  };
+
+  const handleDeleteCallLog = async (id: string) => {
+      if (!window.confirm('Eintrag wirklich löschen?')) return;
+      try {
+          await supabase.from('call_logs').delete().eq('id', id);
+          toast.success('Gelöscht');
+          setCallLogs(prev => prev.filter(l => l.id !== id));
+      } catch (error) {
+          console.error(error);
+          toast.error('Fehler beim Löschen');
+      }
+  };
+
+  const filteredCallLogs = callLogs.filter(log => {
+      const q = logSearchQuery.toLowerCase();
+      return (log.customer_name?.toLowerCase().includes(q) || log.phone_number?.includes(q) || log.notes?.toLowerCase().includes(q));
+  });
 
   // --- EFFECTS ---
   useEffect(() => {
     fetchCalls();
     fetchCallbacks();
     fetchProfiles();
+    fetchCallLogs();
 
     const channel1 = supabase
       .channel('phone_calls_changes')
@@ -438,9 +525,18 @@ export const PhoneCalls = () => {
           </p>
         </div>
         
-        <div className="flex bg-gray-100 dark:bg-gray-800 p-1.5 rounded-2xl self-start md:self-auto">
-            <button 
-                onClick={() => setActiveTab('live')}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+            <button
+                onClick={() => setIsLogModalOpen(true)}
+                className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-indigo-500/20 hover:scale-105 transition-all flex items-center gap-2"
+            >
+                <Plus className="w-5 h-5" />
+                Anruf protokollieren
+            </button>
+
+            <div className="flex bg-gray-100 dark:bg-gray-800 p-1.5 rounded-2xl">
+                <button 
+                    onClick={() => setActiveTab('live')}
                 className={cn(
                     "px-6 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2",
                     activeTab === 'live' 
@@ -475,6 +571,19 @@ export const PhoneCalls = () => {
                 <PhoneOutgoing className="w-4 h-4" />
                 Power Dialer
             </button>
+            <button 
+                onClick={() => setActiveTab('history')}
+                className={cn(
+                    "px-6 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2",
+                    activeTab === 'history' 
+                        ? "bg-white dark:bg-gray-700 shadow-sm text-indigo-600 dark:text-indigo-400" 
+                        : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                )}
+            >
+                <BookOpen className="w-4 h-4" />
+                Anrufhistorie
+            </button>
+            </div>
         </div>
       </div>
 
@@ -960,6 +1069,156 @@ export const PhoneCalls = () => {
               )}
           </div>
       )}
+
+      {/* CONTENT HISTORY */}
+      {activeTab === 'history' && (
+          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <div className="flex flex-col sm:flex-row justify-between gap-4">
+                  <div className="relative flex-1 max-w-md">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                      <input 
+                          type="text" 
+                          placeholder="Suchen (Name, Nummer, Notiz...)" 
+                          className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-indigo-500"
+                          value={logSearchQuery}
+                          onChange={(e) => setLogSearchQuery(e.target.value)}
+                      />
+                  </div>
+              </div>
+
+              <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+                  {loadingCallLogs ? (
+                      <div className="p-12 text-center text-gray-500">Lade Historie...</div>
+                  ) : filteredCallLogs.length === 0 ? (
+                      <div className="p-20 text-center">
+                          <BookOpen className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                          <h3 className="text-lg font-bold text-gray-900 dark:text-white">Keine Einträge</h3>
+                          <p className="text-gray-500 text-sm mt-1">Es wurden noch keine Anrufe protokolliert.</p>
+                      </div>
+                  ) : (
+                      <div className="overflow-x-auto">
+                          <table className="w-full text-sm text-left">
+                              <thead className="text-xs text-gray-500 bg-gray-50 dark:bg-gray-700/50 uppercase">
+                                  <tr>
+                                      <th className="px-6 py-4">Datum / Zeit</th>
+                                      <th className="px-6 py-4">Kunde</th>
+                                      <th className="px-6 py-4">Erreichbarkeit</th>
+                                      <th className="px-6 py-4">Status</th>
+                                      <th className="px-6 py-4">Notiz</th>
+                                      <th className="px-6 py-4">Benutzer</th>
+                                      <th className="px-6 py-4"></th>
+                                  </tr>
+                              </thead>
+                              <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                                  {filteredCallLogs.map((log) => (
+                                      <tr key={log.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                                          <td className="px-6 py-4 whitespace-nowrap text-gray-500">
+                                              {format(new Date(log.call_time), 'dd.MM.yyyy HH:mm')}
+                                          </td>
+                                          <td className="px-6 py-4 font-bold text-gray-900 dark:text-white">
+                                              {log.customer_name}
+                                              <div className="text-xs text-gray-500 font-normal">{log.phone_number}</div>
+                                          </td>
+                                          <td className="px-6 py-4">
+                                              <span className={cn(
+                                                  "px-2.5 py-1 rounded-full text-xs font-medium",
+                                                  log.reachability === 'erreicht' ? 'bg-green-100 text-green-700' :
+                                                  log.reachability === 'nicht_erreicht' ? 'bg-amber-100 text-amber-700' :
+                                                  log.reachability === 'mailbox' ? 'bg-blue-100 text-blue-700' :
+                                                  'bg-red-100 text-red-700'
+                                              )}>
+                                                  {log.reachability.replace('_', ' ').toUpperCase()}
+                                              </span>
+                                          </td>
+                                          <td className="px-6 py-4">
+                                              <span className={cn(
+                                                  "px-2.5 py-1 rounded-full text-xs font-medium",
+                                                  log.status === 'erledigt' ? 'bg-green-100 text-green-700' :
+                                                  log.status === 'wiedervorlage' ? 'bg-purple-100 text-purple-700' :
+                                                  'bg-indigo-100 text-indigo-700'
+                                              )}>
+                                                  {log.status.replace('_', ' ').toUpperCase()}
+                                              </span>
+                                              {log.status === 'wiedervorlage' && log.follow_up_date && (
+                                                  <div className="text-xs text-purple-600 mt-1 flex items-center gap-1">
+                                                      <Clock className="w-3 h-3" />
+                                                      {format(new Date(log.follow_up_date), 'dd.MM.yyyy')}
+                                                  </div>
+                                              )}
+                                          </td>
+                                          <td className="px-6 py-4 max-w-xs truncate text-gray-500" title={log.notes}>
+                                              {log.notes || '-'}
+                                          </td>
+                                          <td className="px-6 py-4 text-gray-500">
+                                              {log.user?.full_name?.split(' ')[0] || 'Unbekannt'}
+                                          </td>
+                                          <td className="px-6 py-4 text-right">
+                                              {(isAdmin || user?.id === log.user_id) && (
+                                                  <button onClick={() => handleDeleteCallLog(log.id)} className="text-gray-400 hover:text-red-500">
+                                                      <Trash2 className="w-4 h-4" />
+                                                  </button>
+                                              )}
+                                          </td>
+                                      </tr>
+                                  ))}
+                              </tbody>
+                          </table>
+                      </div>
+                  )}
+              </div>
+          </div>
+      )}
+
+      {/* MODAL FOR LOGGING A CALL */}
+      <Modal isOpen={isLogModalOpen} onClose={() => setIsLogModalOpen(false)} title="Anruf protokollieren">
+          <form onSubmit={handleCreateCallLog} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                  <div>
+                      <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Name *</label>
+                      <input required type="text" value={logCustomerName} onChange={e => setLogCustomerName(e.target.value)} className="w-full rounded-xl border-gray-300 p-2 text-sm" />
+                  </div>
+                  <div>
+                      <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Nummer</label>
+                      <input type="text" value={logPhone} onChange={e => setLogPhone(e.target.value)} className="w-full rounded-xl border-gray-300 p-2 text-sm" />
+                  </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                  <div>
+                      <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Erreichbarkeit *</label>
+                      <select required value={logReachability} onChange={e => setLogReachability(e.target.value)} className="w-full rounded-xl border-gray-300 p-2 text-sm">
+                          <option value="erreicht">Erreicht</option>
+                          <option value="nicht_erreicht">Nicht erreicht</option>
+                          <option value="mailbox">Mailbox / AB</option>
+                          <option value="falsche_nummer">Falsche Nummer</option>
+                      </select>
+                  </div>
+                  <div>
+                      <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Status *</label>
+                      <select required value={logStatus} onChange={e => setLogStatus(e.target.value)} className="w-full rounded-xl border-gray-300 p-2 text-sm">
+                          <option value="erledigt">Erledigt</option>
+                          <option value="wiedervorlage">Wiedervorlage</option>
+                          <option value="termin_vereinbart">Termin vereinbart</option>
+                      </select>
+                  </div>
+              </div>
+              
+              {logStatus === 'wiedervorlage' && (
+                  <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} className="overflow-hidden">
+                      <label className="block text-xs font-semibold text-gray-500 uppercase mb-1 mt-2">Wiedervorlage am *</label>
+                      <input required type="date" value={logFollowUpDate} onChange={e => setLogFollowUpDate(e.target.value)} className="w-full rounded-xl border-gray-300 p-2 text-sm" />
+                  </motion.div>
+              )}
+
+              <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Notizen</label>
+                  <textarea rows={3} value={logNotes} onChange={e => setLogNotes(e.target.value)} className="w-full rounded-xl border-gray-300 p-2 text-sm resize-none" placeholder="Was wurde besprochen?" />
+              </div>
+              <div className="flex justify-end gap-3 pt-4">
+                  <button type="button" onClick={() => setIsLogModalOpen(false)} className="px-4 py-2 text-gray-500 text-sm font-medium">Abbrechen</button>
+                  <button type="submit" disabled={submittingLog} className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl shadow-md disabled:opacity-50">Speichern</button>
+              </div>
+          </form>
+      </Modal>
 
       {/* MODALS FOR TASKS */}
       <Modal

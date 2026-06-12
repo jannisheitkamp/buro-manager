@@ -18,7 +18,6 @@ import {
   Shield,
   Kanban,
   FileText,
-  CheckSquare,
   Palmtree,
   Headset
 } from 'lucide-react';
@@ -49,7 +48,7 @@ const navigation = [
 ];
 
 export const Layout = ({ children }: { children: React.ReactNode }) => {
-  const { user, profile, signOut, loading } = useStore();
+  const { profile, signOut, loading } = useStore();
   const location = useLocation();
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);

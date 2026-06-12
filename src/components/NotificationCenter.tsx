@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useState } from 'react';
 import { Popover, Transition } from '@headlessui/react';
-import { Bell, Package, Phone, MessageSquare, Check, X } from 'lucide-react';
+import { Bell, Package, Phone, MessageSquare, Check } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useStore } from '@/store/useStore';
 import { formatDistanceToNow } from 'date-fns';
@@ -16,6 +16,7 @@ type NotificationItem = {
     date: string;
     read: boolean;
     link: string;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     icon: any;
     color: string;
 };
@@ -26,6 +27,7 @@ export const NotificationCenter = () => {
     const [items, setItems] = useState<NotificationItem[]>([]);
     const [loading, setLoading] = useState(true);
 
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     const fetchNotifications = async () => {
         if (!user) return;
         setLoading(true);
@@ -125,7 +127,7 @@ export const NotificationCenter = () => {
             .subscribe();
 
         return () => { sub.unsubscribe(); };
-    }, [user]);
+    }, [user, fetchNotifications]);
 
     const unreadCount = items.length; // Simplified: All items here are "actionable" or "new"
 

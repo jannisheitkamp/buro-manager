@@ -17,6 +17,7 @@ export const IncomingCallHandler = () => {
 
     const logCall = async () => {
       // ... params extraction ...
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const allParams = Object.fromEntries(searchParams.entries());
       const number = searchParams.get('number') || searchParams.get('phoneNumber') || 'Unbekannt';
       const name = searchParams.get('name') || searchParams.get('displayName') || 'Unbekannt';

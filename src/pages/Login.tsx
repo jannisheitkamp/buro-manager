@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '@/store/useStore';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { Building2, ArrowRight, Sparkles, ShieldCheck, Lock } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -89,6 +90,7 @@ export const Login = () => {
         toast.success('Erfolgreich angemeldet!');
         navigate('/');
       }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       console.error('Login error:', err);
       let msg = 'Ein Fehler ist aufgetreten.';

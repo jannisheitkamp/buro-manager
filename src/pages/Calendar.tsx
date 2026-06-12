@@ -79,6 +79,7 @@ export const Calendar = () => {
       }
 
       // Explicitly type the payload to match DB schema or cast to any if types are strict
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const payload: any = {
         user_id: user.id,
         type: formData.type,

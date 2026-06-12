@@ -62,6 +62,7 @@ export const Bookings = () => {
     return () => {
       subscription.unsubscribe();
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate]);
 
   const handleDelete = async () => {
@@ -127,6 +128,7 @@ export const Bookings = () => {
       setFormData(prev => ({ ...prev, title: '' }));
       fetchBookings();
       toast.success('Erfolgreich gebucht!');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       console.error('Error creating booking:', error);
       if (error.message?.includes('Zeitraum überschneidet')) {

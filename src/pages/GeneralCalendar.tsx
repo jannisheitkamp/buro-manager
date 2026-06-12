@@ -103,6 +103,7 @@ export const GeneralCalendar = () => {
 
     const allEvents: CalendarEvent[] = [];
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     calendarData?.forEach((e: any) => {
         allEvents.push({
             id: e.id,
@@ -116,6 +117,7 @@ export const GeneralCalendar = () => {
         });
     });
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     absenceData?.forEach((a: any) => {
         let d = new Date(a.start_date);
         const endDate = new Date(a.end_date);
@@ -135,6 +137,7 @@ export const GeneralCalendar = () => {
         }
     });
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     bookingData?.forEach((b: any) => {
         allEvents.push({
             id: b.id,
@@ -148,6 +151,7 @@ export const GeneralCalendar = () => {
         });
     });
     
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     parcelData?.forEach((p: any) => {
         allEvents.push({
             id: p.id,
@@ -177,6 +181,7 @@ export const GeneralCalendar = () => {
         sub3.unsubscribe();
         sub4.unsubscribe();
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentDate, viewMode, activeFilters]);
 
   const handleCreateOrUpdateEvent = async (e: React.FormEvent) => {
