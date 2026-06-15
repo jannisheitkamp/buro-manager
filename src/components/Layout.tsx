@@ -68,6 +68,14 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
   }, [profile, loading, location.pathname, navigate]);
 
   useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+    const debouncedCheck = () => {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => {
+            checkPending();
+        }, 500);
+    };
+
     const checkPending = async () => {
         if (!profile?.roles?.includes('admin')) return;
         
@@ -83,10 +91,13 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
     
     // Subscribe to profile changes to update badge live
     const sub = supabase.channel('layout_profiles')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, checkPending)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, debouncedCheck)
         .subscribe();
 
-    return () => { sub.unsubscribe(); };
+    return () => { 
+        clearTimeout(timeoutId);
+        supabase.removeChannel(sub); 
+    };
   }, [profile]);
 
   return (

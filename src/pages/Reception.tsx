@@ -92,7 +92,6 @@ export const Reception = () => {
 
     useEffect(() => {
         loadWalkInAssignments();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const holidays = useMemo(() => {

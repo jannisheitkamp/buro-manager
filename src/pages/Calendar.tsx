@@ -49,17 +49,24 @@ export const Calendar = () => {
   };
 
   useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+    const debouncedFetch = () => {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => {
+            fetchAbsences();
+        }, 500);
+    };
+
     fetchAbsences();
 
     const subscription = supabase
       .channel('absences')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'absences' }, () => {
-        fetchAbsences();
-      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'absences' }, debouncedFetch)
       .subscribe();
 
     return () => {
-      subscription.unsubscribe();
+      clearTimeout(timeoutId);
+      supabase.removeChannel(subscription);
     };
   }, []);
 

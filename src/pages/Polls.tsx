@@ -45,16 +45,25 @@ export const Polls = () => {
   };
 
   useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+    const debouncedFetch = () => {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => {
+            fetchPolls();
+        }, 500);
+    };
+
     fetchPolls();
 
-    const channel = supabase
-      .channel('polls_realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'polls' }, fetchPolls)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'poll_votes' }, fetchPolls)
+    const subscription = supabase
+      .channel('polls')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'polls' }, debouncedFetch)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'poll_votes' }, debouncedFetch)
       .subscribe();
 
     return () => {
-      channel.unsubscribe();
+      clearTimeout(timeoutId);
+      supabase.removeChannel(subscription);
     };
   }, []);
 

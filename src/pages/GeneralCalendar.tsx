@@ -168,18 +168,27 @@ export const GeneralCalendar = () => {
   };
 
   useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+    const debouncedFetch = () => {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => {
+            fetchEvents();
+        }, 500);
+    };
+
     fetchEvents();
     
-    const sub1 = supabase.channel('cal_1').on('postgres_changes', { event: '*', schema: 'public', table: 'calendar_events' }, fetchEvents).subscribe();
-    const sub2 = supabase.channel('cal_2').on('postgres_changes', { event: '*', schema: 'public', table: 'absences' }, fetchEvents).subscribe();
-    const sub3 = supabase.channel('cal_3').on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, fetchEvents).subscribe();
-    const sub4 = supabase.channel('cal_4').on('postgres_changes', { event: '*', schema: 'public', table: 'parcels' }, fetchEvents).subscribe();
+    const sub1 = supabase.channel('cal_1').on('postgres_changes', { event: '*', schema: 'public', table: 'calendar_events' }, debouncedFetch).subscribe();
+    const sub2 = supabase.channel('cal_2').on('postgres_changes', { event: '*', schema: 'public', table: 'absences' }, debouncedFetch).subscribe();
+    const sub3 = supabase.channel('cal_3').on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, debouncedFetch).subscribe();
+    const sub4 = supabase.channel('cal_4').on('postgres_changes', { event: '*', schema: 'public', table: 'parcels' }, debouncedFetch).subscribe();
 
     return () => { 
-        sub1.unsubscribe(); 
-        sub2.unsubscribe();
-        sub3.unsubscribe();
-        sub4.unsubscribe();
+        clearTimeout(timeoutId);
+        supabase.removeChannel(sub1);
+        supabase.removeChannel(sub2);
+        supabase.removeChannel(sub3);
+        supabase.removeChannel(sub4);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentDate, viewMode, activeFilters]);

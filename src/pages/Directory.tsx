@@ -94,14 +94,25 @@ export const Directory = () => {
   };
 
   useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+    const debouncedFetch = () => {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => {
+            fetchProfiles();
+        }, 500);
+    };
+
     fetchProfiles();
     
     // Subscribe to status changes
     const sub = supabase.channel('directory_status')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'user_status' }, fetchProfiles)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'user_status' }, debouncedFetch)
         .subscribe();
 
-    return () => { sub.unsubscribe(); };
+    return () => { 
+        clearTimeout(timeoutId);
+        supabase.removeChannel(sub); 
+    };
   }, []);
 
   const handleEditRole = (profile: Profile) => {

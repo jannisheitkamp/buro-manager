@@ -38,16 +38,24 @@ export const Vacation = () => {
     };
 
     useEffect(() => {
+        let timeoutId: NodeJS.Timeout;
+        const debouncedFetch = () => {
+            clearTimeout(timeoutId);
+            timeoutId = setTimeout(() => {
+                fetchVacations();
+            }, 500);
+        };
+
         fetchVacations();
+
         const subscription = supabase
             .channel('vacation_absences')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'absences' }, () => {
-                fetchVacations();
-            })
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'absences' }, debouncedFetch)
             .subscribe();
 
         return () => {
-            subscription.unsubscribe();
+            clearTimeout(timeoutId);
+            supabase.removeChannel(subscription);
         };
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user?.id]);

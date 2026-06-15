@@ -21,6 +21,7 @@ export const PhoneCalls = () => {
   );
 
   // --- CALL LOGS STATE ---
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [callLogs, setCallLogs] = useState<any[]>([]);
   const [loadingCallLogs, setLoadingCallLogs] = useState(true);
   const [logSearchQuery, setLogSearchQuery] = useState('');
@@ -485,6 +486,14 @@ export const PhoneCalls = () => {
 
   // --- EFFECTS ---
   useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+    const debouncedFetchCallbacks = () => {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => {
+            fetchCallbacks();
+        }, 500);
+    };
+
     fetchCalls();
     fetchCallbacks();
     fetchProfiles();
@@ -513,10 +522,11 @@ export const PhoneCalls = () => {
 
     const channel2 = supabase
       .channel('callbacks_realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'callbacks' }, fetchCallbacks)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'callbacks' }, debouncedFetchCallbacks)
       .subscribe();
 
     return () => {
+      clearTimeout(timeoutId);
       supabase.removeChannel(channel1);
       supabase.removeChannel(channel2);
     };

@@ -43,17 +43,24 @@ export const Board = () => {
   };
 
   useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+    const debouncedFetch = () => {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => {
+            fetchPosts();
+        }, 500);
+    };
+
     fetchPosts();
 
     const subscription = supabase
-      .channel('posts')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, () => {
-        fetchPosts();
-      })
+      .channel('board')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, debouncedFetch)
       .subscribe();
 
     return () => {
-      subscription.unsubscribe();
+      clearTimeout(timeoutId);
+      supabase.removeChannel(subscription);
     };
   }, []);
 

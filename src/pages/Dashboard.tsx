@@ -237,7 +237,7 @@ export const Dashboard = () => {
         })),
         ...followUps.map(f => {
           // Kombiniere Datum und Uhrzeit, falls vorhanden
-          let timeObj = new Date(f.follow_up_date);
+          const timeObj = new Date(f.follow_up_date);
           if (f.follow_up_time) {
              const [hours, minutes] = f.follow_up_time.split(':');
              timeObj.setHours(parseInt(hours, 10), parseInt(minutes, 10), 0, 0);
@@ -359,19 +359,30 @@ export const Dashboard = () => {
   };
 
   useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+    const debouncedFetch = () => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        fetchData();
+      }, 500);
+    };
+
     fetchData();
     // Subscribe to everything relevant
     const channels = [
-      supabase.channel('d_status').on('postgres_changes', { event: '*', schema: 'public', table: 'user_status' }, fetchData),
-      supabase.channel('d_cb').on('postgres_changes', { event: '*', schema: 'public', table: 'callbacks' }, fetchData),
-      supabase.channel('d_parcels').on('postgres_changes', { event: '*', schema: 'public', table: 'parcels' }, fetchData),
-      supabase.channel('d_prod').on('postgres_changes', { event: '*', schema: 'public', table: 'production_entries' }, fetchData),
-      supabase.channel('d_events').on('postgres_changes', { event: '*', schema: 'public', table: 'calendar_events' }, fetchData),
-      supabase.channel('d_board').on('postgres_changes', { event: '*', schema: 'public', table: 'board_messages' }, fetchData),
-      supabase.channel('d_calls').on('postgres_changes', { event: '*', schema: 'public', table: 'phone_calls' }, fetchData) // Subscribe to calls
+      supabase.channel('d_status').on('postgres_changes', { event: '*', schema: 'public', table: 'user_status' }, debouncedFetch),
+      supabase.channel('d_cb').on('postgres_changes', { event: '*', schema: 'public', table: 'callbacks' }, debouncedFetch),
+      supabase.channel('d_parcels').on('postgres_changes', { event: '*', schema: 'public', table: 'parcels' }, debouncedFetch),
+      supabase.channel('d_prod').on('postgres_changes', { event: '*', schema: 'public', table: 'production_entries' }, debouncedFetch),
+      supabase.channel('d_events').on('postgres_changes', { event: '*', schema: 'public', table: 'calendar_events' }, debouncedFetch),
+      supabase.channel('d_board').on('postgres_changes', { event: '*', schema: 'public', table: 'board_messages' }, debouncedFetch),
+      supabase.channel('d_calls').on('postgres_changes', { event: '*', schema: 'public', table: 'phone_calls' }, debouncedFetch) // Subscribe to calls
     ].map(c => c.subscribe());
 
-    return () => channels.forEach(c => c.unsubscribe());
+    return () => {
+      clearTimeout(timeoutId);
+      channels.forEach(c => supabase.removeChannel(c));
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 

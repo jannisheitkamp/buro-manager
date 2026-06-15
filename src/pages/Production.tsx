@@ -99,10 +99,10 @@ export const Production = () => {
               let extractedText = '';
               try {
                   extractedText = await extractPdfText(fileToAnalyze, 3);
-              } catch (e: any) {
-                  console.error('PDF Extraction Error Full:', e);
-                  const msg = e?.message || String(e) || 'Unbekannter Fehler';
-                  toast.error(`PDF konnte nicht gelesen werden: ${msg}`);
+              } catch (e: unknown) {
+                console.error('PDF Extraction Error Full:', e);
+                const msg = e instanceof Error ? e.message : String(e) || 'Unbekannter Fehler';
+                toast.error(`PDF konnte nicht gelesen werden: ${msg}`);
                   return;
               }
               if (!extractedText || extractedText.length < 50) {

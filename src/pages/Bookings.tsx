@@ -50,17 +50,24 @@ export const Bookings = () => {
   };
 
   useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+    const debouncedFetch = () => {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => {
+            fetchBookings();
+        }, 500);
+    };
+
     fetchBookings();
 
     const subscription = supabase
       .channel('bookings')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => {
-        fetchBookings();
-      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, debouncedFetch)
       .subscribe();
 
     return () => {
-      subscription.unsubscribe();
+      clearTimeout(timeoutId);
+      supabase.removeChannel(subscription);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate]);

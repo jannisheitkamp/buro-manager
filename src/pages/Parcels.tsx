@@ -68,16 +68,25 @@ export const Parcels = () => {
   };
 
   useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+    const debouncedFetch = () => {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => {
+            fetchParcels();
+        }, 500);
+    };
+
     fetchParcels();
     fetchProfiles();
 
-    const channel = supabase
-      .channel('parcels_realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'parcels' }, fetchParcels)
+    const subscription = supabase
+      .channel('parcels')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'parcels' }, debouncedFetch)
       .subscribe();
 
     return () => {
-      channel.unsubscribe();
+      clearTimeout(timeoutId);
+      supabase.removeChannel(subscription);
     };
   }, []);
 

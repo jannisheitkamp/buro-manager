@@ -67,13 +67,25 @@ export const Leads = () => {
     };
 
     useEffect(() => {
+        let timeoutId: NodeJS.Timeout;
+        const debouncedFetch = () => {
+            clearTimeout(timeoutId);
+            timeoutId = setTimeout(() => {
+                fetchLeads();
+            }, 500);
+        };
+
         fetchLeads();
-        
-        const sub = supabase.channel('leads')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, fetchLeads)
+
+        const subscription = supabase
+            .channel('leads')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, debouncedFetch)
             .subscribe();
-            
-        return () => { sub.unsubscribe(); };
+
+        return () => {
+            clearTimeout(timeoutId);
+            supabase.removeChannel(subscription);
+        };
     }, []);
 
     const [editingId, setEditingId] = useState<string | null>(null);

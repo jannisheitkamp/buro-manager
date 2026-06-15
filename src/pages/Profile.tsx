@@ -290,9 +290,10 @@ export const ProfilePage = () => {
             
             // Reload to trigger MfaCheck which will redirect to /mfa-setup
             window.location.href = '/mfa-setup';
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error(error);
-            toast.error('Fehler beim Zurücksetzen: ' + (error.message || ''));
+            const msg = error instanceof Error ? error.message : String(error);
+            toast.error('Fehler beim Zurücksetzen: ' + (msg || ''));
         } finally {
             setLoading(false);
         }
