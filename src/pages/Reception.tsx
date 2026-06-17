@@ -140,7 +140,8 @@ export const Reception = () => {
             }
         };
         fetchAbsences();
-    }, [gridStart, gridEnd]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [gridStart.getTime(), gridEnd.getTime()]);
 
     const isAbsent = (d: Date, personName: string) => {
         const dStr = format(d, 'yyyy-MM-dd');

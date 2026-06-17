@@ -117,17 +117,29 @@ export const NotificationCenter = () => {
     };
 
     useEffect(() => {
+        let timeoutId: NodeJS.Timeout;
+        const debouncedFetch = () => {
+            clearTimeout(timeoutId);
+            timeoutId = setTimeout(() => {
+                fetchNotifications();
+            }, 500);
+        };
+
         fetchNotifications();
         
         // Realtime Subscription
         const sub = supabase.channel('notifications')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'parcels' }, fetchNotifications)
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'callbacks' }, fetchNotifications)
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'board_messages' }, fetchNotifications)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'parcels' }, debouncedFetch)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'callbacks' }, debouncedFetch)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'board_messages' }, debouncedFetch)
             .subscribe();
 
-        return () => { sub.unsubscribe(); };
-    }, [user, fetchNotifications]);
+        return () => { 
+            clearTimeout(timeoutId);
+            sub.unsubscribe(); 
+        };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [user]);
 
     const unreadCount = items.length; // Simplified: All items here are "actionable" or "new"
 
