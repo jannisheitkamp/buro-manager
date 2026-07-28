@@ -1,4 +1,5 @@
 import { isWeekend, parseISO, startOfDay } from 'date-fns';
+import { useStore } from '@/store/useStore';
 
 export function getHolidays(year: number): Date[] {
     const holidays: Date[] = [];
@@ -108,6 +109,16 @@ export function getHolidayName(date: Date): string | null {
 }
 
 export function isNRWSchoolHoliday(date: Date): boolean {
+    const stateHolidays = useStore.getState().schoolHolidays;
+    
+    // If the API hasn't loaded or failed, fallback to some hardcoded basic ones or just return false.
+    // We will use the dynamically fetched ones here.
+    if (stateHolidays && stateHolidays.length > 0) {
+        const d = startOfDay(date).getTime();
+        return stateHolidays.some(h => d >= startOfDay(parseISO(h.start)).getTime() && d <= startOfDay(parseISO(h.end)).getTime());
+    }
+
+    // Fallback if API fails
     const holidays = [
         // 2024
         { start: new Date(2023, 11, 21), end: new Date(2024, 0, 5) }, // Weihnachten

@@ -48,13 +48,14 @@ function App() {
   const setUser = useStore((state) => state.setUser);
   const setLoading = useStore((state) => state.setLoading);
   const fetchProfile = useStore((state) => state.fetchProfile);
+  const fetchSchoolHolidays = useStore((state) => state.fetchSchoolHolidays);
 
   useEffect(() => {
     // Check active session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
       if (session?.user) {
-        fetchProfile().finally(() => {
+        Promise.all([fetchProfile(), fetchSchoolHolidays()]).finally(() => {
           setLoading(false);
         });
       } else {
@@ -69,11 +70,12 @@ function App() {
       setUser(session?.user ?? null);
       if (session?.user) {
         fetchProfile();
+        fetchSchoolHolidays();
       }
     });
 
     return () => subscription.unsubscribe();
-  }, [setUser, fetchProfile, setLoading]);
+  }, [setUser, fetchProfile, fetchSchoolHolidays, setLoading]);
 
   return (
     <BrowserRouter>

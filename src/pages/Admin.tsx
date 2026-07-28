@@ -278,7 +278,7 @@ export const Admin = () => {
                 </div>
 
                 <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
-                    <div className="overflow-x-auto">
+                    <div className="hidden md:block overflow-x-auto">
                         <table className="w-full text-left text-sm">
                             <thead className="bg-gray-50/50 dark:bg-gray-900/50">
                                 <tr>
@@ -376,6 +376,69 @@ export const Admin = () => {
                             </tbody>
                         </table>
                     </div>
+
+                    {/* Mobile View: User Cards */}
+                    <div className="md:hidden divide-y divide-gray-100 dark:divide-gray-700">
+                        {filteredUsers.map((u) => (
+                            <div key={u.id} className="p-4 space-y-4">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                        <img 
+                                            src={u.avatar_url || `https://ui-avatars.com/api/?name=${u.full_name}&background=random`} 
+                                            alt="" 
+                                            className="w-10 h-10 rounded-full bg-gray-100 object-cover"
+                                        />
+                                        <div>
+                                            <div className="font-bold text-gray-900 dark:text-white">{u.full_name}</div>
+                                            <div className="text-xs text-gray-500">{u.email}</div>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={() => toggleApproval(u.id, u.is_approved)}
+                                            className={cn(
+                                                "p-2 rounded-lg transition-colors",
+                                                u.is_approved 
+                                                    ? "text-emerald-500 bg-emerald-50 hover:bg-emerald-100"
+                                                    : "text-gray-400 hover:text-emerald-600 hover:bg-emerald-50"
+                                            )}
+                                            title={u.is_approved ? "Deaktivieren" : "Freischalten"}
+                                        >
+                                            <UserCheck className="w-4 h-4" />
+                                        </button>
+                                        <button
+                                            onClick={() => toggleAdmin(u.id, u.roles)}
+                                            className={cn(
+                                                "p-2 rounded-lg transition-colors",
+                                                u.roles?.includes('admin')
+                                                    ? "text-purple-600 bg-purple-50"
+                                                    : "text-gray-400 hover:text-purple-600 hover:bg-purple-50"
+                                            )}
+                                        >
+                                            <BadgeCheck className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                </div>
+                                <div className="flex items-center justify-between text-sm">
+                                    <div className="flex gap-1 flex-wrap">
+                                        {u.roles?.map((r: string) => (
+                                            <span key={r} className={cn(
+                                                "px-2 py-0.5 rounded-md text-[10px] font-bold border uppercase tracking-wider",
+                                                r === 'admin' 
+                                                    ? "bg-purple-50 text-purple-700 border-purple-200"
+                                                    : "bg-gray-100 text-gray-600 border-gray-200"
+                                            )}>
+                                                {r}
+                                            </span>
+                                        ))}
+                                    </div>
+                                    <div className="text-xs text-gray-500">
+                                        Beitritt: {format(new Date(u.created_at), 'dd.MM.yy')}
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
                 </div>
             </div>
 
@@ -384,7 +447,7 @@ export const Admin = () => {
                 <div className="p-6 border-b border-gray-100 dark:border-gray-700">
                     <h3 className="font-bold text-lg">Neueste Einreichungen (Global)</h3>
                 </div>
-                <div className="overflow-x-auto">
+                <div className="hidden md:block overflow-x-auto">
                     <table className="w-full text-left text-sm">
                         <thead className="bg-gray-50 dark:bg-gray-900/50">
                             <tr>
@@ -419,6 +482,37 @@ export const Admin = () => {
                             ))}
                         </tbody>
                     </table>
+                </div>
+
+                {/* Mobile View: Recent Activity Cards */}
+                <div className="md:hidden divide-y divide-gray-100 dark:divide-gray-700">
+                    {recentActivity.length === 0 ? (
+                        <div className="p-6 text-center text-gray-500">Keine Aktivität</div>
+                    ) : (
+                        recentActivity.map((entry) => (
+                            <div key={entry.id} className="p-4 space-y-2">
+                                <div className="flex justify-between items-start">
+                                    <div>
+                                        <div className="font-bold text-gray-900 dark:text-white">{entry.profiles?.full_name || 'Unbekannt'}</div>
+                                        <div className="text-sm text-gray-600 dark:text-gray-300">{entry.customer_name}</div>
+                                    </div>
+                                    <div className="text-right">
+                                        <div className="font-bold text-green-600">
+                                            {new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(entry.commission_amount)}
+                                        </div>
+                                        <div className="text-xs text-gray-400">
+                                            {format(new Date(entry.created_at), 'dd.MM. HH:mm')}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div>
+                                    <span className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded-lg text-xs font-medium">
+                                        {entry.category}
+                                    </span>
+                                </div>
+                            </div>
+                        ))
+                    )}
                 </div>
             </div>
         </div>
