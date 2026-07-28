@@ -4,7 +4,7 @@ import { Absence, Profile } from '@/types';
 import { useStore } from '@/store/useStore';
 import { format, parseISO, isAfter, startOfDay } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { Plus, Check, X, Clock, Calendar as CalendarIcon, Trash2, Download, Palmtree, ThermometerSun, HelpCircle, GraduationCap, Repeat, Briefcase } from 'lucide-react';
+import { Plus, Check, X, Clock, Calendar as CalendarIcon, Trash2, Download, Palmtree, ThermometerSun, HelpCircle, GraduationCap, Repeat, Briefcase, FileText, PenTool } from 'lucide-react';
 import { Modal } from '@/components/Modal';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { cn } from '@/utils/cn';
@@ -12,6 +12,8 @@ import { toast } from 'react-hot-toast';
 import { generateVacationRequestPDF } from '@/utils/pdfGenerator';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getVacationDaysToDeduct } from '@/utils/dateUtils';
+import SignatureCanvas from 'react-signature-canvas';
+import { useRef } from 'react';
 
 export const Calendar = () => {
   const { user, profile } = useStore();
@@ -22,6 +24,9 @@ export const Calendar = () => {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [editingDaysId, setEditingDaysId] = useState<string | null>(null);
   const [editingDaysValue, setEditingDaysValue] = useState<string>('');
+  
+  const [sickNoteFile, setSickNoteFile] = useState<File | null>(null);
+  const sigPad = useRef<SignatureCanvas>(null);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -78,6 +83,51 @@ export const Calendar = () => {
 
     setSubmitting(true);
     try {
+      let certificate_url: string | undefined;
+      let signature_url: string | undefined;
+
+      // Upload sick note if exists
+      if (formData.type === 'sick_leave' && sickNoteFile) {
+        const fileExt = sickNoteFile.name.split('.').pop();
+        const fileName = `${user.id}_sick_${Date.now()}.${fileExt}`;
+        const filePath = `certificates/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('absence_documents')
+          .upload(filePath, sickNoteFile);
+
+        if (uploadError) throw uploadError;
+        
+        const { data: { publicUrl } } = supabase.storage
+          .from('absence_documents')
+          .getPublicUrl(filePath);
+          
+        certificate_url = publicUrl;
+      }
+
+      // Upload signature if exists (for vacation)
+      if (formData.type === 'vacation' && sigPad.current && !sigPad.current.isEmpty()) {
+        const signatureDataUrl = sigPad.current.getTrimmedCanvas().toDataURL('image/png');
+        // Convert data URL to Blob
+        const res = await fetch(signatureDataUrl);
+        const blob = await res.blob();
+        
+        const fileName = `${user.id}_sig_${Date.now()}.png`;
+        const filePath = `signatures/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('absence_documents')
+          .upload(filePath, blob, { contentType: 'image/png' });
+
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('absence_documents')
+          .getPublicUrl(filePath);
+          
+        signature_url = publicUrl;
+      }
+
       // Auto-approve sick leave and seminar. Others pending.
       // School is also auto-approved usually? User didn't specify, but let's assume school is a schedule thing, so maybe auto-approve or pending?
       // User said "Seminar... keine genehmigung notwendig".
@@ -96,7 +146,9 @@ export const Calendar = () => {
         end_date: formData.end_date,
         status: status,
         note: formData.note,
-        deduct_vacation_days: formData.type === 'vacation' ? formData.deduct_vacation_days : true
+        deduct_vacation_days: formData.type === 'vacation' ? formData.deduct_vacation_days : true,
+        certificate_url,
+        signature_url
       };
 
       if (formData.type === 'school' && formData.is_recurring) {
@@ -113,6 +165,8 @@ export const Calendar = () => {
       if (error) throw error;
 
       setIsModalOpen(false);
+      setSickNoteFile(null);
+      if (sigPad.current) sigPad.current.clear();
       setFormData({ 
           type: 'vacation', 
           start_date: '', 
@@ -440,6 +494,18 @@ export const Calendar = () => {
                                     "{absence.note}"
                                 </p>
                             )}
+                            <div className="flex gap-2 mt-2">
+                                {absence.certificate_url && (
+                                    <a href={absence.certificate_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[10px] font-bold bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400 px-2 py-1 rounded-lg hover:bg-red-100 transition-colors">
+                                        <FileText className="w-3 h-3" /> eAU
+                                    </a>
+                                )}
+                                {absence.signature_url && (
+                                    <a href={absence.signature_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[10px] font-bold bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400 px-2 py-1 rounded-lg hover:bg-indigo-100 transition-colors">
+                                        <PenTool className="w-3 h-3" /> Signiert
+                                    </a>
+                                )}
+                            </div>
                             </div>
                             </div>
                             
@@ -576,6 +642,18 @@ export const Calendar = () => {
                             <span className={cn("text-xs font-medium px-2.5 py-1 rounded-lg inline-block mt-1", getTypeColor(absence.type))}>
                                 {getTypeLabel(absence.type)}
                             </span>
+                            <div className="flex gap-2 mt-2">
+                                {absence.certificate_url && (
+                                    <a href={absence.certificate_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[10px] font-bold bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400 px-2 py-1 rounded-lg hover:bg-red-100 transition-colors">
+                                        <FileText className="w-3 h-3" /> eAU
+                                    </a>
+                                )}
+                                {absence.signature_url && (
+                                    <a href={absence.signature_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[10px] font-bold bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400 px-2 py-1 rounded-lg hover:bg-indigo-100 transition-colors">
+                                        <PenTool className="w-3 h-3" /> Signiert
+                                    </a>
+                                )}
+                            </div>
                             </div>
                         </div>
                         
@@ -731,15 +809,52 @@ export const Calendar = () => {
           )}
 
           {formData.type === 'vacation' && (
-              <div className="bg-indigo-50 dark:bg-indigo-900/10 p-4 rounded-xl border border-indigo-100 dark:border-indigo-900/30 flex items-center justify-between animate-in fade-in slide-in-from-top-2">
-                  <label className="text-sm font-bold text-indigo-900 dark:text-indigo-300 flex items-center gap-2">
-                      <Palmtree className="w-4 h-4" /> Urlaubstage abziehen
+              <div className="bg-indigo-50 dark:bg-indigo-900/10 p-4 rounded-xl border border-indigo-100 dark:border-indigo-900/30 flex flex-col gap-4 animate-in fade-in slide-in-from-top-2">
+                  <div className="flex items-center justify-between">
+                      <label className="text-sm font-bold text-indigo-900 dark:text-indigo-300 flex items-center gap-2">
+                          <Palmtree className="w-4 h-4" /> Urlaubstage abziehen
+                      </label>
+                      <input
+                          type="checkbox"
+                          checked={formData.deduct_vacation_days}
+                          onChange={e => setFormData({ ...formData, deduct_vacation_days: e.target.checked })}
+                          className="w-5 h-5 rounded-lg border-indigo-300 text-indigo-600 focus:ring-indigo-500"
+                      />
+                  </div>
+                  <div className="pt-3 border-t border-indigo-200 dark:border-indigo-800">
+                      <label className="text-xs font-bold text-indigo-900 dark:text-indigo-300 mb-2 flex justify-between">
+                          <span>Digitale Unterschrift</span>
+                          <button type="button" onClick={() => sigPad.current?.clear()} className="text-indigo-500 hover:text-indigo-700 underline">Löschen</button>
+                      </label>
+                      <div className="bg-white dark:bg-gray-800 border-2 border-dashed border-indigo-200 dark:border-indigo-800 rounded-xl overflow-hidden touch-none">
+                          <SignatureCanvas 
+                              ref={sigPad}
+                              canvasProps={{className: 'w-full h-32 cursor-crosshair'}}
+                              backgroundColor="transparent"
+                              penColor={document.documentElement.classList.contains('dark') ? 'white' : 'black'}
+                          />
+                      </div>
+                  </div>
+              </div>
+          )}
+
+          {formData.type === 'sick_leave' && (
+              <div className="bg-red-50 dark:bg-red-900/10 p-4 rounded-xl border border-red-100 dark:border-red-900/30 flex flex-col gap-2 animate-in fade-in slide-in-from-top-2">
+                  <label className="text-sm font-bold text-red-900 dark:text-red-300 flex items-center gap-2">
+                      <ThermometerSun className="w-4 h-4" /> Krankenschein (eAU) hochladen
                   </label>
+                  <p className="text-xs text-red-700 dark:text-red-400 mb-2">Lade hier ein Foto oder PDF deiner Krankmeldung hoch (optional).</p>
                   <input
-                      type="checkbox"
-                      checked={formData.deduct_vacation_days}
-                      onChange={e => setFormData({ ...formData, deduct_vacation_days: e.target.checked })}
-                      className="w-5 h-5 rounded-lg border-indigo-300 text-indigo-600 focus:ring-indigo-500"
+                      type="file"
+                      accept="image/*,.pdf"
+                      onChange={e => setSickNoteFile(e.target.files?.[0] || null)}
+                      className="block w-full text-sm text-red-900 dark:text-red-300
+                        file:mr-4 file:py-2 file:px-4
+                        file:rounded-full file:border-0
+                        file:text-sm file:font-semibold
+                        file:bg-red-100 file:text-red-700
+                        hover:file:bg-red-200
+                        dark:file:bg-red-900/50 dark:hover:file:bg-red-900"
                   />
               </div>
           )}

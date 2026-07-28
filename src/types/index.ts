@@ -87,6 +87,8 @@ export type Absence = {
   recurrence_interval?: 'weekly' | 'biweekly' | 'monthly'; // New
   deduct_vacation_days?: boolean | null;
   used_days?: number | null; // New: Manual override for used vacation days
+  certificate_url?: string;
+  signature_url?: string;
 };
 
 export type Post = {
