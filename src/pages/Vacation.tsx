@@ -8,7 +8,7 @@ import { motion } from 'framer-motion';
 import { Palmtree, Check, X, RefreshCw } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { toast } from 'react-hot-toast';
-import { getWorkingDays } from '@/utils/dateUtils';
+import { getVacationDaysToDeduct } from '@/utils/dateUtils';
 
 export const Vacation = () => {
     const { user, profile } = useStore();
@@ -75,10 +75,10 @@ export const Vacation = () => {
                 if (start.getFullYear() < currentYear) start = new Date(currentYear, 0, 1);
                 if (end.getFullYear() > currentYear) end = new Date(currentYear, 11, 31);
                 if (start.getFullYear() !== currentYear && end.getFullYear() !== currentYear) return sum;
-                return sum + (a.used_days ?? getWorkingDays(start, end));
+                return sum + (a.used_days ?? getVacationDaysToDeduct(start, end, profile ?? undefined));
             }, 0);
         return { usedDays: used, remainingDays: Math.max(0, totalVacationDays - used) };
-    }, [absences, currentYear, totalVacationDays]);
+    }, [absences, currentYear, totalVacationDays, profile]);
 
     const toggleDeduct = async (absence: Absence) => {
         if (!user) return;
@@ -201,7 +201,7 @@ export const Vacation = () => {
                 ) : (
                     <div className="space-y-3">
                         {absences.map(a => {
-                            const calculatedDays = getWorkingDays(a.start_date, a.end_date);
+                            const calculatedDays = getVacationDaysToDeduct(parseISO(a.start_date), parseISO(a.end_date), profile ?? undefined);
                             const displayDays = a.used_days ?? calculatedDays;
                             const deduct = a.deduct_vacation_days ?? true;
                             const busy = savingId === a.id;

@@ -55,6 +55,7 @@ export function getHolidays(year: number): Date[] {
 }
 
 export function getHolidayName(date: Date): string | null {
+    // ...existing logic
     const year = date.getFullYear();
     const month = date.getMonth();
     const day = date.getDate();
@@ -104,6 +105,80 @@ export function getHolidayName(date: Date): string | null {
     if (month === fronleichnam.getMonth() && day === fronleichnam.getDate()) return 'Fronleichnam';
 
     return null;
+}
+
+export function isNRWSchoolHoliday(date: Date): boolean {
+    const holidays = [
+        // 2024
+        { start: new Date(2023, 11, 21), end: new Date(2024, 0, 5) }, // Weihnachten
+        { start: new Date(2024, 2, 25), end: new Date(2024, 3, 6) }, // Ostern
+        { start: new Date(2024, 4, 21), end: new Date(2024, 4, 21) }, // Pfingsten
+        { start: new Date(2024, 6, 8), end: new Date(2024, 7, 20) }, // Sommer
+        { start: new Date(2024, 9, 14), end: new Date(2024, 9, 26) }, // Herbst
+        { start: new Date(2024, 11, 23), end: new Date(2025, 0, 6) }, // Weihnachten
+
+        // 2025
+        { start: new Date(2025, 3, 14), end: new Date(2025, 3, 26) }, // Ostern
+        { start: new Date(2025, 5, 10), end: new Date(2025, 5, 10) }, // Pfingsten
+        { start: new Date(2025, 6, 14), end: new Date(2025, 7, 26) }, // Sommer
+        { start: new Date(2025, 9, 13), end: new Date(2025, 9, 25) }, // Herbst
+        { start: new Date(2025, 11, 22), end: new Date(2026, 0, 6) }, // Weihnachten
+
+        // 2026
+        { start: new Date(2026, 2, 30), end: new Date(2026, 3, 11) }, // Ostern
+        { start: new Date(2026, 4, 26), end: new Date(2026, 4, 26) }, // Pfingsten
+        { start: new Date(2026, 6, 20), end: new Date(2026, 8, 1) }, // Sommer
+        { start: new Date(2026, 9, 17), end: new Date(2026, 9, 31) }, // Herbst
+        { start: new Date(2026, 11, 23), end: new Date(2027, 0, 6) }, // Weihnachten
+    ];
+
+    const d = startOfDay(date).getTime();
+    return holidays.some(h => d >= startOfDay(h.start).getTime() && d <= startOfDay(h.end).getTime());
+}
+
+export function getVacationDaysToDeduct(
+    startDate: Date, 
+    endDate: Date, 
+    profile?: { is_vocational_student?: boolean, vocational_school_days?: { dayOfWeek: number, type: 'full' | 'half' }[] }
+): number {
+    let count = 0;
+    const start = startOfDay(startDate);
+    const end = startOfDay(endDate);
+
+    for (let d = start; d.getTime() <= end.getTime(); d.setDate(d.getDate() + 1)) {
+        if (isWeekend(d)) continue;
+        
+        const year = d.getFullYear();
+        const holidays = getHolidays(year);
+        const isHoliday = holidays.some(h => h.getTime() === d.getTime());
+        
+        if (isHoliday) continue;
+
+        // Check for vocational school
+        let dayDeduction = 1;
+
+        if (profile?.is_vocational_student && profile.vocational_school_days) {
+            const isSchoolHoliday = isNRWSchoolHoliday(d);
+            
+            if (!isSchoolHoliday) {
+                // Not in school holidays, so we check if there's school today
+                const dayOfWeek = d.getDay(); // 0 = Sunday, 1 = Monday, ..., 5 = Friday
+                const schoolDay = profile.vocational_school_days.find(s => s.dayOfWeek === dayOfWeek);
+
+                if (schoolDay) {
+                    if (schoolDay.type === 'full') {
+                        dayDeduction = 0; // Can't take vacation on full school days
+                    } else if (schoolDay.type === 'half') {
+                        dayDeduction = 0.5; // Only half vacation day deducted
+                    }
+                }
+            }
+        }
+
+        count += dayDeduction;
+    }
+
+    return count;
 }
 
 export function getWorkingDays(startDate: Date | string, endDate: Date | string): number {

@@ -22,6 +22,8 @@ export const ProfilePage = () => {
     const [yearlyGoal, setYearlyGoal] = useState<number>(120000); // New: Yearly Goal (Default 120k)
     const [totalVacationDays, setTotalVacationDays] = useState<number>(30); // New: Vacation Days
     const [avatarUrl, setAvatarUrl] = useState('');
+    const [isVocationalStudent, setIsVocationalStudent] = useState(false);
+    const [vocationalSchoolDays, setVocationalSchoolDays] = useState<{ dayOfWeek: number, type: 'full' | 'half' }[]>([]);
     
     // Password State
     const [password, setPassword] = useState('');
@@ -57,6 +59,8 @@ export const ProfilePage = () => {
             setYearlyGoal(profile.yearly_goal || (profile.monthly_goal ? profile.monthly_goal * 12 : 120000)); // Load or calc
             setTotalVacationDays(profile.total_vacation_days ?? 30);
             setAvatarUrl(profile.avatar_url || '');
+            setIsVocationalStudent(profile.is_vocational_student || false);
+            setVocationalSchoolDays(profile.vocational_school_days || []);
             fetchUserRates();
             fetchBadges();
         }
@@ -182,6 +186,8 @@ export const ProfilePage = () => {
                     monthly_goal: monthlyGoal, // Save
                     yearly_goal: yearlyGoal, // Save
                     total_vacation_days: totalVacationDays, // Save
+                    is_vocational_student: isVocationalStudent, // Save
+                    vocational_school_days: vocationalSchoolDays, // Save
                     avatar_url: avatarUrl 
                 })
                 .eq('id', user.id);
@@ -473,6 +479,55 @@ export const ProfilePage = () => {
                                         className="w-full rounded-xl bg-gray-50 dark:bg-gray-900 border-transparent focus:bg-white focus:ring-2 focus:ring-indigo-500/20 pl-10 px-4 py-2.5 text-sm transition-all"
                                     />
                                 </div>
+                            </div>
+
+                            <div className="pt-4 border-t border-gray-100 dark:border-gray-700">
+                                <label className="flex items-center gap-3 cursor-pointer mb-4">
+                                    <input 
+                                        type="checkbox" 
+                                        checked={isVocationalStudent}
+                                        onChange={e => setIsVocationalStudent(e.target.checked)}
+                                        className="w-5 h-5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-600"
+                                    />
+                                    <span className="text-sm font-bold text-gray-900 dark:text-white">Ich besuche eine Berufsschule</span>
+                                </label>
+                                
+                                {isVocationalStudent && (
+                                    <div className="space-y-3 bg-gray-50 dark:bg-gray-900/50 p-4 rounded-xl">
+                                        <p className="text-xs text-gray-500 mb-2 leading-relaxed">
+                                            An vollen Berufsschultagen kann kein Urlaub genommen werden. An halben Tagen wird nur ein halber Urlaubstag abgezogen. Während der NRW-Schulferien werden Berufsschultage wie normale Arbeitstage behandelt.
+                                        </p>
+                                        {[1, 2, 3, 4, 5].map((dayOfWeek) => {
+                                            const dayName = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag'][dayOfWeek - 1];
+                                            const currentSetting = vocationalSchoolDays.find(d => d.dayOfWeek === dayOfWeek);
+                                            
+                                            return (
+                                                <div key={dayOfWeek} className="flex items-center justify-between gap-4">
+                                                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300 w-24">{dayName}</span>
+                                                    <select
+                                                        value={currentSetting ? currentSetting.type : ''}
+                                                        onChange={(e) => {
+                                                            const val = e.target.value;
+                                                            if (!val) {
+                                                                setVocationalSchoolDays(prev => prev.filter(d => d.dayOfWeek !== dayOfWeek));
+                                                            } else {
+                                                                setVocationalSchoolDays(prev => {
+                                                                    const filtered = prev.filter(d => d.dayOfWeek !== dayOfWeek);
+                                                                    return [...filtered, { dayOfWeek, type: val as 'full' | 'half' }];
+                                                                });
+                                                            }
+                                                        }}
+                                                        className="flex-1 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-3 py-1.5 text-sm focus:ring-2 focus:ring-indigo-500/20"
+                                                    >
+                                                        <option value="">Keine Schule</option>
+                                                        <option value="full">Ganzer Tag</option>
+                                                        <option value="half">Halber Tag</option>
+                                                    </select>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
                             </div>
 
                             <div>

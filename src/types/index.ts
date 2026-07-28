@@ -1,3 +1,8 @@
+export interface VocationalSchoolDay {
+  dayOfWeek: number; // 1 = Monday, ..., 5 = Friday
+  type: 'full' | 'half';
+}
+
 export type Profile = {
   id: string;
   email: string | null;
@@ -14,6 +19,8 @@ export type Profile = {
   is_approved?: boolean;
   phone?: string | null;
   created_at: string;
+  is_vocational_student?: boolean;
+  vocational_school_days?: VocationalSchoolDay[];
 };
 
 export type Parcel = {

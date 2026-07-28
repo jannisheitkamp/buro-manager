@@ -11,7 +11,7 @@ import { cn } from '@/utils/cn';
 import { toast } from 'react-hot-toast';
 import { generateVacationRequestPDF } from '@/utils/pdfGenerator';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getWorkingDays } from '@/utils/dateUtils';
+import { getVacationDaysToDeduct } from '@/utils/dateUtils';
 
 export const Calendar = () => {
   const { user, profile } = useStore();
@@ -225,7 +225,7 @@ export const Calendar = () => {
         if (start.getFullYear() < currentYear) start = new Date(currentYear, 0, 1);
         if (end.getFullYear() > currentYear) end = new Date(currentYear, 11, 31);
 
-        return total + (a.used_days ?? getWorkingDays(start, end));
+        return total + (a.used_days ?? getVacationDaysToDeduct(start, end, profile ?? undefined));
     }, 0);
 
   const remainingVacationDays = Math.max(0, totalVacationDays - usedVacationDays);
@@ -404,7 +404,7 @@ export const Calendar = () => {
               <AnimatePresence>
                 {approvedAbsences.map((absence, idx) => {
                     const TypeIcon = getTypeIcon(absence.type);
-                    const calculatedDays = getWorkingDays(absence.start_date, absence.end_date);
+                    const calculatedDays = getVacationDaysToDeduct(parseISO(absence.start_date), parseISO(absence.end_date), absence.profiles ?? undefined);
                     const displayDays = absence.used_days ?? calculatedDays;
                     const isEditing = editingDaysId === absence.id;
                     const canEdit = isAdmin || absence.user_id === user?.id;
