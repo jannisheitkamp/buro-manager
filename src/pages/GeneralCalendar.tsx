@@ -3,10 +3,11 @@ import { supabase } from '@/lib/supabase';
 import { useStore } from '@/store/useStore';
 import { format, startOfWeek, addDays, startOfMonth, endOfMonth, endOfWeek, isSameMonth, isSameDay, addMonths, subMonths, isToday } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, Plus, Clock, MapPin, AlignLeft, Filter, Calendar as CalendarIcon, List } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Clock, MapPin, AlignLeft, Filter, Calendar as CalendarIcon, List, TentTree } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { Modal } from '@/components/Modal';
 import { toast } from 'react-hot-toast';
+import { getHolidayName } from '@/utils/dateUtils';
 
 // Simple Event type
 type CalendarEvent = {
@@ -479,6 +480,10 @@ export const GeneralCalendar = () => {
       for (let i = 0; i < 7; i++) {
         const cloneDay = day;
         const formattedDate = format(day, "d");
+        const isWknd = day.getDay() === 0 || day.getDay() === 6;
+        const holidayName = getHolidayName(day);
+        const isHoliday = !!holidayName;
+
         const dayEvents = events.filter(e => isSameDay(new Date(e.start_time), day));
 
         days.push(
@@ -487,6 +492,7 @@ export const GeneralCalendar = () => {
             className={cn(
                 "min-h-[120px] p-2 transition-all relative group border-t border-r border-gray-50 dark:border-gray-800/50 hover:bg-gray-50/50 dark:hover:bg-gray-800/30",
                 !isSameMonth(day, monthStart) && "opacity-30 grayscale",
+                (isWknd || isHoliday) && isSameMonth(day, monthStart) && "bg-gray-50/80 dark:bg-gray-800/50",
                 i === 0 && "border-l", // Left border for first column
                 i === 6 && "border-r-0" // No right border for last column
             )}
@@ -497,13 +503,20 @@ export const GeneralCalendar = () => {
                     "text-sm font-medium w-8 h-8 flex items-center justify-center rounded-full transition-all",
                     isToday(day) 
                         ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/30 scale-110" 
-                        : "text-gray-700 dark:text-gray-300 group-hover:bg-gray-100 dark:group-hover:bg-gray-700"
+                        : "text-gray-700 dark:text-gray-300 group-hover:bg-gray-100 dark:group-hover:bg-gray-700",
+                    isHoliday && !isToday(day) ? "text-red-500 dark:text-red-400" : ""
                 )}>
                     {formattedDate}
                 </span>
             </div>
             
             <div className="space-y-1.5">
+                {isHoliday && (
+                    <div className="text-[11px] px-2 py-1 rounded-full border bg-red-50 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800/30 flex items-center gap-1.5 shadow-sm">
+                        <TentTree className="w-3 h-3 shrink-0" />
+                        <span className="truncate font-medium">{holidayName}</span>
+                    </div>
+                )}
                 {dayEvents.slice(0, 3).map(ev => (
                     <div 
                         key={ev.id} 
@@ -596,9 +609,16 @@ export const GeneralCalendar = () => {
                               {Array.from({ length: 7 }).map((_, dayIdx) => {
                                   const currentDay = addDays(startDate, dayIdx);
                                   const dayEvents = events.filter(e => isSameDay(new Date(e.start_time), currentDay));
+                                  const holidayName = getHolidayName(currentDay);
+                                  const isHoliday = !!holidayName;
 
                                   return (
                                       <div key={dayIdx} className="flex-1 border-r border-gray-50 dark:border-gray-800/50 last:border-r-0 relative group min-w-[120px]">
+                                          {isHoliday && (
+                                              <div className="absolute top-0 left-0 right-0 z-10 px-2 py-1 text-center bg-red-50/80 dark:bg-red-900/20 text-red-700 dark:text-red-400 text-xs font-bold border-b border-red-100 dark:border-red-900/30 backdrop-blur-sm">
+                                                  🎉 {holidayName}
+                                              </div>
+                                          )}
                                           {hours.map(hour => (
                                               <div 
                                                   key={hour} 
