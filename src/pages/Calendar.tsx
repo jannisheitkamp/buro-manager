@@ -20,6 +20,8 @@ export const Calendar = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [editingDaysId, setEditingDaysId] = useState<string | null>(null);
+  const [editingDaysValue, setEditingDaysValue] = useState<string>('');
 
   // Form state
   const [formData, setFormData] = useState({
@@ -146,6 +148,31 @@ export const Calendar = () => {
     }
   };
 
+  const updateUsedDays = async (id: string) => {
+    const val = editingDaysValue.trim() === '' ? null : Number(editingDaysValue);
+    if (val !== null && (isNaN(val) || val < 0)) {
+        toast.error('Bitte eine gültige Zahl eingeben.');
+        return;
+    }
+    
+    try {
+        const { error } = await supabase
+            .from('absences')
+            .update({ used_days: val })
+            .eq('id', id);
+
+        if (error) throw error;
+        
+        setAbsences(prev => prev.map(a => (a.id === id ? { ...a, used_days: val } : a)));
+        toast.success('Urlaubstage erfolgreich aktualisiert.');
+    } catch (error) {
+        console.error('Error updating days:', error);
+        toast.error('Fehler beim Aktualisieren der Urlaubstage.');
+    } finally {
+        setEditingDaysId(null);
+    }
+  };
+
   const pendingAbsences = absences.filter((a) => a.status === 'pending');
   // Show future or current absences (end_date >= today)
   const approvedAbsences = absences.filter((a) => {
@@ -198,7 +225,7 @@ export const Calendar = () => {
         if (start.getFullYear() < currentYear) start = new Date(currentYear, 0, 1);
         if (end.getFullYear() > currentYear) end = new Date(currentYear, 11, 31);
 
-        return total + getWorkingDays(start, end);
+        return total + (a.used_days ?? getWorkingDays(start, end));
     }, 0);
 
   const remainingVacationDays = Math.max(0, totalVacationDays - usedVacationDays);
@@ -377,6 +404,11 @@ export const Calendar = () => {
               <AnimatePresence>
                 {approvedAbsences.map((absence, idx) => {
                     const TypeIcon = getTypeIcon(absence.type);
+                    const calculatedDays = getWorkingDays(absence.start_date, absence.end_date);
+                    const displayDays = absence.used_days ?? calculatedDays;
+                    const isEditing = editingDaysId === absence.id;
+                    const canEdit = isAdmin || absence.user_id === user?.id;
+
                     return (
                         <motion.div 
                             key={absence.id}
@@ -411,7 +443,49 @@ export const Calendar = () => {
                             </div>
                             </div>
                             
-                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity absolute top-4 right-4 bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm p-1.5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
+                            <div className="flex flex-col items-end">
+                                {isEditing ? (
+                                    <div className="flex items-center gap-1">
+                                        <input
+                                            type="number"
+                                            step="0.5"
+                                            value={editingDaysValue}
+                                            onChange={(e) => setEditingDaysValue(e.target.value)}
+                                            className="w-16 px-2 py-1 text-xs rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                            placeholder={String(calculatedDays)}
+                                            autoFocus
+                                        />
+                                        <button
+                                            onClick={() => updateUsedDays(absence.id)}
+                                            className="p-1 bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 rounded-md hover:bg-indigo-200 dark:hover:bg-indigo-800/50"
+                                        >
+                                            <Check className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button
+                                            onClick={() => setEditingDaysId(null)}
+                                            className="p-1 bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600"
+                                        >
+                                            <X className="w-3.5 h-3.5" />
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <span 
+                                        className={cn("text-xs font-bold text-gray-500 dark:text-gray-400", canEdit && "cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400 border-b border-dashed border-gray-300 dark:border-gray-600")}
+                                        onClick={() => {
+                                            if (canEdit) {
+                                                setEditingDaysId(absence.id);
+                                                setEditingDaysValue(absence.used_days !== null && absence.used_days !== undefined ? String(absence.used_days) : String(calculatedDays));
+                                            }
+                                        }}
+                                        title={canEdit ? "Klicken zum Ändern (z.B. wegen Feiertagen)" : ""}
+                                    >
+                                        {displayDays} {displayDays === 1 ? 'Tag' : 'Tage'}
+                                        {absence.used_days !== null && absence.used_days !== undefined && ' (Manuell)'}
+                                    </span>
+                                )}
+                            </div>
+                            
+                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity absolute top-10 right-4 bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm p-1.5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
                                 <button
                                     onClick={() => generateVacationRequestPDF(absence, absence.profiles!)}
                                     className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-gray-400 hover:text-indigo-600 transition-colors"

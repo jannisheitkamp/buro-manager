@@ -79,6 +79,7 @@ export type Absence = {
   is_recurring?: boolean; // New: For 'school'
   recurrence_interval?: 'weekly' | 'biweekly' | 'monthly'; // New
   deduct_vacation_days?: boolean | null;
+  used_days?: number | null; // New: Manual override for used vacation days
 };
 
 export type Post = {

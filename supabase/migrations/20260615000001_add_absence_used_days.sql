@@ -1,0 +1,2 @@
+ALTER TABLE public.absences
+ADD COLUMN IF NOT EXISTS used_days NUMERIC(5,1) DEFAULT NULL;

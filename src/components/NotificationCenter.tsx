@@ -27,7 +27,6 @@ export const NotificationCenter = () => {
     const [items, setItems] = useState<NotificationItem[]>([]);
     const [loading, setLoading] = useState(true);
 
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     const fetchNotifications = async () => {
         if (!user) return;
         setLoading(true);

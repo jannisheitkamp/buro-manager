@@ -15,6 +15,8 @@ export const Vacation = () => {
     const [absences, setAbsences] = useState<Absence[]>([]);
     const [loading, setLoading] = useState(true);
     const [savingId, setSavingId] = useState<string | null>(null);
+    const [editingDaysId, setEditingDaysId] = useState<string | null>(null);
+    const [editingDaysValue, setEditingDaysValue] = useState<string>('');
 
     const fetchVacations = async () => {
         if (!user) return;
@@ -73,7 +75,7 @@ export const Vacation = () => {
                 if (start.getFullYear() < currentYear) start = new Date(currentYear, 0, 1);
                 if (end.getFullYear() > currentYear) end = new Date(currentYear, 11, 31);
                 if (start.getFullYear() !== currentYear && end.getFullYear() !== currentYear) return sum;
-                return sum + getWorkingDays(start, end);
+                return sum + (a.used_days ?? getWorkingDays(start, end));
             }, 0);
         return { usedDays: used, remainingDays: Math.max(0, totalVacationDays - used) };
     }, [absences, currentYear, totalVacationDays]);
@@ -103,6 +105,36 @@ export const Vacation = () => {
             }
         } finally {
             setSavingId(null);
+        }
+    };
+
+    const updateUsedDays = async (absence: Absence) => {
+        if (!user) return;
+        const val = editingDaysValue.trim() === '' ? null : Number(editingDaysValue);
+        if (val !== null && (isNaN(val) || val < 0)) {
+            toast.error('Bitte eine gültige Zahl eingeben.');
+            return;
+        }
+
+        setSavingId(absence.id);
+        try {
+            const { error } = await supabase
+                .from('absences')
+                .update({ used_days: val })
+                .eq('id', absence.id);
+
+            if (error) throw error;
+
+            setAbsences(prev => prev.map(a => (a.id === absence.id ? { ...a, used_days: val } : a)));
+            toast.success('Urlaubstage erfolgreich aktualisiert.');
+        } catch (e) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const err: any = e;
+            const msg = err?.message || 'Unbekannter Fehler';
+            toast.error(`Konnte nicht speichern: ${msg}`);
+        } finally {
+            setSavingId(null);
+            setEditingDaysId(null);
         }
     };
 
@@ -169,15 +201,18 @@ export const Vacation = () => {
                 ) : (
                     <div className="space-y-3">
                         {absences.map(a => {
-                            const days = getWorkingDays(a.start_date, a.end_date);
+                            const calculatedDays = getWorkingDays(a.start_date, a.end_date);
+                            const displayDays = a.used_days ?? calculatedDays;
                             const deduct = a.deduct_vacation_days ?? true;
                             const busy = savingId === a.id;
+                            const isEditing = editingDaysId === a.id;
+                            
                             return (
                                 <div
                                     key={a.id}
                                     className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800"
                                 >
-                                    <div className="min-w-0">
+                                    <div className="min-w-0 flex-1">
                                         <div className="flex items-center gap-2 flex-wrap">
                                             <span className="font-bold text-gray-900 dark:text-white">
                                                 {format(parseISO(a.start_date), 'dd.MM.yyyy', { locale: de })} – {format(parseISO(a.end_date), 'dd.MM.yyyy', { locale: de })}
@@ -185,9 +220,46 @@ export const Vacation = () => {
                                             <span className={cn('px-2.5 py-1 rounded-full text-xs font-bold', statusBadge(a.status))}>
                                                 {a.status === 'approved' ? 'Genehmigt' : a.status === 'pending' ? 'Offen' : 'Abgelehnt'}
                                             </span>
-                                            <span className="text-xs font-bold text-gray-500 dark:text-gray-400">
-                                                {days} Arbeitstage
-                                            </span>
+                                            
+                                            {isEditing ? (
+                                                <div className="flex items-center gap-1 ml-2">
+                                                    <input
+                                                        type="number"
+                                                        step="0.5"
+                                                        value={editingDaysValue}
+                                                        onChange={(e) => setEditingDaysValue(e.target.value)}
+                                                        className="w-16 px-2 py-1 text-xs rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                                        placeholder={String(calculatedDays)}
+                                                        autoFocus
+                                                    />
+                                                    <button
+                                                        onClick={() => updateUsedDays(a)}
+                                                        disabled={busy}
+                                                        className="p-1 bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 rounded-md hover:bg-indigo-200 dark:hover:bg-indigo-800/50"
+                                                    >
+                                                        <Check className="w-3.5 h-3.5" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setEditingDaysId(null)}
+                                                        disabled={busy}
+                                                        className="p-1 bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600"
+                                                    >
+                                                        <X className="w-3.5 h-3.5" />
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <span 
+                                                    className="text-xs font-bold text-gray-500 dark:text-gray-400 ml-2 cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400 border-b border-dashed border-gray-300 dark:border-gray-600"
+                                                    onClick={() => {
+                                                        setEditingDaysId(a.id);
+                                                        setEditingDaysValue(a.used_days !== null && a.used_days !== undefined ? String(a.used_days) : String(calculatedDays));
+                                                    }}
+                                                    title="Klicken zum Ändern (z.B. wegen Feiertagen)"
+                                                >
+                                                    {displayDays} {displayDays === 1 ? 'Arbeitstag' : 'Arbeitstage'}
+                                                    {a.used_days !== null && a.used_days !== undefined && ' (Manuell)'}
+                                                </span>
+                                            )}
                                         </div>
                                         {a.note && (
                                             <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 truncate">
