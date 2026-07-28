@@ -151,7 +151,31 @@ export const generateVacationRequestPDF = (absence: Absence, profile: Profile) =
   doc.text('Unterschrift des Antragstellers', 120, y + 5);
   doc.line(120, y, 190, y); 
   
-  y += 25; // Reduced section break
+  // We need to return a promise now because loading images is async
+  return new Promise<void>(async (resolve) => {
+      try {
+          if (absence.signature_url) {
+              // Fetch the image as a blob
+              const response = await fetch(absence.signature_url);
+              const blob = await response.blob();
+              
+              // Convert blob to base64
+              const reader = new FileReader();
+              reader.readAsDataURL(blob);
+              await new Promise((r) => {
+                  reader.onloadend = () => {
+                      const base64data = reader.result as string;
+                      // Add image to PDF. Coordinates: x=120, y=currentY-15, w=60, h=15
+                      doc.addImage(base64data, 'PNG', 120, y - 15, 60, 15);
+                      r(null);
+                  };
+              });
+          }
+      } catch (error) {
+          console.error("Could not load signature image for PDF", error);
+      }
+      
+      y += 25; // Reduced section break
   
   // Employer Section
   doc.setFontSize(12);
@@ -206,4 +230,6 @@ export const generateVacationRequestPDF = (absence: Absence, profile: Profile) =
   doc.line(120, y, 190, y); 
   
   doc.save(`Urlaubsantrag_${lastName}_${startStr}.pdf`);
+  resolve();
+  });
 };
