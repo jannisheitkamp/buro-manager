@@ -60,12 +60,12 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
 
   // Redirect if not approved
   useEffect(() => {
-    if (!loading && profile && !profile.is_approved) {
+    if (!loading && profile && !profile.is_approved && !profile.roles?.includes('admin')) {
       if (location.pathname !== '/pending-approval') {
         navigate('/pending-approval');
       }
     }
-  }, [profile, loading, location.pathname, navigate]);
+  }, [profile?.is_approved, profile?.roles, loading, location.pathname, navigate]);
 
   useEffect(() => {
     let timeoutId: NodeJS.Timeout;
@@ -98,7 +98,7 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
         clearTimeout(timeoutId);
         supabase.removeChannel(sub); 
     };
-  }, [profile]);
+  }, [profile?.roles]);
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col lg:flex-row transition-colors duration-200">

@@ -28,7 +28,7 @@ export const Admin = () => {
         if (profile?.roles?.includes('admin')) {
             fetchAdminData();
         }
-    }, [profile]);
+    }, [profile?.roles]);
 
     const fetchAdminData = async () => {
         setLoading(true);

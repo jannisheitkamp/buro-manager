@@ -384,7 +384,7 @@ export const Dashboard = () => {
       channels.forEach(c => supabase.removeChannel(c));
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, [user?.id]);
 
   const handleStatusUpdate = async (status: StatusType) => {
     if (!user || isUpdatingStatus) return;

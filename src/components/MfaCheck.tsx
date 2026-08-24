@@ -76,7 +76,7 @@ export const MfaCheck = () => {
     };
 
     checkMfaStatus();
-  }, [user, location.pathname]);
+  }, [user?.id, location.pathname]);
 
   if (checking) return null; // Loading spinner
 

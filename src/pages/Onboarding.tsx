@@ -50,7 +50,7 @@ export const Onboarding = () => {
         }
     };
     loadSettings();
-  }, [user]);
+  }, [user?.id]);
 
   const handleRateChange = (sub: string, val: string) => {
       setRates(prev => ({ ...prev, [sub]: parseFloat(val) || 0 }));

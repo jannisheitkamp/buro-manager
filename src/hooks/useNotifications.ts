@@ -51,5 +51,5 @@ export const useNotifications = () => {
     return () => {
       channel.unsubscribe();
     };
-  }, [user]);
+  }, [user?.id]);
 };

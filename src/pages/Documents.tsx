@@ -27,7 +27,7 @@ export function Documents() {
     fetchDocuments();
     fetchUsers();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, [user?.id]);
 
   const fetchDocuments = async () => {
     if (!user) return;

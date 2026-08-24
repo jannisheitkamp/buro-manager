@@ -8,7 +8,7 @@ import { PageTransition } from '@/components/PageTransition';
 import { OnboardingCheck } from '@/components/OnboardingCheck';
 import { MfaCheck } from '@/components/MfaCheck';
 import { Toaster } from 'react-hot-toast';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Lock } from 'lucide-react';
 
 // Lazy load pages
 const Login = lazy(() => import('@/pages/Login').then(module => ({ default: module.Login })));
@@ -43,6 +43,26 @@ function PageLoader() {
     </div>
   );
 }
+
+const PendingApproval = () => (
+  <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900 px-4">
+    <div className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-sm max-w-md w-full text-center space-y-4">
+      <div className="w-16 h-16 bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded-full flex items-center justify-center mx-auto mb-4">
+        <Lock className="w-8 h-8" />
+      </div>
+      <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Warten auf Freischaltung</h2>
+      <p className="text-gray-500 dark:text-gray-400">
+        Dein Account wurde erfolgreich erstellt, muss aber noch von einem Administrator freigeschaltet werden.
+      </p>
+      <button
+        onClick={() => supabase.auth.signOut()}
+        className="mt-6 px-6 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors font-medium"
+      >
+        Zurück zum Login
+      </button>
+    </div>
+  </div>
+);
 
 function App() {
   const setUser = useStore((state) => state.setUser);
@@ -84,6 +104,7 @@ function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/incoming-call" element={<IncomingCallHandler />} />
+          <Route path="/pending-approval" element={<PendingApproval />} />
           
           <Route element={<ProtectedRoute />}>
             <Route path="/mfa-setup" element={<MfaSetup />} />

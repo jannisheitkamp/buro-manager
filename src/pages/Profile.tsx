@@ -65,7 +65,7 @@ export const ProfilePage = () => {
             fetchBadges();
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [profile]);
+    }, [profile?.id]);
 
     const fetchBadges = async () => {
         if (!user) return;

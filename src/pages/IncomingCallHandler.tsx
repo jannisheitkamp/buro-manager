@@ -65,7 +65,7 @@ export const IncomingCallHandler = () => {
     };
 
     logCall();
-  }, [searchParams, navigate, user]);
+  }, [searchParams, navigate, user?.id]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-500 via-purple-600 to-indigo-800 text-white overflow-hidden relative">

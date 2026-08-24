@@ -194,7 +194,7 @@ export const Production = () => {
         setUserRates(rates);
     };
     loadRates();
-  }, [user]);
+  }, [user?.id]);
 
   // --- Form State ---
   const [category, setCategory] = useState('life'); 

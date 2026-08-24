@@ -138,7 +138,7 @@ export const NotificationCenter = () => {
             sub.unsubscribe(); 
         };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [user]);
+    }, [user?.id]);
 
     const unreadCount = items.length; // Simplified: All items here are "actionable" or "new"
 

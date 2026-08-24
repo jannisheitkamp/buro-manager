@@ -35,7 +35,7 @@ export const OnboardingCheck = () => {
     };
 
     checkSettings();
-  }, [user, location.pathname]);
+  }, [user?.id, location.pathname]);
 
   if (checking) return null; // Or a loading spinner
 
