@@ -10,9 +10,10 @@ import { MfaCheck } from '@/components/MfaCheck';
 import { Toaster } from 'react-hot-toast';
 import { Loader2, Lock } from 'lucide-react';
 
-// Lazy load pages
-const Login = lazy(() => import('@/pages/Login').then(module => ({ default: module.Login })));
-const Dashboard = lazy(() => import('@/pages/Dashboard').then(module => ({ default: module.Dashboard })));
+import { Login } from '@/pages/Login';
+import { Dashboard } from '@/pages/Dashboard';
+
+// Lazy load other pages
 const Leads = lazy(() => import('@/pages/Leads').then(module => ({ default: module.Leads })));
 const Calendar = lazy(() => import('@/pages/Calendar').then(module => ({ default: module.Calendar })));
 const Bookings = lazy(() => import('@/pages/Bookings').then(module => ({ default: module.Bookings })));
@@ -75,12 +76,18 @@ function App() {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
       if (session?.user) {
-        Promise.all([fetchProfile(), fetchSchoolHolidays()]).finally(() => {
+        // Fetch profile first to determine routing/roles
+        fetchProfile().finally(() => {
           setLoading(false);
         });
+        // Fetch holidays in background
+        fetchSchoolHolidays();
       } else {
         setLoading(false);
       }
+    }).catch(err => {
+      console.error("Session error:", err);
+      setLoading(false);
     });
 
     // Listen for auth changes
