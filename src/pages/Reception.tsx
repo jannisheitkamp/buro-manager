@@ -92,7 +92,7 @@ export const Reception = () => {
             const refDate = new Date('2026-08-31T00:00:00Z'); // Start date with Jannis
             const currentMonday = startOfWeek(day, { weekStartsOn: 1 });
             const diffTime = currentMonday.getTime() - refDate.getTime();
-            const diffWeeks = Math.floor(diffTime / (1000 * 60 * 60 * 24 * 7));
+            const diffWeeks = Math.round(diffTime / (1000 * 60 * 60 * 24 * 7));
             
             // diffWeeks = 0 -> Jannis, 1 -> Flori, 2 -> Jannis, etc.
             return diffWeeks % 2 === 0 ? 'Jannis' : 'Flori';
