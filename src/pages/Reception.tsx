@@ -18,8 +18,8 @@ const STORAGE_PATH = 'office/empfangsplan.pdf';
 const PERSONS: ReceptionPerson[] = ['Flori', 'Lucas', 'Jannis', 'Marcio'];
 
 const DEFAULT_WEEKDAY_MAP: Record<number, ReceptionPerson> = {
-    1: 'Lucas',
-    2: 'Marcio',
+    1: 'Jannis',
+    2: 'Lucas',
     3: 'Flori',
     4: 'Jannis',
     5: 'Lucas'
@@ -32,6 +32,18 @@ export const Reception = () => {
     const [currentDate, setCurrentDate] = useState(new Date());
     const [weekdayMap, setWeekdayMap] = useState<Record<number, ReceptionPerson>>(() => {
         const raw = localStorage.getItem(localStorageKey('weekday_map'));
+        // If there's saved map, check if it's the old default and replace it
+        if (raw) {
+             try {
+                 const parsed = JSON.parse(raw);
+                 if (parsed[1] === 'Lucas' && parsed[2] === 'Marcio') {
+                     // Clear old map and return new default
+                     localStorage.removeItem(localStorageKey('weekday_map'));
+                     return DEFAULT_WEEKDAY_MAP;
+                 }
+             } catch (e) {}
+        }
+        
         if (!raw) return DEFAULT_WEEKDAY_MAP;
         try {
             const parsed = JSON.parse(raw) as Record<string, ReceptionPerson>;
@@ -112,6 +124,20 @@ export const Reception = () => {
     const getAssignee = (day: Date): ReceptionPerson | null => {
         if (isWeekend(day) || isHoliday(day)) return null;
         const dow = day.getDay();
+        
+        // Special logic for Mondays (alternating between Jannis and Flori)
+        // Reference date: 2026-08-31 is Jannis
+        if (dow === 1) {
+            // Calculate weeks since the reference date
+            const refDate = new Date('2026-08-31T00:00:00Z'); // Start date with Jannis
+            const currentMonday = startOfWeek(day, { weekStartsOn: 1 });
+            const diffTime = currentMonday.getTime() - refDate.getTime();
+            const diffWeeks = Math.floor(diffTime / (1000 * 60 * 60 * 24 * 7));
+            
+            // diffWeeks = 0 -> Jannis, 1 -> Flori, 2 -> Jannis, etc.
+            return diffWeeks % 2 === 0 ? 'Jannis' : 'Flori';
+        }
+        
         return weekdayMap[dow] || null;
     };
 
@@ -259,7 +285,7 @@ export const Reception = () => {
 
                     <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
                         {[
-                            { key: 1, label: 'Mo' },
+                            { key: 1, label: 'Mo (Start 31.08)' },
                             { key: 2, label: 'Di' },
                             { key: 3, label: 'Mi' },
                             { key: 4, label: 'Do' },
@@ -268,11 +294,14 @@ export const Reception = () => {
                             <div key={wd.key}>
                                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">{wd.label}</label>
                                 <select
-                                    value={weekdayMap[wd.key]}
+                                    value={wd.key === 1 ? 'Jannis / Flori' : weekdayMap[wd.key]}
+                                    disabled={wd.key === 1}
                                     onChange={e => setWeekdayMap(prev => ({ ...prev, [wd.key]: e.target.value as ReceptionPerson }))}
-                                    className="w-full rounded-xl bg-gray-50 dark:bg-gray-900 border-transparent focus:bg-white focus:ring-2 focus:ring-indigo-500/20 px-4 py-2.5 text-sm transition-all"
+                                    className="w-full rounded-xl bg-gray-50 dark:bg-gray-900 border-transparent focus:bg-white focus:ring-2 focus:ring-indigo-500/20 px-4 py-2.5 text-sm transition-all disabled:opacity-50"
                                 >
-                                    {PERSONS.map(p => (
+                                    {wd.key === 1 ? (
+                                        <option value="Jannis / Flori">Wechselnd</option>
+                                    ) : PERSONS.map(p => (
                                         <option key={p} value={p}>{p}</option>
                                     ))}
                                 </select>
