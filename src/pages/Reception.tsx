@@ -61,50 +61,10 @@ export const Reception = () => {
         }
     });
     const [uploading, setUploading] = useState(false);
-    const [loadingWalkIns, setLoadingWalkIns] = useState(false);
-    const [walkInAssignments, setWalkInAssignments] = useState<Record<string, string>>({});
 
     useEffect(() => {
         localStorage.setItem(localStorageKey('weekday_map'), JSON.stringify(weekdayMap));
     }, [weekdayMap]);
-
-    const loadWalkInAssignments = async () => {
-        setLoadingWalkIns(true);
-        try {
-            const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(STORAGE_PATH);
-            if (!data?.publicUrl) throw new Error('Keine PDF URL gefunden.');
-
-            const res = await fetch(data.publicUrl);
-            if (!res.ok) throw new Error(`PDF konnte nicht geladen werden (${res.status}).`);
-            const blob = await res.blob();
-            const file = new File([blob], 'empfangsplan.pdf', { type: 'application/pdf' });
-
-            const text = await extractPdfText(file, 200);
-            const map: Record<string, string> = {};
-
-            const regex = /(\d{2})\.(\d{2})\.(\d{4})\s+[A-Za-zÄÖÜäöüß]{2}\s+([A-Za-zÄÖÜäöüß]+)\s+([A-Za-zÄÖÜäöüß]+)/g;
-            let match: RegExpExecArray | null;
-            while ((match = regex.exec(text)) !== null) {
-                const dd = match[1];
-                const mm = match[2];
-                const yyyy = match[3];
-                const walkIn = match[5];
-                map[`${yyyy}-${mm}-${dd}`] = walkIn;
-            }
-
-            setWalkInAssignments(map);
-        } catch (e) {
-            const msg = (e as Error)?.message || 'Unbekannter Fehler';
-            toast.error(`Laufkundschaft konnte nicht geladen werden: ${msg}`);
-            setWalkInAssignments({});
-        } finally {
-            setLoadingWalkIns(false);
-        }
-    };
-
-    useEffect(() => {
-        loadWalkInAssignments();
-    }, []);
 
     const holidays = useMemo(() => {
         const year = currentDate.getFullYear();
@@ -189,31 +149,6 @@ export const Reception = () => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [gridStart.getTime(), gridEnd.getTime()]);
 
-    const openPdf = () => {
-        const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(STORAGE_PATH);
-        if (!data?.publicUrl) {
-            toast.error('PDF konnte nicht geöffnet werden.');
-            return;
-        }
-        window.open(data.publicUrl, '_blank');
-    };
-
-    const handleUpload = async (file: File) => {
-        if (!user) return;
-        setUploading(true);
-        try {
-            const { error } = await supabase.storage.from(STORAGE_BUCKET).upload(STORAGE_PATH, file, { upsert: true });
-            if (error) throw error;
-            toast.success('Empfangsplan PDF hochgeladen.');
-            await loadWalkInAssignments();
-        } catch (e) {
-            const msg = (e as Error)?.message || 'Unbekannter Fehler';
-            toast.error(`Upload fehlgeschlagen: ${msg}`);
-        } finally {
-            setUploading(false);
-        }
-    };
-
     return (
         <div className="max-w-7xl mx-auto space-y-8 pb-20">
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
@@ -222,41 +157,12 @@ export const Reception = () => {
                         <div className="p-2 bg-indigo-100 dark:bg-indigo-900/30 rounded-xl">
                             <Users className="w-8 h-8 text-indigo-600 dark:text-indigo-400" />
                         </div>
-                        Empfangsplan
+                        Empfang & Laufkundschaft
                     </h1>
                     <p className="text-gray-500 dark:text-gray-400 mt-2 ml-1">
-                        Fester Wochenplan (Mo–Fr). Wochenenden &amp; Feiertage werden als geschlossen markiert.
+                        Fester Wochenplan (Mo–Fr). Die eingeteilte Person übernimmt auch die Laufkundschaft.
                     </p>
                 </motion.div>
-
-                <div className="flex flex-col sm:flex-row gap-3">
-                    <button
-                        type="button"
-                        onClick={openPdf}
-                        className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 px-5 py-3 rounded-2xl flex items-center justify-center gap-2 transition-all shadow-sm border border-gray-200 dark:border-gray-700"
-                    >
-                        <Download className="w-5 h-5" />
-                        <span className="font-semibold">PDF öffnen</span>
-                    </button>
-
-                    <label className={cn(
-                        "bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3 rounded-2xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-indigo-500/30 cursor-pointer",
-                        uploading ? "opacity-70 pointer-events-none" : ""
-                    )}>
-                        <Upload className="w-5 h-5" />
-                        <span className="font-semibold">{uploading ? 'Lädt…' : 'PDF hochladen'}</span>
-                        <input
-                            type="file"
-                            accept="application/pdf"
-                            className="hidden"
-                            onChange={(e) => {
-                                const f = e.target.files?.[0];
-                                if (f) handleUpload(f);
-                                e.currentTarget.value = '';
-                            }}
-                        />
-                    </label>
-                </div>
             </div>
 
             <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-3xl shadow-xl border border-white/20 dark:border-gray-700/50 p-6 sm:p-8 space-y-6">
@@ -310,51 +216,7 @@ export const Reception = () => {
                     </div>
                 </div>
 
-                    <div className="bg-gray-50/60 dark:bg-gray-900/30 rounded-2xl p-4 border border-gray-100 dark:border-gray-700">
-                        <div className="flex items-center justify-between gap-4">
-                            <div>
-                                <div className="text-sm font-bold text-gray-900 dark:text-white">
-                                    Laufkundschaft (aus PDF)
-                                </div>
-                                <div className="text-xs text-gray-500 dark:text-gray-400">
-                                    Tageszuordnung aus der hochgeladenen Liste.
-                                </div>
-                            </div>
-                            <div className="text-xs font-semibold text-gray-500 dark:text-gray-400">
-                                {loadingWalkIns ? 'Lädt…' : `${Object.keys(walkInAssignments).length} Tage`}
-                            </div>
-                        </div>
 
-                        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                            {days
-                                .filter(d => isSameMonth(d, currentDate))
-                                .filter(d => !isWeekend(d) && !isHoliday(d))
-                                .map(d => {
-                                    const key = format(d, 'yyyy-MM-dd');
-                                    const name = walkInAssignments[key] || '-';
-                                    const absent = name !== '-' ? isAbsent(d, name) : false;
-                                    return (
-                                        <div
-                                            key={key}
-                                            className={cn(
-                                                "flex items-center justify-between rounded-xl px-3 py-2 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700",
-                                                absent ? "border-red-200 dark:border-red-900/40 bg-red-50/40 dark:bg-red-900/10" : ""
-                                            )}
-                                        >
-                                            <div className="text-xs font-bold text-gray-600 dark:text-gray-300">
-                                                {format(d, 'dd.MM', { locale: de })}
-                                            </div>
-                                            <div className={cn(
-                                                "text-xs font-bold truncate",
-                                                name === '-' ? "text-gray-400" : (absent ? "text-red-600 dark:text-red-400" : "text-gray-900 dark:text-white")
-                                            )}>
-                                                {name}
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                        </div>
-                    </div>
 
                 <div className="grid grid-cols-7 gap-2 text-xs font-bold text-gray-500 dark:text-gray-400">
                     {['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'].map(d => (
@@ -369,9 +231,6 @@ export const Reception = () => {
                         const closed = isWeekend(day) || isHoliday(day);
                         const assignee = getAssignee(day);
                         const absent = assignee && !closed ? isAbsent(day, assignee) : false;
-                        const walkInKey = format(day, 'yyyy-MM-dd');
-                        const walkInAssignee = !closed ? (walkInAssignments[walkInKey] || null) : null;
-                        const walkInAbsent = walkInAssignee ? isAbsent(day, walkInAssignee) : false;
 
                         return (
                             <div
@@ -380,7 +239,7 @@ export const Reception = () => {
                                     "rounded-2xl border p-3 min-h-[86px] transition-colors relative overflow-hidden",
                                     inMonth ? "bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700" : "bg-gray-50 dark:bg-gray-900/40 border-transparent opacity-60",
                                     today ? "ring-2 ring-indigo-500/50" : "",
-                                    absent || walkInAbsent ? "bg-red-50/50 dark:bg-red-900/10 border-red-100 dark:border-red-900/30" : ""
+                                    absent ? "bg-red-50/50 dark:bg-red-900/10 border-red-100 dark:border-red-900/30" : ""
                                 )}
                             >
                                 <div className="flex items-center justify-between">
@@ -406,14 +265,14 @@ export const Reception = () => {
                                     {!closed && (
                                         <div className={cn(
                                             "text-[11px] font-bold truncate flex items-center gap-1.5",
-                                            walkInAbsent ? "text-red-600 dark:text-red-400" : "text-gray-700 dark:text-gray-300"
+                                            absent ? "text-red-600 dark:text-red-400" : "text-gray-700 dark:text-gray-300"
                                         )}>
-                                            {`Laufkundschaft: ${walkInAssignee || '-'}`}
-                                            {walkInAbsent && <AlertTriangle className="w-3.5 h-3.5 text-red-500" />}
+                                            {`Laufkundschaft: ${assignee || '-'}`}
+                                            {absent && <AlertTriangle className="w-3.5 h-3.5 text-red-500" />}
                                         </div>
                                     )}
 
-                                    {(absent || walkInAbsent) && !closed && (
+                                    {absent && !closed && (
                                         <div className="text-[10px] font-semibold text-red-500 mt-1 truncate">
                                             Vertretung nötig!
                                         </div>
