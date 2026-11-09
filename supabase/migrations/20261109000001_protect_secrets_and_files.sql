@@ -35,6 +35,7 @@ update storage.buckets set public = false where id in ('absence_documents', 'doc
 
 -- Krankmeldungen und Unterschriften: eigene Dateien, Admins und Vorgesetzte
 drop policy if exists "Authenticated users can view absence documents" on storage.objects;
+drop policy if exists "Absence documents: owner, admins and supervisors" on storage.objects;
 create policy "Absence documents: owner, admins and supervisors"
   on storage.objects for select to authenticated
   using (
@@ -50,6 +51,7 @@ create policy "Absence documents: owner, admins and supervisors"
   );
 
 drop policy if exists "Users can delete their absence documents" on storage.objects;
+drop policy if exists "Absence documents: owner or admin can delete" on storage.objects;
 create policy "Absence documents: owner or admin can delete"
   on storage.objects for delete to authenticated
   using (

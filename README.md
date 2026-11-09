@@ -70,6 +70,10 @@ Zwei Migrationen in `supabase/migrations/` schließen Lücken aus Version 1. Rei
 1.  `20261109000000_security_hardening.sql` – sofort einspielbar, auch mit der alten App-Version. Sperrt jeden Zugriff ohne Login und verhindert, dass sich Nutzer selbst Rollen oder Freischaltung geben.
 2.  `20261109000001_protect_secrets_and_files.sql` – **erst einspielen, wenn Version 2.0 live ist.** Macht Webhook-Geheimnis und Todoist-Schlüssel nur für die eigene Person lesbar und stellt Krankmeldungen, Unterschriften und Dokumente auf kurz gültige Links um.
 
+3.  `20261109000002_restrict_helper_functions.sql` – jederzeit einspielbar. Interne Prüffunktionen nur noch für angemeldete Nutzer.
+
+Alle drei Dateien können gefahrlos mehrfach ausgeführt werden.
+
 Zusätzlich im Supabase-Dashboard unter Authentication → Passwortschutz den Abgleich mit geleakten Passwörtern einschalten.
 
 ## 🎨 Design (Version 2.0)

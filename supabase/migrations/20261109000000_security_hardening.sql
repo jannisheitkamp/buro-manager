@@ -87,6 +87,7 @@ drop policy if exists "Public status" on public.user_status;
 drop policy if exists "View polls" on public.polls;
 
 drop policy if exists "Users can view all call logs" on public.call_logs;
+drop policy if exists "Call logs viewable by authenticated users" on public.call_logs;
 create policy "Call logs viewable by authenticated users"
   on public.call_logs for select to authenticated using (true);
 
@@ -105,6 +106,7 @@ drop policy if exists "Vote polls" on public.poll_votes;
 -- Abzeichen werden nur per Trigger vergeben
 drop policy if exists "Users can manage badges" on public.user_badges;
 drop policy if exists "Everyone can read user_badges" on public.user_badges;
+drop policy if exists "Badges viewable by authenticated users" on public.user_badges;
 create policy "Badges viewable by authenticated users"
   on public.user_badges for select to authenticated using (true);
 
