@@ -1,509 +1,337 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { formatDistanceToNow, format } from 'date-fns';
+import { de } from 'date-fns/locale';
+import { Package, Plus, Check, Truck, Trash2, ExternalLink, MapPin } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 import { supabase } from '@/lib/supabase';
 import { useStore } from '@/store/useStore';
-import { Parcel, Profile } from '@/types';
-import { Package, Plus, Check, Search, Box, Truck, Trash2, Clock } from 'lucide-react';
-import { format } from 'date-fns';
-import { de } from 'date-fns/locale';
 import { Modal } from '@/components/Modal';
 import { ConfirmModal } from '@/components/ConfirmModal';
-import { toast } from 'react-hot-toast';
+import { Avatar, Badge, Button, EmptyState, Field, PageHeader, Segmented } from '@/components/ui';
 import { cn } from '@/utils/cn';
-import { motion, AnimatePresence } from 'framer-motion';
+
+type ParcelRow = {
+  id: string;
+  created_at: string;
+  recipient_id: string;
+  created_by: string;
+  carrier: string | null;
+  location: string;
+  status: 'pending' | 'collected' | 'expected';
+  collected_at: string | null;
+  tracking_number: string | null;
+  recipient?: { id: string; full_name: string | null; avatar_url: string | null } | null;
+};
+
+type Person = { id: string; full_name: string | null };
+
+const CARRIERS = ['DHL', 'DPD', 'Hermes', 'UPS', 'GLS', 'Amazon', 'Post'];
+const LOCATIONS = ['Empfang', 'Büro', 'Lager', 'Küche'];
+
+const trackingLink = (carrier: string | null, number: string | null) => {
+  if (!number) return null;
+  const n = encodeURIComponent(number);
+  const c = (carrier || '').toLowerCase();
+  if (c.includes('dhl')) return `https://www.dhl.de/de/privatkunden/pakete-empfangen/verfolgen.html?piececode=${n}`;
+  if (c.includes('ups')) return `https://www.ups.com/track?tracknum=${n}`;
+  if (c.includes('dpd')) return `https://tracking.dpd.de/status/de_DE/parcel/${n}`;
+  if (c.includes('gls')) return `https://gls-group.eu/DE/de/paketverfolgung?match=${n}`;
+  if (c.includes('hermes')) return `https://www.myhermes.de/empfangen/sendungsverfolgung/sendungsinformation#${n}`;
+  return `https://t.17track.net/de#nums=${n}`;
+};
+
+const COLLECTED_DAYS = 14;
 
 export const Parcels = () => {
-  const { user, profile } = useStore();
-  const [parcels, setParcels] = useState<Parcel[]>([]);
-  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const user = useStore((s) => s.user);
+  const isAdmin = useStore((s) => !!s.profile?.roles?.includes('admin'));
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [parcels, setParcels] = useState<ParcelRow[]>([]);
+  const [people, setPeople] = useState<Person[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'mine'>('all');
+  const timer = useRef<ReturnType<typeof setTimeout>>();
 
-  // Form State
+  // Formular
   const [recipientId, setRecipientId] = useState('');
   const [carrier, setCarrier] = useState('');
-  const [trackingNumber, setTrackingNumber] = useState(''); // New
+  const [trackingNumber, setTrackingNumber] = useState('');
   const [location, setLocation] = useState('Empfang');
   const [status, setStatus] = useState<'pending' | 'expected'>('pending');
 
-  const getTrackingLink = (carrier: string | null, number: string | null | undefined) => {
-      if (!number) return null;
-      const c = (carrier || '').toLowerCase();
-      
-      if (c.includes('dhl')) return `https://www.dhl.de/de/privatkunden/pakete-empfangen/verfolgen.html?piececode=${number}`;
-      if (c.includes('ups')) return `https://www.ups.com/track?tracknum=${number}`;
-      if (c.includes('dpd')) return `https://www.dpd.com/tracking/(lang)/de_DE?parcelnr=${number}`;
-      if (c.includes('gls')) return `https://gls-group.eu/DE/de/paketverfolgung?match=${number}`;
-      if (c.includes('hermes')) return `https://www.myhermes.de/empfangen/sendungsverfolgung/sendungsinformation#${number}`;
-      if (c.includes('amazon')) return `https://www.amazon.de/progress-tracker/package/ref=pt_redirect?itemId=${number}`; // Amazon often tricky, but this is a try
-      
-      // Fallback: 17TRACK (Auto-detect)
-      return `https://t.17track.net/de#nums=${number}`;
-  };
-
-  const fetchParcels = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('parcels')
-        .select(`
-          *,
-          profiles:recipient_id(*)
-        `)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      setParcels(data || []);
-    } catch (error) {
-      console.error('Error fetching parcels:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchProfiles = async () => {
-    const { data } = await supabase.from('profiles').select('*').order('full_name');
-    setProfiles(data || []);
-  };
-
-  useEffect(() => {
-    let timeoutId: NodeJS.Timeout;
-    const debouncedFetch = () => {
-        clearTimeout(timeoutId);
-        timeoutId = setTimeout(() => {
-            fetchParcels();
-        }, 500);
-    };
-
-    fetchParcels();
-    fetchProfiles();
-
-    const subscription = supabase
-      .channel('parcels')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'parcels' }, debouncedFetch)
-      .subscribe();
-
-    return () => {
-      clearTimeout(timeoutId);
-      supabase.removeChannel(subscription);
-    };
+  const fetchParcels = useCallback(async () => {
+    const since = new Date(Date.now() - COLLECTED_DAYS * 24 * 60 * 60 * 1000).toISOString();
+    const { data, error } = await supabase
+      .from('parcels')
+      .select('*, recipient:recipient_id(id, full_name, avatar_url)')
+      .or(`status.neq.collected,collected_at.gte.${since}`)
+      .order('created_at', { ascending: false });
+    if (error) toast.error('Pakete konnten nicht geladen werden.');
+    else setParcels((data as unknown as ParcelRow[]) || []);
+    setLoading(false);
   }, []);
 
-  const handleCreateParcel = async (e: React.FormEvent) => {
+  useEffect(() => {
+    fetchParcels();
+    supabase
+      .from('profiles')
+      .select('id, full_name, is_approved')
+      .order('full_name')
+      .then(({ data }) => setPeople((data || []).filter((p) => p.is_approved !== false)));
+
+    const channel = supabase
+      .channel('parcels-page')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'parcels' }, () => {
+        clearTimeout(timer.current);
+        timer.current = setTimeout(fetchParcels, 400);
+      })
+      .subscribe();
+    return () => {
+      clearTimeout(timer.current);
+      supabase.removeChannel(channel);
+    };
+  }, [fetchParcels]);
+
+  // "?new=1" aus der Übersicht öffnet direkt das Formular
+  useEffect(() => {
+    if (searchParams.get('new') === '1') {
+      setIsModalOpen(true);
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
+
+  const resetForm = () => {
+    setRecipientId('');
+    setCarrier('');
+    setTrackingNumber('');
+    setLocation('Empfang');
+    setStatus('pending');
+  };
+
+  const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
-
     setSubmitting(true);
-    try {
-      const { error } = await supabase.from('parcels').insert({
-        recipient_id: recipientId,
-        created_by: user.id,
-        carrier: carrier || 'Unbekannt',
-        tracking_number: trackingNumber, // New
-        location: status === 'expected' ? 'Unterwegs' : location,
-        status: status // 'pending' or 'expected'
-      });
-
-      if (error) throw error;
-
-      toast.success(status === 'expected' ? 'Paket angekündigt!' : 'Paket erfasst!');
-      setIsModalOpen(false);
-      setRecipientId('');
-      setCarrier('');
-      setTrackingNumber('');
-      setLocation('Empfang');
-      setStatus('pending');
-    } catch (error) {
-      console.error('Error creating parcel:', error);
-      toast.error('Fehler beim Erfassen.');
-    } finally {
-      setSubmitting(false);
+    const { error } = await supabase.from('parcels').insert({
+      recipient_id: recipientId,
+      created_by: user.id,
+      carrier: carrier.trim() || null,
+      tracking_number: trackingNumber.trim() || null,
+      location: status === 'expected' ? 'Unterwegs' : location,
+      status,
+    });
+    setSubmitting(false);
+    if (error) {
+      toast.error('Paket konnte nicht gespeichert werden.');
+      return;
     }
+    toast.success(status === 'expected' ? 'Paket angekündigt' : 'Paket erfasst');
+    setIsModalOpen(false);
+    resetForm();
+    fetchParcels();
   };
 
-  const handleCollect = async (parcelId: string) => {
-    try {
-      const { error } = await supabase
-        .from('parcels')
-        .update({ 
-            status: 'collected',
-            collected_at: new Date().toISOString()
-        })
-        .eq('id', parcelId);
-
-      if (error) throw error;
-      toast.success('Paket abgeholt markiert.');
-    } catch (error) {
-      console.error('Error updating parcel:', error);
-      toast.error('Fehler beim Aktualisieren.');
-    }
-  };
-  
-  const handleArrived = async (parcelId: string) => {
-    try {
-      const { error } = await supabase
-        .from('parcels')
-        .update({ 
-            status: 'pending',
-            location: 'Empfang', // Default to reception when arrived
-            created_at: new Date().toISOString() // Update timestamp to now
-        })
-        .eq('id', parcelId);
-
-      if (error) throw error;
-      toast.success('Paket ist jetzt da!');
-    } catch (error) {
-      console.error('Error updating parcel:', error);
-      toast.error('Fehler beim Aktualisieren.');
+  const update = async (id: string, values: Partial<ParcelRow>, message: string) => {
+    const { error } = await supabase.from('parcels').update(values).eq('id', id);
+    if (error) toast.error('Änderung konnte nicht gespeichert werden.');
+    else {
+      toast.success(message);
+      fetchParcels();
     }
   };
 
   const handleDelete = async () => {
     if (!deleteId) return;
-    try {
-        const { error } = await supabase.from('parcels').delete().eq('id', deleteId);
-        if (error) throw error;
-        toast.success('Eintrag gelöscht.');
-        setDeleteId(null);
-    } catch (error) {
-        console.error('Error deleting parcel:', error);
-        toast.error('Fehler beim Löschen.');
+    const { error } = await supabase.from('parcels').delete().eq('id', deleteId);
+    if (error) toast.error('Eintrag konnte nicht gelöscht werden.');
+    else {
+      toast.success('Eintrag gelöscht');
+      fetchParcels();
     }
+    setDeleteId(null);
   };
 
-  const filteredParcels = parcels.filter(p => {
-    if (filter === 'mine') return p.recipient_id === user?.id;
-    return true;
-  });
+  const visible = parcels.filter((p) => filter === 'all' || p.recipient_id === user?.id);
+  const ready = visible.filter((p) => p.status === 'pending');
+  const expected = visible.filter((p) => p.status === 'expected');
+  const collected = visible.filter((p) => p.status === 'collected');
+  const mineCount = parcels.filter((p) => p.recipient_id === user?.id && p.status === 'pending').length;
 
-  const pendingCount = parcels.filter(p => p.status === 'pending').length;
-  const expectedCount = parcels.filter(p => p.status === 'expected').length;
+  const Row = ({ p }: { p: ParcelRow }) => {
+    const mine = p.recipient_id === user?.id;
+    const link = trackingLink(p.carrier, p.tracking_number);
+    const canDelete = isAdmin || p.created_by === user?.id;
+    return (
+      <li className="group flex flex-col gap-3 px-5 py-3.5 sm:flex-row sm:items-center sm:px-6">
+        <div className="flex min-w-0 flex-1 items-center gap-3">
+          <Avatar name={p.recipient?.full_name} src={p.recipient?.avatar_url} size="sm" />
+          <div className="min-w-0">
+            <p className="flex flex-wrap items-center gap-2 text-sm">
+              <span className="font-medium text-gray-900 dark:text-white">{p.recipient?.full_name || 'Unbekannt'}</span>
+              {mine && p.status !== 'collected' && <Badge tone="warning">Für dich</Badge>}
+            </p>
+            <p className="flex flex-wrap items-center gap-x-2 text-xs text-gray-500">
+              <span>{p.carrier || 'Ohne Zusteller'}</span>
+              {p.status === 'pending' && (
+                <span className="flex items-center gap-1">
+                  <MapPin className="h-3 w-3" /> {p.location}
+                </span>
+              )}
+              <span>
+                {p.status === 'collected' && p.collected_at
+                  ? `abgeholt ${format(new Date(p.collected_at), 'dd.MM. HH:mm')}`
+                  : formatDistanceToNow(new Date(p.created_at), { locale: de, addSuffix: true })}
+              </span>
+              {link && (
+                <a href={link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 font-medium text-brand-700 hover:underline dark:text-brand-300">
+                  Sendung verfolgen <ExternalLink className="h-3 w-3" />
+                </a>
+              )}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-1.5 self-end sm:self-auto">
+          {p.status === 'expected' && (
+            <button type="button" onClick={() => update(p.id, { status: 'pending', location: 'Empfang', created_at: new Date().toISOString() }, 'Paket ist angekommen')} className="btn-secondary btn-sm">
+              <Package className="h-3.5 w-3.5" /> Ist angekommen
+            </button>
+          )}
+          {p.status === 'pending' && (
+            <button type="button" onClick={() => update(p.id, { status: 'collected', collected_at: new Date().toISOString() }, 'Als abgeholt markiert')} className={mine ? 'btn-primary btn-sm' : 'btn-secondary btn-sm'}>
+              <Check className="h-3.5 w-3.5" /> Abgeholt
+            </button>
+          )}
+          {canDelete && (
+            <button type="button" onClick={() => setDeleteId(p.id)} className="btn-icon p-1.5 opacity-60 hover:!text-red-600 group-hover:opacity-100" aria-label="Eintrag löschen" title="Löschen">
+              <Trash2 className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+      </li>
+    );
+  };
 
-  const isAdmin = profile?.roles?.includes('admin');
+  const Section = ({ title, items, empty, muted }: { title: string; items: ParcelRow[]; empty?: string; muted?: boolean }) =>
+    items.length === 0 && !empty ? null : (
+      <section className={cn('card overflow-hidden', muted && 'opacity-80')}>
+        <h2 className="flex items-center justify-between border-b border-gray-100 px-5 py-3 text-sm font-semibold text-gray-900 dark:border-gray-700 dark:text-white sm:px-6">
+          {title}
+          <span className="tabular text-xs font-normal text-gray-500">{items.length}</span>
+        </h2>
+        {items.length === 0 ? (
+          <p className="px-6 py-6 text-sm text-gray-500">{empty}</p>
+        ) : (
+          <ul className="divide-y divide-gray-100 dark:divide-gray-700/70">
+            {items.map((p) => (
+              <Row key={p.id} p={p} />
+            ))}
+          </ul>
+        )}
+      </section>
+    );
 
   return (
-    <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-8">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <motion.h1 
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-400 flex items-center gap-3"
-          >
-            <Package className="w-8 h-8 text-indigo-600" />
-            Paketstation
-          </motion.h1>
-          <motion.div 
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.1 }}
-            className="flex items-center gap-4 mt-2"
-          >
-            <div className="flex items-center gap-2 text-sm font-medium text-gray-500 dark:text-gray-400">
-                <span className="flex items-center gap-1.5 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 px-2 py-1 rounded-lg">
-                    <Box className="w-3.5 h-3.5" /> {pendingCount} am Empfang
-                </span>
-                {expectedCount > 0 && (
-                    <span className="flex items-center gap-1.5 bg-yellow-50 dark:bg-yellow-900/20 text-yellow-600 dark:text-yellow-400 px-2 py-1 rounded-lg">
-                        <Truck className="w-3.5 h-3.5" /> {expectedCount} erwartet
-                    </span>
-                )}
-            </div>
-          </motion.div>
+    <div className="space-y-6">
+      <PageHeader
+        title="Pakete"
+        description="Was im Büro angekommen ist, was noch unterwegs ist und wer es abholen muss."
+        actions={
+          <Button icon={Plus} onClick={() => setIsModalOpen(true)}>
+            Paket erfassen
+          </Button>
+        }
+      >
+        <Segmented
+          value={filter}
+          onChange={(v) => setFilter(v as 'all' | 'mine')}
+          options={[
+            { value: 'all', label: 'Alle' },
+            { value: 'mine', label: 'Für mich', count: mineCount },
+          ]}
+        />
+      </PageHeader>
+
+      {loading ? (
+        <p className="py-16 text-center text-sm text-gray-500">Pakete werden geladen</p>
+      ) : ready.length + expected.length + collected.length === 0 ? (
+        <div className="card">
+          <EmptyState
+            icon={Package}
+            title={filter === 'mine' ? 'Keine Pakete für dich' : 'Keine Pakete im Büro'}
+            description="Kommt eine Lieferung an, erfasse sie hier. Die Empfängerin oder der Empfänger wird benachrichtigt."
+            action={<Button icon={Plus} onClick={() => setIsModalOpen(true)}>Paket erfassen</Button>}
+          />
         </div>
-        
-        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
-             <motion.div 
-               initial={{ opacity: 0, scale: 0.9 }}
-               animate={{ opacity: 1, scale: 1 }}
-               transition={{ delay: 0.2 }}
-               className="flex bg-white/50 dark:bg-gray-800/50 backdrop-blur-md p-1.5 rounded-2xl border border-gray-100 dark:border-gray-700"
-             >
-                <button
-                    onClick={() => setFilter('all')}
-                    className={cn(
-                        "px-4 py-2 text-sm font-bold rounded-xl transition-all",
-                        filter === 'all' 
-                            ? "bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-lg shadow-gray-200/50 dark:shadow-none" 
-                            : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
-                    )}
-                >
-                    Alle
-                </button>
-                <button
-                    onClick={() => setFilter('mine')}
-                    className={cn(
-                        "px-4 py-2 text-sm font-bold rounded-xl transition-all",
-                        filter === 'mine' 
-                            ? "bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-lg shadow-gray-200/50 dark:shadow-none" 
-                            : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
-                    )}
-                >
-                    Meine
-                </button>
-             </motion.div>
-
-            <motion.button
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.3 }}
-              onClick={() => setIsModalOpen(true)}
-              className="flex-1 sm:flex-none group relative px-6 py-3 bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-semibold rounded-2xl shadow-lg shadow-indigo-500/30 hover:shadow-indigo-500/50 hover:scale-[1.02] transition-all flex items-center justify-center gap-2 overflow-hidden"
-            >
-              <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
-              <Plus className="w-5 h-5 relative z-10" />
-              <span className="relative z-10">Paket erfassen</span>
-            </motion.button>
+      ) : (
+        <div className="space-y-6">
+          <Section title="Liegt zur Abholung bereit" items={ready} empty="Gerade liegt nichts zur Abholung bereit." />
+          <Section title="Angekündigt" items={expected} />
+          <Section title={`Abgeholt (letzte ${COLLECTED_DAYS} Tage)`} items={collected} muted />
         </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <AnimatePresence>
-            {loading ? (
-                <div className="col-span-full py-20 text-center text-gray-400">Lade Pakete...</div>
-            ) : filteredParcels.length === 0 ? (
-                <motion.div 
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="col-span-full text-center py-20"
-                >
-                    <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gray-100 dark:bg-gray-800 mb-4">
-                        <Search className="w-10 h-10 text-gray-400" />
-                    </div>
-                    <p className="text-xl text-gray-500 font-medium">Keine Pakete gefunden.</p>
-                </motion.div>
-            ) : (
-                filteredParcels.map((parcel, index) => {
-                    const isMine = parcel.recipient_id === user?.id;
-                    const isCreator = parcel.created_by === user?.id;
-                    const isPending = parcel.status === 'pending';
-                    const isExpected = parcel.status === 'expected';
-                    const isCollected = parcel.status === 'collected';
-
-                    return (
-                        <motion.div 
-                            key={parcel.id} 
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: index * 0.05 }}
-                            layout
-                            className={cn(
-                                "bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-3xl p-6 border shadow-xl transition-all relative overflow-hidden group hover:-translate-y-1",
-                                isPending ? "border-indigo-100 dark:border-indigo-900/30" : 
-                                isExpected ? "border-yellow-100 dark:border-yellow-900/30 bg-yellow-50/50 dark:bg-yellow-900/10" :
-                                "border-gray-100 dark:border-gray-700 opacity-60 hover:opacity-100"
-                            )}
-                        >
-                            {isPending && isMine && (
-                                <div className="absolute top-0 right-0 bg-indigo-600 text-white text-[10px] font-black tracking-wider px-3 py-1 rounded-bl-2xl shadow-sm z-10">
-                                    FÜR DICH
-                                </div>
-                            )}
-                            {isExpected && (
-                                <div className="absolute top-0 right-0 bg-yellow-500 text-white text-[10px] font-black tracking-wider px-3 py-1 rounded-bl-2xl flex items-center gap-1 shadow-sm z-10">
-                                    <Clock className="w-3 h-3" /> ERWARTET
-                                </div>
-                            )}
-
-                            <div className="flex items-start justify-between mb-6">
-                                <div className="flex items-center gap-4">
-                                     <div className={cn(
-                                         "w-12 h-12 rounded-2xl flex items-center justify-center shadow-inner",
-                                         isPending ? "bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400" : 
-                                         isExpected ? "bg-yellow-100 dark:bg-yellow-900/20 text-yellow-600 dark:text-yellow-400" :
-                                         "bg-gray-100 dark:bg-gray-700 text-gray-400"
-                                     )}>
-                                         {isExpected ? <Truck className="w-6 h-6" /> : <Box className="w-6 h-6" />}
-                                     </div>
-                                     <div>
-                                         <p className="font-bold text-gray-900 dark:text-white text-lg leading-tight">
-                                             {parcel.profiles?.full_name || 'Unbekannt'}
-                                         </p>
-                                         <p className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-1.5 mt-0.5">
-                                            <Truck className="w-3.5 h-3.5" /> {parcel.carrier}
-                                            {parcel.tracking_number && (
-                                                <a 
-                                                    href={getTrackingLink(parcel.carrier, parcel.tracking_number) || '#'} 
-                                                    target="_blank" 
-                                                    rel="noopener noreferrer"
-                                                    className="ml-2 text-indigo-600 dark:text-indigo-400 hover:underline text-xs font-bold"
-                                                    onClick={(e) => e.stopPropagation()}
-                                                >
-                                                    Verfolgen &rarr;
-                                                </a>
-                                            )}
-                                         </p>
-                                     </div>
-                                </div>
-                                
-                                {(isCreator || isAdmin || isCollected) && (
-                                    <button 
-                                        onClick={() => setDeleteId(parcel.id)}
-                                        className="text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 p-2 rounded-xl transition-all opacity-0 group-hover:opacity-100"
-                                        title="Eintrag löschen"
-                                    >
-                                        <Trash2 className="w-5 h-5" />
-                                    </button>
-                                )}
-                            </div>
-
-                            <div className="bg-white/50 dark:bg-gray-700/30 rounded-2xl p-4 mb-6 space-y-2 border border-gray-100 dark:border-gray-600/30">
-                                <div className="flex justify-between text-sm">
-                                    <span className="text-gray-500 dark:text-gray-400 font-medium">Ort:</span>
-                                    <span className="font-bold text-gray-900 dark:text-white">{parcel.location}</span>
-                                </div>
-                                <div className="flex justify-between text-sm">
-                                    <span className="text-gray-500 dark:text-gray-400 font-medium">{isExpected ? 'Erstellt:' : 'Eingetroffen:'}</span>
-                                    <span className="text-gray-700 dark:text-gray-300 font-mono">{format(new Date(parcel.created_at), 'dd.MM. HH:mm', { locale: de })}</span>
-                                </div>
-                                {isCollected && parcel.collected_at && (
-                                    <div className="flex justify-between text-sm pt-2 border-t border-gray-200 dark:border-gray-600/50">
-                                        <span className="text-gray-500 dark:text-gray-400 font-medium">Abgeholt:</span>
-                                        <span className="text-green-600 dark:text-green-400 font-mono font-bold">{format(new Date(parcel.collected_at), 'dd.MM. HH:mm', { locale: de })}</span>
-                                    </div>
-                                )}
-                            </div>
-
-                            <div className="mt-auto">
-                                {isExpected ? (
-                                    <button
-                                    onClick={() => handleArrived(parcel.id)}
-                                    className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition-all shadow-lg shadow-indigo-500/30 hover:shadow-indigo-500/50 hover:scale-[1.02] flex items-center justify-center gap-2"
-                                    >
-                                    <Box className="w-4 h-4" /> Ist jetzt da
-                                    </button>
-                                ) : isPending ? (
-                                    <button
-                                        onClick={() => handleCollect(parcel.id)}
-                                        className="w-full py-3 bg-gray-900 hover:bg-gray-800 dark:bg-white dark:hover:bg-gray-100 text-white dark:text-gray-900 rounded-xl text-sm font-bold transition-all shadow-lg hover:scale-[1.02] flex items-center justify-center gap-2"
-                                    >
-                                        <Check className="w-4 h-4" /> Als abgeholt markieren
-                                    </button>
-                                ) : (
-                                    <div className="w-full py-3 bg-gray-100 dark:bg-gray-700/50 text-gray-400 dark:text-gray-500 rounded-xl text-sm font-bold text-center cursor-default border border-gray-200 dark:border-gray-700 flex items-center justify-center gap-2">
-                                        <Check className="w-4 h-4" /> Erledigt
-                                    </div>
-                                )}
-                            </div>
-                        </motion.div>
-                    );
-                })
-            )}
-        </AnimatePresence>
-      </div>
+      )}
 
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title="Paket"
-      >
-        <form onSubmit={handleCreateParcel} className="space-y-6">
-          
-          <div className="flex p-1.5 bg-gray-100 dark:bg-gray-700 rounded-xl mb-6">
-             <button
-                type="button"
-                onClick={() => setStatus('pending')}
-                className={cn(
-                    "flex-1 py-2 text-sm font-bold rounded-lg transition-all",
-                    status === 'pending' 
-                        ? "bg-white dark:bg-gray-600 shadow-md text-indigo-600 dark:text-indigo-400" 
-                        : "text-gray-500 dark:text-gray-400 hover:text-gray-700"
-                )}
-             >
-                Ist da (Empfang)
-             </button>
-             <button
-                type="button"
-                onClick={() => setStatus('expected')}
-                className={cn(
-                    "flex-1 py-2 text-sm font-bold rounded-lg transition-all",
-                    status === 'expected' 
-                        ? "bg-white dark:bg-gray-600 shadow-md text-indigo-600 dark:text-indigo-400" 
-                        : "text-gray-500 dark:text-gray-400 hover:text-gray-700"
-                )}
-             >
-                Ankündigen
-             </button>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
-              Empfänger
-            </label>
-            <select
-              required
-              value={recipientId}
-              onChange={(e) => setRecipientId(e.target.value)}
-              className="w-full rounded-xl border-transparent bg-gray-50/50 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 px-4 py-3 text-sm transition-all"
-            >
-              <option value="">Bitte wählen...</option>
-              {profiles.map(p => (
-                  <option key={p.id} value={p.id}>{p.full_name}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
-              Lieferdienst / Info
-            </label>
-            <input
-              type="text"
-              value={carrier}
-              onChange={(e) => setCarrier(e.target.value)}
-              placeholder="z.B. DHL, UPS, Amazon"
-              className="w-full rounded-xl border-transparent bg-gray-50/50 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 px-4 py-3 text-sm transition-all"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
-              Sendungsnummer (Optional)
-            </label>
-            <input
-              type="text"
-              value={trackingNumber}
-              onChange={(e) => setTrackingNumber(e.target.value)}
-              placeholder="z.B. 00340434..."
-              className="w-full rounded-xl border-transparent bg-gray-50/50 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 px-4 py-3 text-sm transition-all"
-            />
-          </div>
-
-          {status === 'pending' && (
-            <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
-                Ablageort
-                </label>
-                <select
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
-                className="w-full rounded-xl border-transparent bg-gray-50/50 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 px-4 py-3 text-sm transition-all"
-                >
-                <option value="Empfang">Empfang</option>
-                <option value="Poststelle">Poststelle</option>
-                <option value="Lager">Lager</option>
-                <option value="Küche">Küche</option>
-                </select>
-            </div>
-          )}
-
-          <div className="flex justify-end gap-3 pt-2">
-            <button
-              type="button"
-              onClick={() => setIsModalOpen(false)}
-              className="px-6 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
-            >
+        title="Paket erfassen"
+        footer={
+          <>
+            <button type="button" onClick={() => setIsModalOpen(false)} className="btn-secondary">
               Abbrechen
             </button>
-            <button
-              type="submit"
-              disabled={submitting}
-              className="px-6 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-lg shadow-indigo-500/30 transition-all hover:scale-[1.02] disabled:opacity-50 disabled:hover:scale-100"
-            >
-              {submitting ? 'Speichere...' : (status === 'expected' ? 'Ankündigen' : 'Erfassen')}
-            </button>
-          </div>
+            <Button type="submit" form="parcel-form" loading={submitting}>
+              {status === 'expected' ? 'Paket ankündigen' : 'Paket erfassen'}
+            </Button>
+          </>
+        }
+      >
+        <form id="parcel-form" onSubmit={handleCreate} className="space-y-4">
+          <Segmented
+            value={status}
+            onChange={(v) => setStatus(v as 'pending' | 'expected')}
+            options={[
+              { value: 'pending', label: 'Ist angekommen', icon: Package },
+              { value: 'expected', label: 'Wird erwartet', icon: Truck },
+            ]}
+          />
+          <Field label="Für wen?" htmlFor="parcel-recipient">
+            <select id="parcel-recipient" required value={recipientId} onChange={(e) => setRecipientId(e.target.value)} className="input">
+              <option value="" disabled>
+                Person auswählen
+              </option>
+              {people.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.full_name}
+                  {p.id === user?.id ? ' (ich)' : ''}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Zusteller" htmlFor="parcel-carrier">
+            <input id="parcel-carrier" list="carriers" value={carrier} onChange={(e) => setCarrier(e.target.value)} className="input" placeholder="z. B. DHL" />
+            <datalist id="carriers">
+              {CARRIERS.map((c) => (
+                <option key={c} value={c} />
+              ))}
+            </datalist>
+          </Field>
+          <Field label="Sendungsnummer" htmlFor="parcel-tracking" hint="Optional. Damit lässt sich die Sendung direkt verfolgen.">
+            <input id="parcel-tracking" value={trackingNumber} onChange={(e) => setTrackingNumber(e.target.value)} className="input font-mono" />
+          </Field>
+          {status === 'pending' && (
+            <Field label="Wo liegt es?" htmlFor="parcel-location">
+              <input id="parcel-location" list="locations" value={location} onChange={(e) => setLocation(e.target.value)} className="input" />
+              <datalist id="locations">
+                {LOCATIONS.map((l) => (
+                  <option key={l} value={l} />
+                ))}
+              </datalist>
+            </Field>
+          )}
         </form>
       </Modal>
 
@@ -511,8 +339,8 @@ export const Parcels = () => {
         isOpen={!!deleteId}
         onClose={() => setDeleteId(null)}
         onConfirm={handleDelete}
-        title="Paket-Eintrag löschen"
-        message="Möchten Sie diesen Eintrag wirklich löschen?"
+        title="Eintrag löschen?"
+        message="Der Paketeintrag wird entfernt."
         confirmText="Löschen"
         isDestructive
       />

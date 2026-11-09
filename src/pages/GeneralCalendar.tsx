@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { PageHeader, Segmented, Button, IconButton } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
 import { useStore } from '@/store/useStore';
 import { format, startOfWeek, addDays, startOfMonth, endOfMonth, endOfWeek, isSameMonth, isSameDay, addMonths, subMonths, isToday } from 'date-fns';
@@ -368,84 +369,58 @@ export const GeneralCalendar = () => {
   ];
 
   const renderHeader = () => {
+    const prev = () => (viewMode === 'month' ? setCurrentDate(subMonths(currentDate, 1)) : setCurrentDate(addDays(currentDate, -7)));
+    const next = () => (viewMode === 'month' ? setCurrentDate(addMonths(currentDate, 1)) : setCurrentDate(addDays(currentDate, 7)));
     return (
-      <div className="flex flex-col gap-6 mb-8">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="flex items-center gap-6">
-                <div className="flex items-center gap-2">
-                    <button onClick={() => {
-                        if (viewMode === 'month') setCurrentDate(subMonths(currentDate, 1));
-                        else setCurrentDate(addDays(currentDate, -7));
-                    }} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"><ChevronLeft className="w-5 h-5 text-gray-600 dark:text-gray-300" /></button>
-                    <h2 className="text-2xl font-bold text-gray-900 dark:text-white capitalize min-w-[180px] text-center">
-                        {viewMode === 'month' 
-                            ? format(currentDate, 'MMMM yyyy', { locale: de })
-                            : `KW ${format(currentDate, 'w')}`
-                        }
-                    </h2>
-                    <button onClick={() => {
-                        if (viewMode === 'month') setCurrentDate(addMonths(currentDate, 1));
-                        else setCurrentDate(addDays(currentDate, 7));
-                    }} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"><ChevronRight className="w-5 h-5 text-gray-600 dark:text-gray-300" /></button>
-                </div>
-                <button onClick={() => setCurrentDate(new Date())} className="px-4 py-1.5 text-sm font-medium text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full transition-colors hidden sm:block">
-                    Heute
-                </button>
-            </div>
-
-            <div className="flex items-center gap-3">
-                <div className="bg-gray-100/80 dark:bg-gray-800/80 p-1 rounded-full flex backdrop-blur-sm">
-                    <button 
-                        onClick={() => setViewMode('month')}
-                        className={cn(
-                            "px-4 py-1.5 text-sm font-medium rounded-full transition-all flex items-center gap-2",
-                            viewMode === 'month' ? "bg-white dark:bg-gray-700 shadow-sm text-indigo-600 dark:text-indigo-400" : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
-                        )}
-                    >
-                        <CalendarIcon className="w-4 h-4" />
-                        <span className="hidden sm:inline">Monat</span>
-                    </button>
-                    <button 
-                        onClick={() => setViewMode('week')}
-                        className={cn(
-                            "px-4 py-1.5 text-sm font-medium rounded-full transition-all flex items-center gap-2",
-                            viewMode === 'week' ? "bg-white dark:bg-gray-700 shadow-sm text-indigo-600 dark:text-indigo-400" : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
-                        )}
-                    >
-                        <List className="w-4 h-4" />
-                        <span className="hidden sm:inline">Woche</span>
-                    </button>
-                </div>
-
+      <div className="space-y-5">
+        <PageHeader
+          className="mb-0 sm:mb-0"
+          title="Kalender"
+          description="Termine des Teams, Urlaube und Feiertage auf einen Blick."
+          actions={
+            <>
+              <Segmented
+                value={viewMode}
+                onChange={(v) => setViewMode(v as 'month' | 'week')}
+                options={[
+                  { value: 'month', label: 'Monat', icon: CalendarIcon },
+                  { value: 'week', label: 'Woche', icon: List },
+                ]}
+              />
+              <Button icon={Plus} onClick={() => openNewEventModal(new Date())}>Termin anlegen</Button>
+            </>
+          }
+        />
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-1">
+            <IconButton icon={ChevronLeft} label={viewMode === 'month' ? 'Vorheriger Monat' : 'Vorherige Woche'} onClick={prev} />
+            <h2 className="min-w-[10rem] text-center text-lg font-semibold capitalize text-gray-900 dark:text-white">
+              {viewMode === 'month' ? format(currentDate, 'MMMM yyyy', { locale: de }) : `Kalenderwoche ${format(currentDate, 'w', { locale: de })}`}
+            </h2>
+            <IconButton icon={ChevronRight} label={viewMode === 'month' ? 'Nächster Monat' : 'Nächste Woche'} onClick={next} />
+            <button type="button" onClick={() => setCurrentDate(new Date())} className="btn-ghost btn-sm ml-1">Heute</button>
+          </div>
+          <div className="no-scrollbar -mx-4 flex items-center gap-1.5 overflow-x-auto px-4 sm:mx-0 sm:px-0" role="group" aria-label="Kategorien filtern">
+            <Filter className="mr-1 h-4 w-4 shrink-0 text-gray-400" />
+            {CATEGORIES.map(cat => {
+              const on = activeFilters.includes(cat.id);
+              return (
                 <button
-                    onClick={() => openNewEventModal(new Date())}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white p-2 sm:px-4 sm:py-2 rounded-full flex items-center gap-2 shadow-lg shadow-indigo-500/20 transition-all hover:scale-105 active:scale-95"
+                  key={cat.id}
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() => toggleFilter(cat.id)}
+                  className={cn(
+                    'flex shrink-0 items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors',
+                    on ? 'border-gray-200 bg-white text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100' : 'border-transparent text-gray-400 line-through'
+                  )}
                 >
-                    <Plus className="w-5 h-5" /> <span className="hidden sm:inline font-medium">Neuer Termin</span>
+                  <span className={cn('h-2 w-2 rounded-full', cat.color, !on && 'opacity-40')} />
+                  {cat.label}
                 </button>
-            </div>
-        </div>
-
-        {/* Filter Bar */}
-        <div className="flex items-center gap-3 overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0 hide-scrollbar">
-            <div className="p-1.5 bg-gray-50 dark:bg-gray-800 rounded-full text-gray-400">
-                <Filter className="w-4 h-4" />
-            </div>
-            {CATEGORIES.map(cat => (
-                <button
-                    key={cat.id}
-                    onClick={() => toggleFilter(cat.id)}
-                    className={cn(
-                        "px-4 py-1.5 rounded-full text-xs font-medium flex items-center gap-2 transition-all border shrink-0",
-                        activeFilters.includes(cat.id) 
-                            ? "bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-sm opacity-100"
-                            : "bg-transparent border-transparent opacity-40 hover:opacity-70 grayscale"
-                    )}
-                >
-                    <span className={cn("w-2 h-2 rounded-full ring-2 ring-white dark:ring-gray-900 shadow-sm", cat.color)} />
-                    {cat.label}
-                </button>
-            ))}
+              );
+            })}
+          </div>
         </div>
       </div>
     );
@@ -453,17 +428,17 @@ export const GeneralCalendar = () => {
 
   const renderDays = () => {
     const days = [];
-    const dateFormat = "EEEE";
+    const dateFormat = "EEEEEE";
     const startDate = startOfWeek(currentDate, { weekStartsOn: 1 });
 
     for (let i = 0; i < 7; i++) {
       days.push(
-        <div key={i} className="text-center text-xs font-semibold text-gray-400 uppercase tracking-wider py-4">
-          {format(addDays(startDate, i), dateFormat, { locale: de }).substring(0, 3)}
+        <div key={i} className="py-2.5 text-center text-xs font-medium text-gray-500">
+          {format(addDays(startDate, i), dateFormat, { locale: de })}
         </div>
       );
     }
-    return <div className="grid grid-cols-7 mb-2">{days}</div>;
+    return <div className="grid grid-cols-7 rounded-t-2xl border border-b-0 border-gray-200 bg-white dark:border-gray-700/70 dark:bg-gray-800">{days}</div>;
   };
 
   const renderCells = () => {
@@ -490,10 +465,10 @@ export const GeneralCalendar = () => {
           <div
             key={day.toString()}
             className={cn(
-                "min-h-[120px] p-2 transition-all relative group border-t border-r border-gray-50 dark:border-gray-800/50 hover:bg-gray-50/50 dark:hover:bg-gray-800/30",
-                !isSameMonth(day, monthStart) && "opacity-30 grayscale",
-                (isWknd || isHoliday) && isSameMonth(day, monthStart) && "bg-gray-50/80 dark:bg-gray-800/50",
-                i === 0 && "border-l", // Left border for first column
+                "min-h-[6.5rem] sm:min-h-[7.5rem] p-1.5 sm:p-2 transition-colors relative group border-t border-r border-gray-100 dark:border-gray-700/60 hover:bg-gray-50/60 dark:hover:bg-gray-700/20",
+                !isSameMonth(day, monthStart) && "opacity-40",
+                (isWknd || isHoliday) && isSameMonth(day, monthStart) && "bg-gray-50/80 dark:bg-gray-900/30",
+                
                 i === 6 && "border-r-0" // No right border for last column
             )}
             onClick={() => setSelectedDate(cloneDay)}
@@ -502,7 +477,7 @@ export const GeneralCalendar = () => {
                 <span className={cn(
                     "text-sm font-medium w-8 h-8 flex items-center justify-center rounded-full transition-all",
                     isToday(day) 
-                        ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/30 scale-110" 
+                        ? "bg-brand-600 text-white" 
                         : "text-gray-700 dark:text-gray-300 group-hover:bg-gray-100 dark:group-hover:bg-gray-700",
                     isHoliday && !isToday(day) ? "text-red-500 dark:text-red-400" : ""
                 )}>
@@ -548,7 +523,7 @@ export const GeneralCalendar = () => {
             {/* Hover Plus */}
             <button 
                 onClick={(e) => { e.stopPropagation(); openNewEventModal(cloneDay); }}
-                className="hidden sm:flex absolute bottom-2 right-2 w-6 h-6 items-center justify-center rounded-full bg-indigo-50 text-indigo-600 opacity-0 group-hover:opacity-100 transition-all hover:scale-110"
+                className="hidden sm:flex absolute bottom-2 right-2 w-6 h-6 items-center justify-center rounded-full bg-indigo-50 text-indigo-600 opacity-0 group-hover:opacity-100 transition-all"
             >
                 <Plus className="w-3.5 h-3.5" />
             </button>
@@ -563,7 +538,7 @@ export const GeneralCalendar = () => {
       );
       days = [];
     }
-    return <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden">{rows}</div>;
+    return <div className="overflow-hidden rounded-b-2xl border border-gray-200 bg-white dark:border-gray-700/70 dark:bg-gray-800">{rows}</div>;
   };
 
   const renderWeekView = () => {
@@ -574,10 +549,10 @@ export const GeneralCalendar = () => {
           const d = addDays(startDate, i);
           days.push(
               <div key={i} className="flex-1 text-center py-4 min-w-[120px] border-b border-gray-100 dark:border-gray-800">
-                  <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">{format(d, 'EEE', { locale: de })}</div>
+                  <div className="text-xs font-semibold text-gray-400 mb-1">{format(d, 'EEE', { locale: de })}</div>
                   <div className={cn(
                       "text-xl font-bold w-10 h-10 flex items-center justify-center rounded-full mx-auto transition-all",
-                      isToday(d) ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/30" : "text-gray-900 dark:text-white"
+                      isToday(d) ? "bg-indigo-600 text-white shadow-lg" : "text-gray-900 dark:text-white"
                   )}>
                       {format(d, 'd')}
                   </div>
@@ -591,7 +566,7 @@ export const GeneralCalendar = () => {
           <div className="flex flex-col h-[calc(100vh-250px)] bg-white dark:bg-gray-900 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden">
               <div className="overflow-x-auto flex-1 flex flex-col custom-scrollbar">
                   <div className="min-w-[800px] flex flex-col flex-1">
-                      <div className="flex sticky top-0 z-30 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border-b border-gray-100 dark:border-gray-800">
+                      <div className="flex sticky top-0 z-30 bg-white/95 dark:bg-gray-900/95 border-b border-gray-100 dark:border-gray-800">
                           <div className="w-16 flex-shrink-0"></div>
                           {days}
                       </div>
@@ -615,7 +590,7 @@ export const GeneralCalendar = () => {
                                   return (
                                       <div key={dayIdx} className="flex-1 border-r border-gray-50 dark:border-gray-800/50 last:border-r-0 relative group min-w-[120px]">
                                           {isHoliday && (
-                                              <div className="absolute top-0 left-0 right-0 z-10 px-2 py-1 text-center bg-red-50/80 dark:bg-red-900/20 text-red-700 dark:text-red-400 text-xs font-bold border-b border-red-100 dark:border-red-900/30 backdrop-blur-sm">
+                                              <div className="absolute top-0 left-0 right-0 z-10 px-2 py-1 text-center bg-red-50/80 dark:bg-red-900/20 text-red-700 dark:text-red-400 text-xs font-bold border-b border-red-100 dark:border-red-900/30">
                                                   🎉 {holidayName}
                                               </div>
                                           )}
@@ -672,7 +647,7 @@ export const GeneralCalendar = () => {
                                                       onDragStart={() => setDraggingEvent(ev)}
                                                       onClick={(e) => { e.stopPropagation(); openEditModal(ev); }}
                                                       className={cn(
-                                                          "absolute left-1 right-1 rounded-2xl px-3 py-1.5 text-xs cursor-pointer transition-all shadow-sm z-10 overflow-hidden group hover:scale-[1.02] hover:shadow-md hover:z-20 border-l-4",
+                                                          "absolute left-1 right-1 rounded-2xl px-3 py-1.5 text-xs cursor-pointer transition-all shadow-sm z-10 overflow-hidden group hover:scale-[1.02] hover:border-gray-300 dark:hover:border-gray-600 hover:z-20 border-l-4",
                                                           draggingEvent?.id === ev.id ? "opacity-50" : "",
                                                           ev.color === 'red' ? "bg-red-50 text-red-700 border-red-400 dark:bg-red-900/30 dark:text-red-200" :
                                                           ev.color === 'green' ? "bg-green-50 text-green-700 border-green-400 dark:bg-green-900/30 dark:text-green-200" :
@@ -706,8 +681,10 @@ export const GeneralCalendar = () => {
         {renderHeader()}
         {viewMode === 'month' ? (
             <>
-                {renderDays()}
-                {renderCells()}
+                <div>
+                  {renderDays()}
+                  {renderCells()}
+                </div>
             </>
         ) : (
             renderWeekView()
@@ -735,7 +712,7 @@ export const GeneralCalendar = () => {
                     </div>
                 )}
                 <div>
-                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Titel</label>
+                    <label className="block text-xs font-semibold text-gray-500 mb-1.5">Titel</label>
                     <input
                         required
                         type="text"
@@ -748,7 +725,7 @@ export const GeneralCalendar = () => {
                 
                 <div className="grid grid-cols-2 gap-4">
                     <div>
-                        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Von</label>
+                        <label className="block text-xs font-semibold text-gray-500 mb-1.5">Von</label>
                         <div className="relative">
                             <Clock className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
                             <input
@@ -760,7 +737,7 @@ export const GeneralCalendar = () => {
                         </div>
                     </div>
                     <div>
-                        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Bis</label>
+                        <label className="block text-xs font-semibold text-gray-500 mb-1.5">Bis</label>
                         <div className="relative">
                             <Clock className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
                             <input
@@ -774,7 +751,7 @@ export const GeneralCalendar = () => {
                 </div>
 
                 <div>
-                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Ort</label>
+                    <label className="block text-xs font-semibold text-gray-500 mb-1.5">Ort</label>
                     <div className="relative">
                         <MapPin className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
                         <input
@@ -788,7 +765,7 @@ export const GeneralCalendar = () => {
                 </div>
 
                 <div>
-                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Beschreibung</label>
+                    <label className="block text-xs font-semibold text-gray-500 mb-1.5">Beschreibung</label>
                     <div className="relative">
                         <AlignLeft className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
                         <textarea
@@ -802,7 +779,7 @@ export const GeneralCalendar = () => {
                 </div>
 
                 <div>
-                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Kategorie</label>
+                    <label className="block text-xs font-semibold text-gray-500 mb-2">Kategorie</label>
                     <div className="flex gap-2 flex-wrap">
                         {CATEGORIES.map(cat => (
                             <button
@@ -837,7 +814,7 @@ export const GeneralCalendar = () => {
                     
                     <div className="flex gap-3">
                         <button type="button" onClick={() => setIsModalOpen(false)} className="px-5 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-xl transition-colors">Abbrechen</button>
-                        <button type="submit" disabled={submitting} className="px-6 py-2.5 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-lg shadow-indigo-500/30 transition-all hover:scale-105 active:scale-95">
+                        <button type="submit" disabled={submitting} className="px-6 py-2.5 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-sm transition-all">
                             {editingEvent ? 'Speichern' : 'Erstellen'}
                         </button>
                     </div>

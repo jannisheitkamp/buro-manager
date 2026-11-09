@@ -1,5 +1,9 @@
 import { useEffect, useState } from 'react';
+import { openStoredFile } from '@/lib/storage';
+import { Avatar } from '@/components/ui';
+import { PageHeader, Button } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
+import { PROFILE_COLUMNS } from '@/lib/profiles';
 import { Absence, Profile } from '@/types';
 import { useStore } from '@/store/useStore';
 import { format, parseISO, isAfter, startOfDay } from 'date-fns';
@@ -43,7 +47,7 @@ export const Calendar = () => {
     try {
       const { data, error } = await supabase
         .from('absences')
-        .select('*, profiles(*)')
+        .select(`*, profiles(${PROFILE_COLUMNS})`)
         .order('start_date', { ascending: true });
 
       if (error) throw error;
@@ -98,11 +102,8 @@ export const Calendar = () => {
 
         if (uploadError) throw uploadError;
         
-        const { data: { publicUrl } } = supabase.storage
-          .from('absence_documents')
-          .getPublicUrl(filePath);
-          
-        certificate_url = publicUrl;
+        // Nur den Pfad speichern; angezeigt wird über einen kurz gültigen Link
+        certificate_url = filePath;
       }
 
       // Upload signature if exists (for vacation)
@@ -121,11 +122,7 @@ export const Calendar = () => {
 
         if (uploadError) throw uploadError;
 
-        const { data: { publicUrl } } = supabase.storage
-          .from('absence_documents')
-          .getPublicUrl(filePath);
-          
-        signature_url = publicUrl;
+        signature_url = filePath;
       }
 
       // Auto-approve sick leave and seminar. Others pending.
@@ -360,31 +357,12 @@ export const Calendar = () => {
   );
 
   return (
-    <div className="max-w-7xl mx-auto space-y-8 pb-20">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
-        <motion.div 
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-        >
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
-                <div className="p-2 bg-indigo-100 dark:bg-indigo-900/30 rounded-xl">
-                    <Palmtree className="w-8 h-8 text-indigo-600 dark:text-indigo-400" />
-                </div>
-                Abwesenheiten
-            </h1>
-            <p className="text-gray-500 dark:text-gray-400 mt-2 ml-1">Verwalte Urlaubstage und Krankmeldungen.</p>
-        </motion.div>
-        
-        <motion.button
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          onClick={() => setIsModalOpen(true)}
-          className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-2xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-indigo-500/30 hover:scale-105 active:scale-95"
-        >
-          <Plus className="w-5 h-5" />
-          <span className="font-semibold">Antrag stellen</span>
-        </motion.button>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        title="Abwesenheiten"
+        description="Urlaub, Krankmeldungen, Seminare und Berufsschule beantragen und einsehen."
+        actions={<Button icon={Plus} onClick={() => setIsModalOpen(true)}>Abwesenheit eintragen</Button>}
+      />
 
       {/* Vacation Overview Cards */}
       <motion.div 
@@ -431,7 +409,7 @@ export const Calendar = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-3xl shadow-xl border border-white/20 dark:border-gray-700/50 p-6 sm:p-8"
+            className="bg-white dark:bg-gray-800 rounded-3xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 sm:p-8"
         >
           <h2 className="text-xl font-bold mb-6 text-gray-900 dark:text-white flex items-center gap-3">
               <div className="p-2 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg">
@@ -469,16 +447,12 @@ export const Calendar = () => {
                             initial={{ opacity: 0, x: -20 }}
                             animate={{ opacity: 1, x: 0 }}
                             transition={{ delay: idx * 0.1 }}
-                            className="group relative bg-white dark:bg-gray-700/30 hover:bg-indigo-50/50 dark:hover:bg-gray-700 p-5 rounded-2xl transition-all border border-gray-100 dark:border-gray-700 shadow-sm hover:shadow-md"
+                            className="group relative bg-white dark:bg-gray-700/30 hover:bg-indigo-50/50 dark:hover:bg-gray-700 p-5 rounded-2xl transition-all border border-gray-100 dark:border-gray-700 shadow-sm hover:border-gray-300 dark:hover:border-gray-600"
                         >
                         <div className="flex items-start justify-between gap-4">
                             <div className="flex items-center gap-4">
                                 <div className="relative">
-                                    <img
-                                    src={absence.profiles?.avatar_url || `https://ui-avatars.com/api/?name=${absence.profiles?.full_name || 'User'}&background=random`}
-                                    alt={absence.profiles?.full_name || ''}
-                                    className="w-14 h-14 rounded-2xl object-cover shadow-sm ring-2 ring-white dark:ring-gray-800"
-                                    />
+                                    <Avatar name={absence.profiles?.full_name} src={absence.profiles?.avatar_url} size="lg" className="w-14 h-14 rounded-xl object-cover shadow-sm ring-2 ring-white dark:ring-gray-800" />
                                     <div className={cn("absolute -bottom-2 -right-2 p-1.5 rounded-xl shadow-sm bg-white dark:bg-gray-800", getTypeColor(absence.type).split(' ')[1])}>
                                         <TypeIcon className="w-3.5 h-3.5" />
                                     </div>
@@ -496,12 +470,12 @@ export const Calendar = () => {
                             )}
                             <div className="flex gap-2 mt-2">
                                 {absence.certificate_url && (
-                                    <a href={absence.certificate_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[10px] font-bold bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400 px-2 py-1 rounded-lg hover:bg-red-100 transition-colors">
+                                    <a href="#" onClick={(e) => { e.preventDefault(); openStoredFile('absence_documents', absence.certificate_url!); }} className="flex items-center gap-1 text-[10px] font-bold bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400 px-2 py-1 rounded-lg hover:bg-red-100 transition-colors">
                                         <FileText className="w-3 h-3" /> eAU
                                     </a>
                                 )}
                                 {absence.signature_url && (
-                                    <a href={absence.signature_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[10px] font-bold bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400 px-2 py-1 rounded-lg hover:bg-indigo-100 transition-colors">
+                                    <a href="#" onClick={(e) => { e.preventDefault(); openStoredFile('absence_documents', absence.signature_url!); }} className="flex items-center gap-1 text-[10px] font-bold bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400 px-2 py-1 rounded-lg hover:bg-indigo-100 transition-colors">
                                         <PenTool className="w-3 h-3" /> Signiert
                                     </a>
                                 )}
@@ -551,7 +525,7 @@ export const Calendar = () => {
                                 )}
                             </div>
                             
-                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity absolute top-10 right-4 bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm p-1.5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
+                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity absolute top-10 right-4 bg-white dark:bg-gray-800 p-1.5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
                                 <button
                                     onClick={() => generateVacationRequestPDF(absence, absence.profiles!)}
                                     className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-gray-400 hover:text-indigo-600 transition-colors"
@@ -589,7 +563,7 @@ export const Calendar = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-3xl shadow-xl border border-white/20 dark:border-gray-700/50 p-6 sm:p-8"
+            className="bg-white dark:bg-gray-800 rounded-3xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 sm:p-8"
         >
           <h2 className="text-xl font-bold mb-6 text-gray-900 dark:text-white flex items-center gap-3">
               <div className="p-2 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
@@ -630,11 +604,7 @@ export const Calendar = () => {
                     >
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-4">
                         <div className="flex items-center gap-3">
-                            <img
-                            src={absence.profiles?.avatar_url || `https://ui-avatars.com/api/?name=${absence.profiles?.full_name || 'User'}&background=random`}
-                            alt={absence.profiles?.full_name || ''}
-                            className="w-12 h-12 rounded-2xl ring-2 ring-white dark:ring-gray-800 shadow-sm"
-                            />
+                            <Avatar name={absence.profiles?.full_name} src={absence.profiles?.avatar_url} size="md" className="w-12 h-12 rounded-xl ring-2 ring-white dark:ring-gray-800 shadow-sm" />
                             <div>
                             <p className="font-bold text-gray-900 dark:text-white text-lg">
                                 {absence.profiles?.full_name} {isOwn && <span className="text-gray-400 font-normal text-sm">(Du)</span>}
@@ -644,12 +614,12 @@ export const Calendar = () => {
                             </span>
                             <div className="flex gap-2 mt-2">
                                 {absence.certificate_url && (
-                                    <a href={absence.certificate_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[10px] font-bold bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400 px-2 py-1 rounded-lg hover:bg-red-100 transition-colors">
+                                    <a href="#" onClick={(e) => { e.preventDefault(); openStoredFile('absence_documents', absence.certificate_url!); }} className="flex items-center gap-1 text-[10px] font-bold bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400 px-2 py-1 rounded-lg hover:bg-red-100 transition-colors">
                                         <FileText className="w-3 h-3" /> eAU
                                     </a>
                                 )}
                                 {absence.signature_url && (
-                                    <a href={absence.signature_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[10px] font-bold bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400 px-2 py-1 rounded-lg hover:bg-indigo-100 transition-colors">
+                                    <a href="#" onClick={(e) => { e.preventDefault(); openStoredFile('absence_documents', absence.signature_url!); }} className="flex items-center gap-1 text-[10px] font-bold bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400 px-2 py-1 rounded-lg hover:bg-indigo-100 transition-colors">
                                         <PenTool className="w-3 h-3" /> Signiert
                                     </a>
                                 )}
@@ -719,7 +689,7 @@ export const Calendar = () => {
       >
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
+            <label className="block text-xs font-bold text-gray-500 mb-2">
               Art der Abwesenheit
             </label>
             <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
@@ -753,8 +723,8 @@ export const Calendar = () => {
           </div>
 
           {formData.type === 'other' && (
-              <div className="animate-in fade-in slide-in-from-top-2">
-                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Grund</label>
+              <div className="animate-fade-in">
+                  <label className="block text-xs font-bold text-gray-500 mb-2">Grund</label>
                   <input 
                       type="text" 
                       value={formData.note} 
@@ -766,7 +736,7 @@ export const Calendar = () => {
           )}
 
           {formData.type === 'school' && (
-              <div className="bg-purple-50 dark:bg-purple-900/10 p-4 rounded-xl border border-purple-100 dark:border-purple-900/30 space-y-4 animate-in fade-in slide-in-from-top-2">
+              <div className="bg-purple-50 dark:bg-purple-900/10 p-4 rounded-xl border border-purple-100 dark:border-purple-900/30 space-y-4 animate-fade-in">
                   <div className="flex items-center justify-between">
                       <label className="text-sm font-bold text-purple-900 dark:text-purple-300 flex items-center gap-2">
                           <Repeat className="w-4 h-4" /> Wiederkehrend?
@@ -781,7 +751,7 @@ export const Calendar = () => {
                   
                   {formData.is_recurring && (
                       <div>
-                          <label className="block text-xs font-bold text-purple-700 dark:text-purple-400 uppercase tracking-wider mb-2">Intervall</label>
+                          <label className="block text-xs font-bold text-purple-700 dark:text-purple-400 mb-2">Intervall</label>
                           <div className="grid grid-cols-3 gap-2">
                               {[
                                   { val: 'weekly', label: 'Wöchentlich' },
@@ -809,7 +779,7 @@ export const Calendar = () => {
           )}
 
           {formData.type === 'vacation' && (
-              <div className="bg-indigo-50 dark:bg-indigo-900/10 p-4 rounded-xl border border-indigo-100 dark:border-indigo-900/30 flex flex-col gap-4 animate-in fade-in slide-in-from-top-2">
+              <div className="bg-indigo-50 dark:bg-indigo-900/10 p-4 rounded-xl border border-indigo-100 dark:border-indigo-900/30 flex flex-col gap-4 animate-fade-in">
                   <div className="flex items-center justify-between">
                       <label className="text-sm font-bold text-indigo-900 dark:text-indigo-300 flex items-center gap-2">
                           <Palmtree className="w-4 h-4" /> Urlaubstage abziehen
@@ -839,7 +809,7 @@ export const Calendar = () => {
           )}
 
           {formData.type === 'sick_leave' && (
-              <div className="bg-red-50 dark:bg-red-900/10 p-4 rounded-xl border border-red-100 dark:border-red-900/30 flex flex-col gap-2 animate-in fade-in slide-in-from-top-2">
+              <div className="bg-red-50 dark:bg-red-900/10 p-4 rounded-xl border border-red-100 dark:border-red-900/30 flex flex-col gap-2 animate-fade-in">
                   <label className="text-sm font-bold text-red-900 dark:text-red-300 flex items-center gap-2">
                       <ThermometerSun className="w-4 h-4" /> Krankenschein (eAU) hochladen
                   </label>
@@ -860,8 +830,8 @@ export const Calendar = () => {
           )}
 
           {formData.type !== 'other' && (
-              <div className="animate-in fade-in slide-in-from-top-2">
-                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Notiz</label>
+              <div className="animate-fade-in">
+                  <label className="block text-xs font-bold text-gray-500 mb-2">Notiz</label>
                   <input 
                       type="text" 
                       value={formData.note} 
@@ -874,7 +844,7 @@ export const Calendar = () => {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
+              <label className="block text-xs font-bold text-gray-500 mb-2">
                 Von
               </label>
               <div className="relative">
@@ -889,7 +859,7 @@ export const Calendar = () => {
               </div>
             </div>
             <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
+              <label className="block text-xs font-bold text-gray-500 mb-2">
                 Bis
               </label>
               <div className="relative">
@@ -916,7 +886,7 @@ export const Calendar = () => {
             <button
               type="submit"
               disabled={submitting}
-              className="px-6 py-2.5 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-lg shadow-indigo-500/30 transition-all hover:scale-105 active:scale-95 disabled:opacity-50 disabled:scale-100"
+              className="px-6 py-2.5 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-sm transition-all disabled:opacity-50 disabled:scale-100"
             >
               {submitting ? 'Wird gesendet...' : (formData.type === 'sick_leave' ? 'Krankmeldung senden' : 'Beantragen')}
             </button>

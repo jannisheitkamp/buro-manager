@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
-import { Shield, KeyRound, ArrowRight, LogOut } from 'lucide-react';
+import { KeyRound, LogOut } from 'lucide-react';
+import { AuthShell } from '@/components/AuthShell';
+import { useStore } from '@/store/useStore';
 import toast from 'react-hot-toast';
 
 export function MfaVerify() {
@@ -37,8 +39,7 @@ export function MfaVerify() {
 
     setLoading(true);
     try {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { data, error } = await supabase.auth.mfa.challengeAndVerify({
+      const { error } = await supabase.auth.mfa.challengeAndVerify({
         factorId,
         code,
       });
@@ -50,76 +51,49 @@ export function MfaVerify() {
       // Store timestamp for the 6-hour check
       localStorage.setItem('last_mfa_check', Date.now().toString());
       
-      navigate('/');
+      // Neu laden, damit die Schutzprüfung den neuen Stand sieht
+      window.location.replace('/');
     } catch (error) {
       console.error(error);
-      toast.error('Falscher Code. Bitte erneut versuchen.');
+      toast.error('Der Code stimmt nicht. Nimm den aktuellen Code aus der App.');
+      setCode('');
     } finally {
       setLoading(false);
     }
   };
 
+  const signOut = useStore((st) => st.signOut);
   const handleSignOut = async () => {
-    await supabase.auth.signOut();
+    await signOut();
     navigate('/login');
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">
-      <div className="max-w-md w-full bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 border border-gray-100 dark:border-gray-700">
-        <div className="text-center mb-8">
-          <div className="bg-indigo-100 dark:bg-indigo-900/30 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Shield className="w-8 h-8 text-indigo-600 dark:text-indigo-400" />
-          </div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Sicherheitsprüfung</h1>
-          <p className="text-gray-500 dark:text-gray-400">
-            Bitte geben Sie Ihren Authenticator-Code ein, um fortzufahren.
-            Dies ist alle 6 Stunden erforderlich.
-          </p>
-        </div>
-
-        <form onSubmit={handleVerify} className="space-y-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              6-stelliger Code
-            </label>
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <KeyRound className="h-5 w-5 text-gray-400" />
-              </div>
-              <input
-                type="text"
-                value={code}
-                onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                className="block w-full pl-10 pr-3 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 transition-colors text-center text-xl tracking-widest font-mono"
-                placeholder="000 000"
-                required
-                autoFocus
-                autoComplete="one-time-code"
-              />
-            </div>
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading || code.length !== 6}
-            className="w-full flex items-center justify-center gap-2 py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-          >
-            {loading ? 'Prüfe...' : 'Verifizieren'}
-            {!loading && <ArrowRight className="w-4 h-4" />}
-          </button>
-        </form>
-
-        <div className="mt-6 text-center border-t border-gray-100 dark:border-gray-700 pt-6">
-          <button
-            onClick={handleSignOut}
-            className="text-sm text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400 flex items-center justify-center gap-2 mx-auto transition-colors font-medium"
-          >
-            <LogOut className="w-4 h-4" />
-            Abmelden
-          </button>
-        </div>
-      </div>
-    </div>
+    <AuthShell
+      title="Code bestätigen"
+      description="Aus Sicherheitsgründen fragen wir alle 6 Stunden nach dem Code aus deiner Authenticator-App."
+      footer={
+        <button type="button" onClick={handleSignOut} className="btn-ghost btn-sm">
+          <LogOut className="h-3.5 w-3.5" /> Abmelden
+        </button>
+      }
+    >
+      <form onSubmit={handleVerify} className="space-y-4">
+        <input
+          type="text"
+          inputMode="numeric"
+          autoComplete="one-time-code"
+          autoFocus
+          aria-label="6-stelliger Code"
+          value={code}
+          onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+          placeholder="000000"
+          className="tabular block w-full px-4 py-3.5 text-center font-mono text-3xl tracking-[0.5em]"
+        />
+        <button type="submit" disabled={loading || code.length !== 6 || !factorId} className="btn-primary w-full py-2.5">
+          <KeyRound className="h-4 w-4" /> {loading ? 'Wird geprüft' : 'Bestätigen'}
+        </button>
+      </form>
+    </AuthShell>
   );
 }

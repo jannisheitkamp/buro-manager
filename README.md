@@ -63,6 +63,21 @@ Die App läuft unter `http://localhost:5173`.
 *   **Auth:** Authentifizierung läuft über Supabase Auth.
 *   **Provisionen:** Provisionssätze sind privat und nur vom jeweiligen Nutzer einsehbar.
 
+### Sicherheits-Migrationen (Version 2.0)
+
+Zwei Migrationen in `supabase/migrations/` schließen Lücken aus Version 1. Reihenfolge beachten:
+
+1.  `20261109000000_security_hardening.sql` – sofort einspielbar, auch mit der alten App-Version. Sperrt jeden Zugriff ohne Login und verhindert, dass sich Nutzer selbst Rollen oder Freischaltung geben.
+2.  `20261109000001_protect_secrets_and_files.sql` – **erst einspielen, wenn Version 2.0 live ist.** Macht Webhook-Geheimnis und Todoist-Schlüssel nur für die eigene Person lesbar und stellt Krankmeldungen, Unterschriften und Dokumente auf kurz gültige Links um.
+
+Zusätzlich im Supabase-Dashboard unter Authentication → Passwortschutz den Abgleich mit geleakten Passwörtern einschalten.
+
+## 🎨 Design (Version 2.0)
+
+*   **Farben und Schrift:** in `tailwind.config.js` (Petrol als Markenfarbe, leicht grün getöntes Neutral, Bernstein für Hinweise) und `src/index.css`. Schriften: Bricolage Grotesque für Überschriften und Zahlen, Geist für Text.
+*   **Bausteine:** `src/components/ui` (Button, Card, PageHeader, Segmented, Badge, Avatar, EmptyState, GoalRuler).
+*   **Navigation:** `src/lib/navigation.ts`. **Empfangsplan:** `src/lib/reception.ts` (gilt für alle Geräte gleichzeitig).
+
 ## 📱 Deployment
 
 Das Projekt ist optimiert für **Vercel**:

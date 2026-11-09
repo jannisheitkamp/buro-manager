@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '@/lib/supabase';
+import { PROFILE_COLUMNS } from '@/lib/profiles';
 import { Profile } from '@/types';
 import { User as SupabaseUser } from '@supabase/supabase-js';
 
@@ -56,7 +57,7 @@ export const useStore = create<StoreState>((set, get) => ({
 
     const { data, error } = await supabase
       .from('profiles')
-      .select('*')
+      .select(PROFILE_COLUMNS)
       .eq('id', user.id)
       .maybeSingle(); // Changed to maybeSingle to prevent errors if profile doesn't exist yet
 
@@ -67,6 +68,11 @@ export const useStore = create<StoreState>((set, get) => ({
     }
   },
   signOut: async () => {
+    try {
+      localStorage.removeItem('last_mfa_check');
+    } catch {
+      /* ignorieren */
+    }
     await supabase.auth.signOut();
     set({ user: null, profile: null });
   },

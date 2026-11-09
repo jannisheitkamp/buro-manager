@@ -2,54 +2,51 @@ import { useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useStore } from '@/store/useStore';
 
+const canNotify = () => typeof window !== 'undefined' && 'Notification' in window;
+
+/** Fragt einmalig nach der Erlaubnis für Systembenachrichtigungen (muss aus einem Klick kommen). */
+export const requestNotificationPermission = async () => {
+  if (!canNotify() || Notification.permission !== 'default') return;
+  try {
+    await Notification.requestPermission();
+  } catch {
+    /* ältere Browser */
+  }
+};
+
+const notify = (title: string, body: string, tag: string) => {
+  if (!canNotify() || Notification.permission !== 'granted') return;
+  try {
+    new Notification(title, { body, tag, icon: '/icon.png' });
+  } catch {
+    /* z. B. Android Chrome ohne Service Worker */
+  }
+};
+
 export const useNotifications = () => {
-  const { user } = useStore();
+  const userId = useStore((s) => s.user?.id);
 
   useEffect(() => {
-    if (!user) return;
-
-    // Request permission on mount
-    if (Notification.permission !== 'granted' && Notification.permission !== 'denied') {
-      Notification.requestPermission();
-    }
+    if (!userId) return;
 
     const channel = supabase
-      .channel('global_notifications')
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'callbacks' },
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (payload: any) => {
-          const newItem = payload.new;
-          
-          // Check if relevant for me
-          if (newItem.assigned_to === user.id || !newItem.assigned_to) {
-             if (Notification.permission === 'granted') {
-                 new Notification('Neuer Rückruf 📞', {
-                     body: `${newItem.customer_name}: ${newItem.topic || 'Bitte zurückrufen'}`,
-                     tag: 'callback-new', // Prevent spamming
-                 });
-             }
-          }
+      .channel(`system-notifications-${userId}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'callbacks' }, (payload) => {
+        const item = payload.new as { assigned_to?: string | null; customer_name?: string; topic?: string | null };
+        if (item.assigned_to === userId || !item.assigned_to) {
+          notify('Neuer Rückruf', `${item.customer_name}: ${item.topic || 'Bitte zurückrufen'}`, 'callback-new');
         }
-      )
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'parcels' },
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (payload: any) => {
-             if (Notification.permission === 'granted') {
-                 new Notification('Neues Paket 📦', {
-                     body: `Für: ${payload.new.recipient_name || 'Unbekannt'}`,
-                     tag: 'parcel-new',
-                 });
-             }
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'parcels' }, (payload) => {
+        const item = payload.new as { recipient_id?: string; carrier?: string | null };
+        if (item.recipient_id === userId) {
+          notify('Paket für dich', item.carrier ? `Zugestellt von ${item.carrier}` : 'Liegt im Büro bereit', 'parcel-new');
         }
-      )
+      })
       .subscribe();
 
     return () => {
-      channel.unsubscribe();
+      supabase.removeChannel(channel);
     };
-  }, [user?.id]);
+  }, [userId]);
 };

@@ -1,830 +1,660 @@
-import { useEffect, useState } from 'react';
-// Bento Grid Dashboard Layout
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Popover, PopoverButton, PopoverPanel } from '@headlessui/react';
+import { format, formatDistanceToNowStrict, isSameDay, addDays, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';
+import { de } from 'date-fns/locale';
+import {
+  CalendarDays,
+  ChevronDown,
+  ChevronRight,
+  ClipboardList,
+  Headset,
+  MessageSquare,
+  Package,
+  Phone,
+  PhoneMissed,
+  PhoneOutgoing,
+  Plus,
+  RefreshCw,
+  TrendingUp,
+  Users,
+} from 'lucide-react';
+import { toast } from 'react-hot-toast';
 import { supabase } from '@/lib/supabase';
 import { useStore } from '@/store/useStore';
-import { Profile, UserStatus } from '@/types';
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-import { formatDistanceToNow, format, startOfMonth, endOfMonth, subMonths } from 'date-fns';
-import { de } from 'date-fns/locale';
-import { 
-  Briefcase, 
-  Home, 
-  Coffee, 
-  Users, 
-  Palmtree, 
-  ThermometerSun, 
-  LogOut,
-  Phone,
-  Package,
-  TrendingUp,
-  Clock,
-  MessageSquare,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  BarChart as BarChartIcon,
-  GraduationCap,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  ArrowUpRight,
-  Sparkles,
-  PhoneOutgoing
-} from 'lucide-react';
+import { Avatar, Badge, Button, Card, CardHeader, EmptyState, GoalRuler, PageLoading } from '@/components/ui';
+import { STATUS_CONFIG, getStatusConfig, isStatusFresh, type StatusType } from '@/lib/status';
+import { getReceptionAssignee, isOfficeClosed, matchesPerson } from '@/lib/reception';
 import { cn } from '@/utils/cn';
-import { useNavigate } from 'react-router-dom';
-import { toast } from 'react-hot-toast';
-import { motion } from 'framer-motion';
-import { 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  BarChart, 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  Bar, 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  XAxis, 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  Tooltip, 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  ResponsiveContainer,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  Cell
-} from 'recharts';
 
-// --- Types ---
+/* ------------------------------------------------------------------ */
+/* Typen                                                               */
+/* ------------------------------------------------------------------ */
 
-type StatusType = UserStatus['status'];
+type Colleague = {
+  id: string;
+  full_name: string | null;
+  avatar_url: string | null;
+  status?: { status: StatusType; message: string | null; updated_at: string };
+  absentToday?: string;
+};
 
-interface StatusConfig {
-  value: StatusType;
-  label: string;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  icon: any;
-  // Separate classes for light/dark mode for better visibility
-  className: string; 
-}
+type AgendaItem = {
+  id: string;
+  kind: 'event' | 'callback' | 'followup' | 'missed';
+  title: string;
+  meta?: string | null;
+  phone?: string | null;
+  time: Date;
+  urgent: boolean;
+  topic?: string | null;
+};
 
-const STATUS_CONFIG: StatusConfig[] = [
-  { value: 'office', label: 'Im Büro', icon: Briefcase, className: 'text-emerald-700 bg-emerald-100 dark:text-emerald-200 dark:bg-emerald-900/50' },
-  { value: 'remote', label: 'Home Office', icon: Home, className: 'text-blue-700 bg-blue-100 dark:text-blue-200 dark:bg-blue-900/50' },
-  { value: 'break', label: 'Pause', icon: Coffee, className: 'text-amber-700 bg-amber-100 dark:text-amber-200 dark:bg-amber-900/50' },
-  { value: 'meeting', label: 'Im Termin', icon: Users, className: 'text-purple-700 bg-purple-100 dark:text-purple-200 dark:bg-purple-900/50' },
-  { value: 'vacation', label: 'Urlaub', icon: Palmtree, className: 'text-indigo-700 bg-indigo-100 dark:text-indigo-200 dark:bg-indigo-900/50' },
-  { value: 'sick', label: 'Krank', icon: ThermometerSun, className: 'text-red-700 bg-red-100 dark:text-red-200 dark:bg-red-900/50' },
-  { value: 'seminar', label: 'Seminar', icon: GraduationCap, className: 'text-blue-700 bg-blue-100 dark:text-blue-200 dark:bg-blue-900/50' },
-  { value: 'off', label: 'Feierabend', icon: LogOut, className: 'text-gray-700 bg-gray-100 dark:text-gray-300 dark:bg-gray-700/50' },
-];
+type Post = { id: string; title: string; content: string; created_at: string; profiles?: { full_name: string | null } | null };
 
-// --- Helper Components ---
+type Stats = {
+  monthLv: number;
+  monthCommission: number;
+  yearLv: number;
+  yearCommission: number;
+  monthlyGoal: number;
+  yearlyGoal: number;
+};
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const StatusBadge = ({ status }: { status: StatusType }) => {
-  const config = STATUS_CONFIG.find(c => c.value === status) || STATUS_CONFIG[6];
-  const Icon = config.icon;
+/* ------------------------------------------------------------------ */
+/* Hilfen                                                              */
+/* ------------------------------------------------------------------ */
+
+const eur = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
+const num = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 });
+
+const greeting = (d: Date) => (d.getHours() < 11 ? 'Guten Morgen' : d.getHours() < 17 ? 'Guten Tag' : 'Guten Abend');
+
+/** Anteil der Arbeitstage des Monats, die bis einschließlich heute vergangen sind */
+const workdayProgress = (today: Date) => {
+  const days = eachDayOfInterval({ start: startOfMonth(today), end: endOfMonth(today) }).filter((d) => !isOfficeClosed(d));
+  const passed = days.filter((d) => d <= today).length;
+  return { passed, total: days.length, ratio: days.length ? passed / days.length : 0 };
+};
+
+const ABSENCE_LABEL: Record<string, string> = {
+  vacation: 'Urlaub',
+  sick_leave: 'Krank',
+  seminar: 'Seminar',
+  school: 'Berufsschule',
+  other: 'Abwesend',
+};
+
+/* ------------------------------------------------------------------ */
+/* Status-Auswahl                                                      */
+/* ------------------------------------------------------------------ */
+
+const StatusPicker = ({ current, onChange }: { current?: Colleague['status']; onChange: (s: StatusType, msg: string) => Promise<void> }) => {
+  const [message, setMessage] = useState('');
+  const fresh = current && isStatusFresh(current.updated_at);
+  const cfg = fresh ? getStatusConfig(current?.status) : undefined;
+
   return (
-    <div className={cn("flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border border-transparent", config.className)}>
-      <Icon className="w-3.5 h-3.5" />
-      {config.label}
-    </div>
+    <Popover className="relative">
+      {({ close }) => (
+        <>
+          <PopoverButton className="btn-secondary h-10 gap-2.5 pl-3 pr-2.5">
+            <span className={cn('h-2.5 w-2.5 rounded-full', cfg?.dot || 'bg-gray-300 dark:bg-gray-600')} />
+            <span className="text-left">
+              <span className="block text-sm font-medium leading-tight">{cfg?.label || 'Status setzen'}</span>
+              {fresh && current?.message && <span className="block max-w-[11rem] truncate text-2xs text-gray-500">{current.message}</span>}
+            </span>
+            <ChevronDown className="h-4 w-4 text-gray-400" />
+          </PopoverButton>
+          <PopoverPanel
+            anchor={{ to: 'bottom end', gap: 8 }}
+            className="z-50 w-[min(20rem,calc(100vw-2rem))] animate-pop-in rounded-xl border border-gray-200 bg-white p-3 shadow-xl dark:border-gray-700 dark:bg-gray-800"
+          >
+            <p className="mb-2 text-xs font-medium text-gray-500">Wo bist du gerade?</p>
+            <div className="grid grid-cols-2 gap-1.5">
+              {STATUS_CONFIG.map((s) => {
+                const active = cfg?.value === s.value;
+                return (
+                  <button
+                    key={s.value}
+                    type="button"
+                    onClick={async () => {
+                      await onChange(s.value, message);
+                      setMessage('');
+                      close();
+                    }}
+                    className={cn(
+                      'flex items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm transition-colors',
+                      active ? cn('ring-1', s.tone) : 'text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60',
+                    )}
+                  >
+                    <s.icon className="h-4 w-4 shrink-0 opacity-70" />
+                    {s.label}
+                  </button>
+                );
+              })}
+            </div>
+            <input
+              type="text"
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              placeholder="Notiz, z. B. „zurück um 14 Uhr“"
+              aria-label="Notiz zum Status"
+              className="input mt-3"
+              onKeyDown={async (e) => {
+                if (e.key === 'Enter') {
+                  await onChange(cfg?.value || 'office', message);
+                  setMessage('');
+                  close();
+                }
+              }}
+            />
+          </PopoverPanel>
+        </>
+      )}
+    </Popover>
   );
 };
 
-// --- Main Dashboard ---
+/* ------------------------------------------------------------------ */
+/* Seite                                                               */
+/* ------------------------------------------------------------------ */
 
 export const Dashboard = () => {
-  const { user, profile } = useStore();
+  const user = useStore((s) => s.user);
+  const profile = useStore((s) => s.profile);
+  const isAdmin = !!profile?.roles?.includes('admin');
   const navigate = useNavigate();
+
   const [loading, setLoading] = useState(true);
-
-  // Data State
-  const [colleagues, setColleagues] = useState<(Profile & { current_status?: UserStatus })[]>([]);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [myTasks, setMyTasks] = useState<any[]>([]); // Callbacks + Events merged
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/no-explicit-any
-  const [parcels, setParcels] = useState<any[]>([]);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [boardMessages, setBoardMessages] = useState<any[]>([]);
-  const [stats, setStats] = useState({
-    monthlyCommission: 0,
-    yearlyCommission: 0,
-    monthlyLifeValues: 0,
-    yearlyLifeValues: 0,
-    openCallbacks: 0,
-    pendingParcels: 0,
-    monthlyGoal: 10000,
-    yearlyGoal: 120000
-  });
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [revenueData, setRevenueData] = useState<{name: string, value: number}[]>([]);
-  const [scriptOpen, setScriptOpen] = useState<string | null>(null); // New: Anruf-Skript Overlay ID
-  
-  // Prediction Logic
-  const getTrendPrediction = () => {
-    const today = new Date().getDate();
-    const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const progress = today / daysInMonth;
-    
-    // Simple linear projection based on current stats
-    // Formula: (Current / DaysPassed) * TotalDays
-    const projectedLifeValues = Math.round((stats.monthlyLifeValues / today) * daysInMonth);
-    const projectedCommission = Math.round((stats.monthlyCommission / today) * daysInMonth);
-    
-    return {
-        lifeValues: isFinite(projectedLifeValues) ? projectedLifeValues : 0,
-        commission: isFinite(projectedCommission) ? projectedCommission : 0,
-        onTrack: projectedLifeValues >= stats.monthlyGoal
-    };
-  };
-
-  const trend = getTrendPrediction();
-
-  // UI State
-  const [statusMessage, setStatusMessage] = useState('');
-  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [colleagues, setColleagues] = useState<Colleague[]>([]);
+  const [agenda, setAgenda] = useState<AgendaItem[]>([]);
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [parcelCount, setParcelCount] = useState({ mine: 0, all: 0 });
+  const [stats, setStats] = useState<Stats>({ monthLv: 0, monthCommission: 0, yearLv: 0, yearCommission: 0, monthlyGoal: 10000, yearlyGoal: 120000 });
+  const [openScript, setOpenScript] = useState<string | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout>>();
 
-  const fetchData = async () => {
+  const today = useMemo(() => new Date(), []);
+
+  const fetchData = useCallback(async () => {
     if (!user) return;
     setError(null);
 
-    const now = new Date();
-    const todayStart = new Date(now.setHours(0,0,0,0)).toISOString();
-    const todayEnd = new Date(now.setHours(23,59,59,999)).toISOString();
-    
-    // For Chart: Last 6 months
-    const startSixMonthsAgo = new Date();
-    startSixMonthsAgo.setMonth(startSixMonthsAgo.getMonth() - 5);
-    startSixMonthsAgo.setDate(1);
-    const dateStr = format(startSixMonthsAgo, 'yyyy-MM-dd'); // Format YYYY-MM-DD for Supabase date column
+    const dayStart = new Date();
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date();
+    dayEnd.setHours(23, 59, 59, 999);
+    const todayStr = format(new Date(), 'yyyy-MM-dd');
+    const yearStart = `${new Date().getFullYear()}-01-01`;
+    const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
 
     try {
-      // 1. Parallel Fetching
-      const [
-        statusRes, 
-        profilesRes, 
-        callbacksRes, 
-        parcelsRes, 
-        eventsRes,
-        boardRes,
-        callsRes,
-        prodRes,
-        callLogsRes
-      ] = await Promise.all([
-        supabase.from('user_status').select('*').order('updated_at', { ascending: false }),
-        supabase.from('profiles').select('*'),
-        supabase.from('callbacks').select('*').neq('status', 'done').or(`assigned_to.eq.${user.id},assigned_to.is.null`),
-        supabase.from('parcels').select('*').eq('status', 'pending').order('created_at', { ascending: false }),
-        supabase.from('calendar_events').select('*').gte('start_time', todayStart).lte('start_time', todayEnd).order('start_time', { ascending: true }),
-        supabase.from('board_messages').select('*, profiles(full_name)').order('created_at', { ascending: false }).limit(3),
-        supabase.from('phone_calls').select('*').eq('status', 'missed').order('created_at', { ascending: false }),
-        supabase.from('production_entries').select('commission_amount, life_values, submission_date, user_id').gte('submission_date', dateStr),
-        supabase.from('call_logs').select('*').eq('user_id', user.id).eq('status', 'wiedervorlage').lte('follow_up_date', format(now, 'yyyy-MM-dd'))
+      const [profilesRes, statusRes, absencesRes, callbacksRes, parcelsRes, eventsRes, postsRes, callsRes, prodRes, followRes] = await Promise.all([
+        supabase.from('profiles').select('id, full_name, avatar_url, is_approved, monthly_goal, yearly_goal').order('full_name'),
+        supabase.from('user_status').select('user_id, status, message, updated_at').gte('updated_at', dayStart.toISOString()).order('updated_at', { ascending: false }),
+        supabase.from('absences').select('user_id, type, status').lte('start_date', todayStr).gte('end_date', todayStr).neq('status', 'rejected'),
+        supabase
+          .from('callbacks')
+          .select('id, customer_name, phone, topic, priority, created_at, assigned_to')
+          .neq('status', 'done')
+          .or(`assigned_to.eq.${user.id},assigned_to.is.null`),
+        supabase.from('parcels').select('id, recipient_id').eq('status', 'pending'),
+        supabase.from('calendar_events').select('id, title, location, start_time').gte('start_time', dayStart.toISOString()).lte('start_time', dayEnd.toISOString()).order('start_time'),
+        supabase.from('posts').select('id, title, content, created_at, profiles(full_name)').order('created_at', { ascending: false }).limit(2),
+        supabase.from('phone_calls').select('id, caller_number, notes, created_at, user_id').eq('status', 'missed').gte('created_at', twoDaysAgo),
+        supabase.from('production_entries').select('commission_amount, life_values, submission_date, status').eq('user_id', user.id).gte('submission_date', yearStart),
+        supabase
+          .from('call_logs')
+          .select('id, customer_name, phone_number, follow_up_date, follow_up_time, notes')
+          .eq('user_id', user.id)
+          .eq('status', 'wiedervorlage')
+          .lte('follow_up_date', todayStr),
       ]);
 
       if (profilesRes.error) throw profilesRes.error;
-      if (prodRes.error) throw prodRes.error;
 
-      // Debugging
-      const loadedProd = prodRes.data || [];
-      const followUps = callLogsRes.data || []; 
-      // console.log(`Loaded ${loadedProd.length} production entries`);
-
-      // 2. Process Colleagues
-      const latestStatuses = statusRes.data || [];
-      const profiles = profilesRes.data || [];
-      const myProfile = profiles.find(p => p.id === user.id);
-
-      const mergedColleagues = profiles.map(p => ({
-        ...p,
-        current_status: latestStatuses.find(s => s.user_id === p.id)
-      })).sort((a, b) => {
-          const onlineStatuses = ['office', 'remote', 'meeting'];
-          const aOnline = onlineStatuses.includes(a.current_status?.status || 'office');
-          const bOnline = onlineStatuses.includes(b.current_status?.status || 'office');
-          if (aOnline && !bOnline) return -1;
-          if (!aOnline && bOnline) return 1;
-          return (a.full_name || '').localeCompare(b.full_name || '');
+      // Team
+      const latest = new Map<string, Colleague['status']>();
+      (statusRes.data || []).forEach((s) => {
+        if (!latest.has(s.user_id)) latest.set(s.user_id, s as Colleague['status']);
       });
-      setColleagues(mergedColleagues);
+      const absent = new Map<string, string>();
+      (absencesRes.data || []).forEach((a) => absent.set(a.user_id, ABSENCE_LABEL[a.type] || 'Abwesend'));
 
-      // Show ALL parcels for EVERYONE
-      const allParcels = parcelsRes.data || [];
-      
-      // 3. Process Tasks (Timeline)
-      const callbacks = callbacksRes.data || [];
-      const events = eventsRes.data || [];
-      const missedCalls = callsRes.data || [];
+      const team: Colleague[] = (profilesRes.data || [])
+        .filter((p) => p.is_approved !== false)
+        .map((p) => ({ id: p.id, full_name: p.full_name, avatar_url: p.avatar_url, status: latest.get(p.id), absentToday: absent.get(p.id) }))
+        .sort((a, b) => {
+          const rank = (c: Colleague) => (c.status && getStatusConfig(c.status.status)?.available ? 0 : c.absentToday ? 2 : c.status ? 1 : 1.5);
+          return rank(a) - rank(b) || (a.full_name || '').localeCompare(b.full_name || '');
+        });
+      setColleagues(team);
 
-      // Filter missed calls
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const myMissedCalls = missedCalls.filter((c: any) => 
-          !c.notes?.includes('erledigt') && c.status === 'missed' &&
-          (c.user_id === user.id || (!c.user_id && profile?.roles?.includes('admin')))
-      );
-      
-      const timelineItems = [
-        ...events.map(e => ({
-          id: e.id,
-          type: 'event',
-          title: e.title,
-          time: new Date(e.start_time),
-          meta: e.category,
-          priority: 'normal'
-        })),
-        ...callbacks.map(c => ({
+      // Aufgaben und Termine
+      const items: AgendaItem[] = [];
+      (callsRes.data || [])
+        .filter((c) => !c.notes?.includes('erledigt') && (c.user_id === user.id || (!c.user_id && isAdmin)))
+        .forEach((c) =>
+          items.push({
+            id: c.id,
+            kind: 'missed',
+            title: c.caller_number,
+            meta: c.notes?.replace('Anrufer: ', '').replace(/Raw Params:.*/, '') || null,
+            phone: c.caller_number,
+            time: new Date(c.created_at),
+            urgent: true,
+          }),
+        );
+      (followRes.data || []).forEach((f) => {
+        const t = new Date(`${f.follow_up_date}T${f.follow_up_time || '09:00'}`);
+        items.push({ id: f.id, kind: 'followup', title: f.customer_name, meta: f.notes, phone: f.phone_number, time: t, urgent: t < new Date() });
+      });
+      (callbacksRes.data || []).forEach((c) =>
+        items.push({
           id: c.id,
-          type: 'callback',
-          title: `Rückruf: ${c.customer_name}`,
-          time: new Date(c.created_at), 
-          meta: c.phone,
-          priority: c.priority
-        })),
-        ...followUps.map(f => {
-          // Kombiniere Datum und Uhrzeit, falls vorhanden
-          const timeObj = new Date(f.follow_up_date);
-          if (f.follow_up_time) {
-             const [hours, minutes] = f.follow_up_time.split(':');
-             timeObj.setHours(parseInt(hours, 10), parseInt(minutes, 10), 0, 0);
-          }
-          return {
-            id: f.id,
-            type: 'wiedervorlage',
-            title: `Wiedervorlage: ${f.customer_name}`,
-            time: timeObj,
-            meta: f.phone_number || 'Keine Nummer',
-            priority: 'high'
-          };
-        }),
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        ...myMissedCalls.map((c: any) => ({
-          id: c.id,
-          type: 'missed_call', 
-          title: `Verpasst: ${c.caller_number}`,
+          kind: 'callback',
+          title: c.customer_name,
+          meta: c.topic,
+          topic: c.topic,
+          phone: c.phone,
           time: new Date(c.created_at),
-          meta: c.notes?.replace('Anrufer: ', '').replace(/Raw Params:.*/, '') || 'Unbekannt',
-          priority: 'high'
-        }))
-      ].sort((a, b) => a.time.getTime() - b.time.getTime());
-      
-      setMyTasks(timelineItems);
+          urgent: c.priority === 'high',
+        }),
+      );
+      (eventsRes.data || []).forEach((e) =>
+        items.push({ id: e.id, kind: 'event', title: e.title, meta: e.location, time: new Date(e.start_time), urgent: false }),
+      );
+      setAgenda(items);
 
-      // 4. Stats & Chart Data
-      // Filter for OWN production entries to ensure personal stats are accurate
-      const myProd = loadedProd.filter(p => p.user_id === user.id); 
-      
-      console.log('Production Data for Calculation:', myProd);
+      // Pakete
+      const parcels = parcelsRes.data || [];
+      setParcelCount({ mine: parcels.filter((p) => p.recipient_id === user.id).length, all: parcels.length });
 
-      // Calculate Monthly Commission (Current Month)
-      const currentMonthKey = format(new Date(), 'yyyy-MM');
-      const currentYearKey = format(new Date(), 'yyyy');
-      console.log('Current Month Key:', currentMonthKey);
-      
-      const monthlyComm = myProd
-          .filter(e => {
-            if (!e.submission_date) return false;
-            // Handle both Date objects and string dates
-            const dateVal = e.submission_date instanceof Date ? e.submission_date.toISOString() : String(e.submission_date);
-            const match = dateVal.substring(0, 7) === currentMonthKey;
-            if (match) console.log('Match found for comm:', e);
-            return match;
-          })
-          .reduce((sum, e) => sum + Number(e.commission_amount || 0), 0);
+      setPosts((postsRes.data as unknown as Post[]) || []);
 
-      const monthlyLifeValues = myProd
-          .filter(e => {
-             if (!e.submission_date) return false;
-             const dateVal = e.submission_date instanceof Date ? e.submission_date.toISOString() : String(e.submission_date);
-             return dateVal.substring(0, 7) === currentMonthKey;
-          })
-          .reduce((sum, e) => sum + Number(e.life_values || 0), 0);
-
-      // Calculate Yearly Commission (Current Year)
-      const yearlyComm = myProd
-          .filter(e => {
-            if (!e.submission_date) return false;
-            const dateVal = e.submission_date instanceof Date ? e.submission_date.toISOString() : String(e.submission_date);
-            return dateVal.substring(0, 4) === currentYearKey;
-          })
-          .reduce((sum, e) => sum + Number(e.commission_amount || 0), 0);
-
-      const yearlyLifeValues = myProd
-          .filter(e => {
-             if (!e.submission_date) return false;
-             const dateVal = e.submission_date instanceof Date ? e.submission_date.toISOString() : String(e.submission_date);
-             return dateVal.substring(0, 4) === currentYearKey;
-          })
-          .reduce((sum, e) => sum + Number(e.life_values || 0), 0);
-
-
-      // Calculate Chart Data (Last 6 Months)
-      const last6Months = Array.from({ length: 6 }, (_, i) => {
-          const d = new Date();
-          d.setMonth(d.getMonth() - (5 - i));
-          return d;
-      });
-
-      const chartData = last6Months.map(date => {
-          const monthKey = format(date, 'yyyy-MM');
-          const monthLabel = format(date, 'MMM', { locale: de });
-          
-          const total = myProd
-            .filter(e => {
-                if (!e.submission_date) return false;
-                const dateVal = e.submission_date instanceof Date ? e.submission_date.toISOString() : String(e.submission_date);
-                return dateVal.substring(0, 7) === monthKey;
-            })
-            .reduce((acc, curr) => acc + Number(curr.commission_amount || 0), 0);
-            
-          return { name: monthLabel, value: total };
-      });
-
-      setRevenueData(chartData);
-
+      // Produktion (stornierte Verträge zählen nicht)
+      const monthKey = format(new Date(), 'yyyy-MM');
+      const prod = (prodRes.data || []).filter((e) => e.status !== 'cancelled');
+      const sum = (rows: typeof prod, key: 'commission_amount' | 'life_values') => rows.reduce((acc, r) => acc + Number(r[key] || 0), 0);
+      const monthRows = prod.filter((e) => String(e.submission_date).startsWith(monthKey));
+      const me = profilesRes.data?.find((p) => p.id === user.id);
+      const monthlyGoal = Number(me?.monthly_goal) || 10000;
       setStats({
-        monthlyCommission: monthlyComm,
-        yearlyCommission: yearlyComm,
-        monthlyLifeValues: monthlyLifeValues,
-        yearlyLifeValues: yearlyLifeValues,
-        openCallbacks: callbacks.length,
-        pendingParcels: allParcels.length,
-        monthlyGoal: myProfile?.monthly_goal || 10000,
-        yearlyGoal: myProfile?.yearly_goal || (myProfile?.monthly_goal ? myProfile.monthly_goal * 12 : 120000)
+        monthLv: sum(monthRows, 'life_values'),
+        monthCommission: sum(monthRows, 'commission_amount'),
+        yearLv: sum(prod, 'life_values'),
+        yearCommission: sum(prod, 'commission_amount'),
+        monthlyGoal,
+        yearlyGoal: Number(me?.yearly_goal) || monthlyGoal * 12,
       });
-      setParcels(parcelsRes.data || []);
-      setBoardMessages(boardRes.data || []);
-
-      setLoading(false);
-
     } catch (e) {
-      console.error('Unexpected error fetching dashboard data:', e);
-      setError('Ein unerwarteter Fehler ist aufgetreten.');
+      console.error('Übersicht konnte nicht geladen werden:', e);
+      setError('Die Übersicht konnte nicht geladen werden. Prüfe deine Verbindung und versuche es erneut.');
+    } finally {
       setLoading(false);
     }
-  };
+  }, [user, isAdmin]);
 
   useEffect(() => {
-    let timeoutId: NodeJS.Timeout;
-    const debouncedFetch = () => {
-      clearTimeout(timeoutId);
-      timeoutId = setTimeout(() => {
-        fetchData();
-      }, 500);
-    };
-
     fetchData();
-    // Subscribe to everything relevant
-    const channels = [
-      supabase.channel('d_status').on('postgres_changes', { event: '*', schema: 'public', table: 'user_status' }, debouncedFetch),
-      supabase.channel('d_cb').on('postgres_changes', { event: '*', schema: 'public', table: 'callbacks' }, debouncedFetch),
-      supabase.channel('d_parcels').on('postgres_changes', { event: '*', schema: 'public', table: 'parcels' }, debouncedFetch),
-      supabase.channel('d_prod').on('postgres_changes', { event: '*', schema: 'public', table: 'production_entries' }, debouncedFetch),
-      supabase.channel('d_events').on('postgres_changes', { event: '*', schema: 'public', table: 'calendar_events' }, debouncedFetch),
-      supabase.channel('d_board').on('postgres_changes', { event: '*', schema: 'public', table: 'board_messages' }, debouncedFetch),
-      supabase.channel('d_calls').on('postgres_changes', { event: '*', schema: 'public', table: 'phone_calls' }, debouncedFetch) // Subscribe to calls
-    ].map(c => c.subscribe());
-
-    return () => {
-      clearTimeout(timeoutId);
-      channels.forEach(c => supabase.removeChannel(c));
+    const debounced = () => {
+      clearTimeout(timer.current);
+      timer.current = setTimeout(fetchData, 600);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
+    const channel = supabase.channel('dashboard-live');
+    ['user_status', 'callbacks', 'parcels', 'production_entries', 'calendar_events', 'posts', 'phone_calls', 'call_logs', 'absences'].forEach((table) =>
+      channel.on('postgres_changes', { event: '*', schema: 'public', table }, debounced),
+    );
+    channel.subscribe();
+    return () => {
+      clearTimeout(timer.current);
+      supabase.removeChannel(channel);
+    };
+  }, [fetchData]);
 
-  const handleStatusUpdate = async (status: StatusType) => {
-    if (!user || isUpdatingStatus) return;
-    setIsUpdatingStatus(true);
-    const { error } = await supabase.from('user_status').insert({
-        user_id: user.id,
-        status,
-        message: statusMessage || null,
-        updated_at: new Date().toISOString()
-    });
-    if (!error) {
-        toast.success('Status aktualisiert');
-        setStatusMessage('');
+  const setStatus = async (status: StatusType, message: string) => {
+    if (!user) return;
+    const { error } = await supabase.from('user_status').insert({ user_id: user.id, status, message: message.trim() || null, updated_at: new Date().toISOString() });
+    if (error) toast.error('Status konnte nicht gespeichert werden.');
+    else {
+      toast.success(`Status: ${getStatusConfig(status)?.label}`);
+      fetchData();
     }
-    setIsUpdatingStatus(false);
   };
 
-  const myCurrentStatus = colleagues.find(c => c.id === user?.id)?.current_status;
+  if (loading) return <PageLoading label="Übersicht wird geladen" />;
 
-  if (loading) return (
-    <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-    </div>
-  );
+  if (error)
+    return (
+      <Card className="mx-auto mt-10 max-w-md text-center">
+        <p className="text-sm text-gray-700 dark:text-gray-300">{error}</p>
+        <Button className="mt-4" icon={RefreshCw} onClick={() => fetchData()}>
+          Erneut laden
+        </Button>
+      </Card>
+    );
 
-  if (error) return (
-    <div className="flex flex-col items-center justify-center h-96 gap-4">
-        <div className="p-4 bg-red-50 text-red-700 rounded-lg flex items-center gap-2">
-            <LogOut className="w-5 h-5 rotate-180" /> {/* Using LogOut as error icon alternative or AlertTriangle if available */}
-            <span className="font-medium">{error}</span>
-        </div>
-        <button 
-            onClick={() => fetchData()} 
-            className="px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors font-medium text-sm shadow-sm"
-        >
-            Erneut versuchen
-        </button>
-    </div>
-  );
+  const firstName = profile?.full_name?.split(' ')[0];
+  const me = colleagues.find((c) => c.id === user?.id);
+  const progress = workdayProgress(today);
+  const projectedLv = progress.passed > 0 ? Math.round((stats.monthLv / progress.passed) * progress.total) : 0;
+  const monthPct = stats.monthlyGoal ? Math.round((stats.monthLv / stats.monthlyGoal) * 100) : 0;
+  const yearPct = stats.yearlyGoal ? Math.round((stats.yearLv / stats.yearlyGoal) * 100) : 0;
+  const onTrack = stats.monthLv >= stats.monthlyGoal * progress.ratio;
+
+  const receptionToday = getReceptionAssignee(today);
+  const nextWorkday = [1, 2, 3, 4, 5, 6, 7].map((n) => addDays(today, n)).find((d) => !isOfficeClosed(d))!;
+  const receptionNext = getReceptionAssignee(nextWorkday);
+  const receptionPersonToday = receptionToday ? colleagues.find((c) => matchesPerson(c.full_name, receptionToday)) : undefined;
+
+  const urgent = agenda.filter((a) => a.kind !== 'event').sort((a, b) => Number(b.urgent) - Number(a.urgent) || a.time.getTime() - b.time.getTime());
+  const events = agenda.filter((a) => a.kind === 'event').sort((a, b) => a.time.getTime() - b.time.getTime());
+  const availableCount = colleagues.filter((c) => c.status && isStatusFresh(c.status.updated_at) && getStatusConfig(c.status.status)?.available).length;
+  const absentCount = colleagues.filter((c) => c.absentToday).length;
 
   return (
-    <div className="max-w-[1600px] mx-auto space-y-8 pb-12 px-4 md:px-8">
-      
-      {/* 1. HERO SECTION - REDESIGNED */}
-      
-      {/* A. Top Stats Bar (Full Width) */}
-      <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 mb-6 overflow-x-auto">
-         <div className="flex flex-col 2xl:flex-row gap-8 items-start 2xl:items-center justify-between min-w-max 2xl:min-w-0">
-             
-             {/* Left: Yearly Stats */}
-             <div className="flex flex-row gap-6 items-center">
-                 <div className="min-w-[140px]">
-                     <p className="text-xs text-gray-500 font-medium uppercase tracking-wider mb-1">Jahresziel</p>
-                     <div className="relative w-32 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                         <div 
-                             className="absolute top-0 left-0 h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all duration-1000"
-                             style={{ width: `${Math.min((stats.yearlyLifeValues / stats.yearlyGoal) * 100, 100)}%` }}
-                         />
-                     </div>
-                     <p className="text-[10px] text-gray-400 mt-1 font-mono">
-                         {Math.round((stats.yearlyLifeValues / stats.yearlyGoal) * 100)}% erreicht
-                     </p>
-                 </div>
+    <div className="space-y-6">
+      {/* Kopf */}
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{format(today, 'EEEE, d. MMMM yyyy', { locale: de })}</p>
+          <h1 className="mt-1 text-[1.75rem] font-semibold leading-9 text-gray-900 dark:text-white sm:text-[2rem]">
+            {greeting(new Date())}
+            {firstName ? `, ${firstName}` : ''}
+          </h1>
+        </div>
+        <StatusPicker current={me?.status} onChange={setStatus} />
+      </header>
 
-                 <div className="w-px bg-gray-200 dark:bg-gray-700 h-10" />
-
-                 <div className="min-w-[120px]">
-                     <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Umsatz (Jahr)</p>
-                     <p className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
-                         {new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(stats.yearlyCommission)}
-                     </p>
-                 </div>
-
-                 <div className="w-px bg-gray-200 dark:bg-gray-700 h-10" />
-
-                 <div className="min-w-[120px]">
-                     <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">LW (Jahr)</p>
-                     <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
-                         {new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 }).format(stats.yearlyLifeValues)}
-                     </p>
-                 </div>
-             </div>
-
-             {/* Divider for Desktop */}
-             <div className="hidden 2xl:block w-px bg-gray-200 dark:bg-gray-700 h-12" />
-             <div className="block 2xl:hidden w-full h-px bg-gray-100 dark:bg-gray-700" />
-
-             {/* Right: Monthly Stats */}
-             <div className="flex flex-row gap-6 items-center">
-                 <div className="min-w-[140px]">
-                     <p className="text-xs text-gray-500 font-medium uppercase tracking-wider mb-1">Monatsziel</p>
-                     <div className="relative w-32 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                         <div 
-                             className="absolute top-0 left-0 h-full bg-gradient-to-r from-blue-400 to-cyan-400 rounded-full transition-all duration-1000"
-                             style={{ width: `${Math.min((stats.monthlyLifeValues / stats.monthlyGoal) * 100, 100)}%` }}
-                         />
-                     </div>
-                     <p className="text-[10px] text-gray-400 mt-1 font-mono">
-                         {Math.round((stats.monthlyLifeValues / stats.monthlyGoal) * 100)}% erreicht
-                     </p>
-                 </div>
-
-                 <div className="w-px bg-gray-200 dark:bg-gray-700 h-10" />
-
-                 <div className="min-w-[120px]">
-                     <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Umsatz (Monat)</p>
-                     <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                         {new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(stats.monthlyCommission)}
-                     </p>
-                 </div>
-
-                 <div className="w-px bg-gray-200 dark:bg-gray-700 h-10" />
-
-                 <div className="min-w-[120px]">
-                     <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">LW (Monat)</p>
-                     <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                         {new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 }).format(stats.monthlyLifeValues)}
-                     </p>
-                 </div>
-             </div>
-
-             {/* Divider for Desktop */}
-             <div className="hidden 2xl:block w-px bg-gray-200 dark:bg-gray-700 h-12" />
-             <div className="block 2xl:hidden w-full h-px bg-gray-100 dark:bg-gray-700" />
-
-             {/* Far Right: Notifications (Better Design) */}
-             <div className="flex gap-3 items-center justify-start 2xl:justify-end w-full 2xl:w-auto">
-                
-                {/* Tasks Card */}
-                <div className={cn(
-                    "flex items-center gap-3 px-4 py-2 rounded-xl border transition-all",
-                    stats.openCallbacks > 0 
-                        ? "bg-red-50 border-red-100 dark:bg-red-900/20 dark:border-red-800" 
-                        : "bg-gray-50 border-gray-100 dark:bg-gray-700/50 dark:border-gray-600"
-                )}>
-                    <div className="relative">
-                        <Phone className={cn("w-5 h-5", stats.openCallbacks > 0 ? "text-red-500" : "text-gray-400")} />
-                        {stats.openCallbacks > 0 && <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-600 rounded-full animate-pulse" />}
-                    </div>
-                    <div className="flex flex-col">
-                        <span className={cn("text-sm font-bold", stats.openCallbacks > 0 ? "text-red-700 dark:text-red-300" : "text-gray-500")}>
-                            {stats.openCallbacks}
-                        </span>
-                        <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Tasks</span>
-                    </div>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+        {/* Linke Spalte */}
+        <div className="space-y-6 lg:col-span-8">
+          {/* Ziel */}
+          <Card padded={false} className="overflow-hidden">
+            <div className="p-5 sm:p-6">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Lebenswerte im {format(today, 'MMMM', { locale: de })}</p>
+                  <p className="mt-1 flex flex-wrap items-baseline gap-x-2">
+                    <span className="tabular font-display text-4xl font-semibold tracking-tight text-gray-900 dark:text-white sm:text-5xl">{num.format(stats.monthLv)}</span>
+                    <span className="tabular text-sm text-gray-500">von {num.format(stats.monthlyGoal)}</span>
+                  </p>
                 </div>
+                <Link to="/production" className="btn-ghost btn-sm -mr-2 shrink-0">
+                  Produktion <ChevronRight className="h-3.5 w-3.5" />
+                </Link>
+              </div>
 
-                {/* Parcels Card */}
-                <div className={cn(
-                    "flex items-center gap-3 px-4 py-2 rounded-xl border transition-all",
-                    stats.pendingParcels > 0 
-                        ? "bg-blue-50 border-blue-100 dark:bg-blue-900/20 dark:border-blue-800" 
-                        : "bg-gray-50 border-gray-100 dark:bg-gray-700/50 dark:border-gray-600"
-                )}>
-                    <div className="relative">
-                        <Package className={cn("w-5 h-5", stats.pendingParcels > 0 ? "text-blue-500" : "text-gray-400")} />
-                        {stats.pendingParcels > 0 && <span className="absolute -top-1 -right-1 w-2 h-2 bg-blue-600 rounded-full" />}
-                    </div>
-                    <div className="flex flex-col">
-                        <span className={cn("text-sm font-bold", stats.pendingParcels > 0 ? "text-blue-700 dark:text-blue-300" : "text-gray-500")}>
-                            {stats.pendingParcels}
-                        </span>
-                        <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Pakete</span>
-                    </div>
-                </div>
-
-             </div>
-         </div>
-      </div>
-
-      {/* B. Greeting & Status (Full Width below Stats) */}
-      <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 relative overflow-hidden mb-6">
-         <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-900/10 dark:to-purple-900/10 rounded-bl-[100px] -mr-10 -mt-10 pointer-events-none" />
-         
-         <div className="relative z-10">
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
-                Moin, {profile?.full_name?.split(' ')[0]}! 👋
-            </h1>
-            
-            <div className="flex flex-col md:flex-row gap-6">
-                {/* Status Input */}
-                <div className="flex-1">
-                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">Was machst du gerade?</label>
-                    <input 
-                        type="text" 
-                        placeholder="z.B. 'Kundenmeeting' oder 'Pause'..." 
-                        className="w-full rounded-xl border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500 dark:placeholder-gray-500 shadow-sm"
-                        value={statusMessage}
-                        onChange={e => setStatusMessage(e.target.value)}
-                        onKeyDown={e => e.key === 'Enter' && handleStatusUpdate(myCurrentStatus?.status || 'office')}
-                    />
-                </div>
-
-                {/* Status Buttons */}
-                <div className="flex-1">
-                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">Dein Status</label>
-                    <div className="flex gap-2 flex-wrap">
-                        {STATUS_CONFIG.map(s => {
-                            const Icon = s.icon;
-                            const active = myCurrentStatus?.status === s.value;
-                            return (
-                                <button
-                                    key={s.value}
-                                    onClick={() => handleStatusUpdate(s.value)}
-                                    className={cn(
-                                        "px-4 py-3 rounded-xl transition-all flex items-center gap-2 flex-1 justify-center md:flex-none",
-                                        active 
-                                            ? cn("shadow-md ring-2 ring-offset-1 ring-offset-white dark:ring-offset-gray-900 ring-indigo-500 font-bold transform scale-105", s.className) 
-                                            : "bg-gray-50 dark:bg-gray-900/50 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 border border-transparent hover:border-gray-200 dark:hover:border-gray-600"
-                                    )}
-                                    title={s.label}
-                                >
-                                    <Icon className={cn("w-4 h-4", active ? "scale-110" : "")} />
-                                    <span className="text-sm whitespace-nowrap">{s.label}</span>
-                                </button>
-                            )
-                        })}
-                    </div>
-                </div>
+              <GoalRuler value={stats.monthLv} goal={stats.monthlyGoal} expected={progress.ratio} className="mt-6" />
+              <div className="mt-2 flex items-center justify-between text-xs text-gray-500">
+                <span className="tabular">{monthPct} % erreicht</span>
+                <span className="flex items-center gap-1.5">
+                  <span className="h-2.5 w-0.5 rounded bg-amber-400" />
+                  Soll heute: Tag {progress.passed} von {progress.total}
+                </span>
+              </div>
             </div>
-         </div>
-      </div>
 
-      {/* 2. MAIN CONTENT GRID (2 Columns: Main + Sidebar) */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-        
-        {/* LEFT COLUMN: TIMELINE & TASKS (2/3 width) */}
-        <div className="lg:col-span-2 space-y-6">
-            
-            {/* New: Trend Prediction Card (Only show if data exists) */}
-            {stats.monthlyLifeValues > 0 && (
-                <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-3xl p-6 text-white shadow-lg relative overflow-hidden">
-                    <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-16 -mt-16 blur-3xl" />
-                    <div className="relative z-10 flex items-center justify-between">
-                        <div>
-                            <div className="flex items-center gap-2 mb-1 text-indigo-100">
-                                <Sparkles className="w-4 h-4" />
-                                <span className="text-xs font-bold uppercase tracking-wider">KI-Trendvorhersage</span>
-                            </div>
-                            <h3 className="text-xl font-bold mb-2">
-                                {trend.onTrack ? "Stark! Du bist auf Kurs." : "Gib Gas, du packst das!"}
-                            </h3>
-                            <p className="text-sm text-indigo-100 opacity-90 max-w-md">
-                                Basierend auf deiner aktuellen Performance landest du diesen Monat voraussichtlich bei 
-                                <strong className="text-white"> {new Intl.NumberFormat('de-DE').format(trend.lifeValues)} Bewertungssumme</strong>.
-                            </p>
+            <dl className="grid grid-cols-2 border-t border-gray-100 dark:border-gray-700 sm:grid-cols-4 [&>div]:border-gray-100 dark:[&>div]:border-gray-700">
+              <div className="border-b border-r p-4 sm:border-b-0 sm:px-6">
+                <dt className="text-xs text-gray-500">Prognose Monat</dt>
+                <dd className={cn('tabular mt-1 text-lg font-semibold', onTrack ? 'text-emerald-700 dark:text-emerald-400' : 'text-gray-900 dark:text-white')}>
+                  {num.format(projectedLv)}
+                </dd>
+              </div>
+              <div className="border-b p-4 sm:border-b-0 sm:border-r sm:px-6">
+                <dt className="text-xs text-gray-500">Provision Monat</dt>
+                <dd className="tabular mt-1 text-lg font-semibold text-gray-900 dark:text-white">{eur.format(stats.monthCommission)}</dd>
+              </div>
+              <div className="border-r p-4 sm:px-6">
+                <dt className="text-xs text-gray-500">Lebenswerte {today.getFullYear()}</dt>
+                <dd className="tabular mt-1 text-lg font-semibold text-gray-900 dark:text-white">
+                  {num.format(stats.yearLv)} <span className="text-xs font-normal text-gray-500">{yearPct} %</span>
+                </dd>
+              </div>
+              <div className="p-4 sm:px-6">
+                <dt className="text-xs text-gray-500">Provision {today.getFullYear()}</dt>
+                <dd className="tabular mt-1 text-lg font-semibold text-gray-900 dark:text-white">{eur.format(stats.yearCommission)}</dd>
+              </div>
+            </dl>
+          </Card>
+
+          {/* Aufgaben */}
+          <Card padded={false}>
+            <div className="flex items-center justify-between px-5 pb-3 pt-5 sm:px-6">
+              <h2 className="text-base font-semibold text-gray-900 dark:text-white">Zu erledigen</h2>
+              <Link to="/calls?tab=tasks" className="text-sm font-medium text-brand-700 hover:underline dark:text-brand-300">
+                Alle Anrufe
+              </Link>
+            </div>
+            {urgent.length === 0 ? (
+              <EmptyState icon={Phone} title="Keine offenen Rückrufe" description="Verpasste Anrufe, Rückrufe und fällige Wiedervorlagen erscheinen hier." className="py-10" />
+            ) : (
+              <ul className="divide-y divide-gray-100 dark:divide-gray-700/70">
+                {urgent.map((item) => {
+                  const Icon = item.kind === 'missed' ? PhoneMissed : item.kind === 'followup' ? PhoneOutgoing : Phone;
+                  const label = item.kind === 'missed' ? 'Verpasst' : item.kind === 'followup' ? 'Wiedervorlage' : 'Rückruf';
+                  const target = item.kind === 'missed' ? '/calls?tab=live' : item.kind === 'followup' ? '/calls?tab=history' : '/calls?tab=tasks';
+                  return (
+                    <li key={`${item.kind}-${item.id}`} className="px-5 py-3 sm:px-6">
+                      <div className="flex items-center gap-3">
+                        <span
+                          className={cn(
+                            'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg',
+                            item.urgent ? 'bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-300' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300',
+                          )}
+                        >
+                          <Icon className="h-4 w-4" />
+                        </span>
+                        <button
+                          type="button"
+                          className="min-w-0 flex-1 text-left"
+                          onClick={() => (item.kind === 'callback' ? setOpenScript(openScript === item.id ? null : item.id) : navigate(target))}
+                        >
+                          <span className="flex items-center gap-2">
+                            <span className="truncate text-sm font-medium text-gray-900 dark:text-white">{item.title}</span>
+                            {item.urgent && <Badge tone="danger">{item.kind === 'callback' ? 'Dringend' : label}</Badge>}
+                          </span>
+                          <span className="block truncate text-xs text-gray-500">
+                            {!item.urgent && `${label} · `}
+                            {item.meta || 'Ohne Notiz'} · {formatDistanceToNowStrict(item.time, { locale: de, addSuffix: true })}
+                          </span>
+                        </button>
+                        {item.phone && (
+                          <a href={`tel:${item.phone.replace(/\s/g, '')}`} className="btn-secondary btn-sm shrink-0" aria-label={`${item.title} anrufen`}>
+                            <Phone className="h-3.5 w-3.5" />
+                            <span className="hidden sm:inline">Anrufen</span>
+                          </a>
+                        )}
+                      </div>
+                      {item.kind === 'callback' && openScript === item.id && (
+                        <div className="ml-12 mt-3 animate-fade-in rounded-lg border border-brand-100 bg-brand-50/60 p-3 text-sm text-gray-700 dark:border-brand-900 dark:bg-brand-950/40 dark:text-gray-300">
+                          <p className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-brand-700 dark:text-brand-300">
+                            <MessageSquare className="h-3.5 w-3.5" /> Gesprächseinstieg
+                          </p>
+                          <p>
+                            „Guten Tag, hier ist {firstName} vom Agenturverbund. Sie hatten um Rückruf gebeten
+                            {item.topic ? <> wegen <strong>{item.topic}</strong></> : ''}.“
+                          </p>
+                          <Link to="/calls?tab=tasks" className="mt-2 inline-block text-xs font-medium text-brand-700 hover:underline dark:text-brand-300">
+                            Rückruf öffnen
+                          </Link>
                         </div>
-                        <div className="text-right hidden sm:block">
-                            <div className="bg-white/20 backdrop-blur-md rounded-2xl p-3 inline-block">
-                                <span className="block text-xs text-indigo-100 mb-1">Prognose</span>
-                                <span className="text-2xl font-bold">{new Intl.NumberFormat('de-DE').format(trend.lifeValues)}</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
             )}
+          </Card>
 
-            <div className="flex items-center justify-between">
-                <h2 className="text-xl font-bold flex items-center gap-2">
-                    <Clock className="w-6 h-6 text-gray-400" />
-                    Aktuelles & Aufgaben
-                </h2>
-                <button onClick={() => navigate('/calls?tab=tasks')} className="text-sm font-medium text-indigo-600 hover:underline">
-                    Alle anzeigen
-                </button>
-            </div>
-
-            <div className="bg-white dark:bg-gray-800 rounded-3xl p-0 shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden min-h-[500px]">
-                {myTasks.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-64 text-center text-gray-400">
-                        <div className="w-16 h-16 bg-gray-50 dark:bg-gray-900 rounded-full flex items-center justify-center mb-4">
-                            <Coffee className="w-8 h-8 text-gray-300" />
-                        </div>
-                        <p>Nichts Dringendes anstehend.</p>
-                        <p className="text-xs mt-1">Genieß den Kaffee!</p>
-                    </div>
-                ) : (
-                    <div className="divide-y divide-gray-100 dark:divide-gray-700">
-                        {myTasks.map((task, idx) => {
-                            const isEvent = task.type === 'event';
-                            const isMissedCall = task.type === 'missed_call';
-                            const isCallback = task.type === 'callback';
-                            const isFollowUp = task.type === 'wiedervorlage';
-                            const isHighPrio = task.priority === 'high' || isMissedCall || isFollowUp;
-                            
-                            return (
-                                <motion.div 
-                                    initial={{ opacity: 0, y: 10 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    transition={{ delay: idx * 0.05 }}
-                                    key={`${task.type}-${task.id}`} 
-                                    className={cn(
-                                        "p-4 flex items-center gap-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer group relative",
-                                        isHighPrio ? "bg-red-50/10" : ""
-                                    )}
-                                    onClick={() => {
-                                        if (isEvent) navigate('/general-calendar');
-                                        else if (isMissedCall) navigate('/calls?tab=live');
-                                        else if (isFollowUp) navigate('/calls?tab=history');
-                                        else if (isCallback) setScriptOpen(task.id === scriptOpen ? null : task.id);
-                                        else navigate('/calls?tab=tasks');
-                                    }}
-                                >
-                                    {/* Icon Box */}
-                                    <div className={cn(
-                                        "w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-sm border border-white/50 dark:border-gray-700",
-                                        isEvent ? "bg-indigo-100 text-indigo-600" : 
-                                        isMissedCall ? "bg-red-100 text-red-600" : 
-                                        isFollowUp ? "bg-purple-100 text-purple-600" :
-                                        isHighPrio ? "bg-orange-100 text-orange-600" : "bg-emerald-100 text-emerald-600"
-                                    )}>
-                                        {isEvent ? <Briefcase className="w-5 h-5" /> : 
-                                         isMissedCall ? <Phone className="w-5 h-5" /> :
-                                         isFollowUp ? <PhoneOutgoing className="w-5 h-5" /> :
-                                         <Clock className="w-5 h-5" />}
-                                    </div>
-
-                                    {/* Content */}
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex justify-between items-start">
-                                            <h3 className={cn("font-bold text-base truncate pr-2", isHighPrio ? "text-red-600" : "text-gray-900 dark:text-white")}>
-                                                {task.title}
-                                            </h3>
-                                            <span className="text-xs font-mono text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded-lg shrink-0">
-                                                {format(task.time, 'HH:mm')}
-                                            </span>
-                                        </div>
-                                        <p className="text-sm text-gray-500 truncate mt-0.5 flex items-center gap-2">
-                                            {task.meta}
-                                            {isHighPrio && <span className="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Dringend</span>}
-                                        </p>
-
-                                        {/* Script Overlay (Only for Callbacks) */}
-                                        {isCallback && scriptOpen === task.id && (
-                                            <motion.div 
-                                                initial={{ opacity: 0, height: 0 }}
-                                                animate={{ opacity: 1, height: 'auto' }}
-                                                className="mt-3 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl p-3 border border-indigo-100 dark:border-indigo-800/50"
-                                                onClick={e => e.stopPropagation()}
-                                            >
-                                                <div className="flex items-center gap-2 mb-2 text-indigo-700 dark:text-indigo-300">
-                                                    <MessageSquare className="w-3 h-3" />
-                                                    <span className="text-xs font-bold uppercase tracking-wider">Gesprächsleitfaden</span>
-                                                </div>
-                                                <div className="space-y-2 text-sm text-gray-700 dark:text-gray-300">
-                                                    <p>👋 "Hallo Herr/Frau {task.title.replace('Rückruf: ', '')}, hier ist {profile?.full_name?.split(' ')[0]} von der Agentur..."</p>
-                                                    <p>📞 "Sie hatten um einen Rückruf gebeten bezüglich <strong>{task.meta}</strong>?"</p>
-                                                    <div className="flex gap-2 mt-2 pt-2 border-t border-indigo-200 dark:border-indigo-800">
-                                                        <button onClick={() => navigate('/calls?tab=tasks')} className="flex-1 bg-white dark:bg-gray-800 py-1.5 rounded-lg text-xs font-bold shadow-sm hover:bg-gray-50">
-                                                            Zum Task
-                                                        </button>
-                                                        <button onClick={() => setScriptOpen(null)} className="flex-1 bg-transparent py-1.5 rounded-lg text-xs font-bold text-gray-500 hover:bg-black/5">
-                                                            Schließen
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            </motion.div>
-                                        )}
-                                    </div>
-                                    
-                                    <div className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-300">
-                                        &rarr;
-                                    </div>
-                                </motion.div>
-                            );
-                        })}
-                    </div>
-                )}
-            </div>
+          {/* Termine heute */}
+          <Card>
+            <CardHeader
+              title="Termine heute"
+              icon={CalendarDays}
+              action={
+                <Link to="/general-calendar" className="text-sm font-medium text-brand-700 hover:underline dark:text-brand-300">
+                  Kalender
+                </Link>
+              }
+            />
+            {events.length === 0 ? (
+              <p className="text-sm text-gray-500">Heute stehen keine Termine im Kalender.</p>
+            ) : (
+              <ol className="space-y-1">
+                {events.map((e) => {
+                  const past = e.time < new Date();
+                  return (
+                    <li key={e.id} className={cn('flex items-baseline gap-4 rounded-lg px-2 py-1.5', past && 'opacity-50')}>
+                      <span className="tabular w-12 shrink-0 font-mono text-sm text-gray-500">{format(e.time, 'HH:mm')}</span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium text-gray-900 dark:text-white">{e.title}</span>
+                        {e.meta && <span className="block truncate text-xs text-gray-500">{e.meta}</span>}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ol>
+            )}
+          </Card>
         </div>
 
-        {/* RIGHT COLUMN: SIDEBAR (1/3 width) */}
-        <div className="space-y-6">
-            
-            {/* Team Widget */}
-            <div className="bg-white dark:bg-gray-800 rounded-3xl p-5 shadow-sm border border-gray-100 dark:border-gray-700">
-                <h3 className="font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                    <Users className="w-5 h-5 text-gray-400" /> Team Status
-                </h3>
-                <div className="space-y-3 max-h-[400px] overflow-y-auto custom-scrollbar pr-1">
-                     {colleagues.map((colleague) => {
-                        const status = colleague.current_status?.status || 'office';
-                        const note = colleague.current_status?.message;
-                        const isOnline = ['office', 'remote', 'meeting'].includes(status);
-                        
-                        return (
-                             <div key={colleague.id} className={cn("flex items-center gap-3 p-2 rounded-xl transition-colors", isOnline ? "hover:bg-gray-50 dark:hover:bg-gray-700/50" : "opacity-60 grayscale")}>
-                                 <div className="relative">
-                                     {colleague.avatar_url ? (
-                                         <img src={colleague.avatar_url} className="w-10 h-10 rounded-full object-cover" />
-                                     ) : (
-                                         <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center font-bold text-gray-400">{colleague.full_name?.charAt(0)}</div>
-                                     )}
-                                     {isOnline && <div className={cn("absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white dark:border-gray-800", 
-                                        status === 'office' ? "bg-emerald-500" : status === 'remote' ? "bg-blue-500" : "bg-amber-500"
-                                     )} />}
-                                 </div>
-                                 <div className="min-w-0">
-                                     <p className="text-sm font-bold text-gray-900 dark:text-white truncate">{colleague.full_name}</p>
-                                     <p className="text-xs text-gray-500 truncate">{note || (STATUS_CONFIG.find(s => s.value === status)?.label)}</p>
-                                 </div>
-                             </div>
-                        );
-                     })}
-                </div>
+        {/* Rechte Spalte */}
+        <div className="space-y-6 lg:col-span-4">
+          {/* Empfang */}
+          <Card className="bg-brand-900 text-white dark:bg-brand-950" padded={false}>
+            <div className="flex items-center gap-4 p-5">
+              {receptionPersonToday ? (
+                <Avatar name={receptionPersonToday.full_name} src={receptionPersonToday.avatar_url} size="lg" className="ring-2 ring-white/20" />
+              ) : (
+                <span className="flex h-14 w-14 items-center justify-center rounded-full bg-white/10">
+                  <Headset className="h-6 w-6 text-brand-100" />
+                </span>
+              )}
+              <div className="min-w-0">
+                <p className="text-xs text-brand-200">Empfang heute</p>
+                <p className="font-display text-xl font-semibold">{receptionToday || 'Büro geschlossen'}</p>
+                {receptionPersonToday?.absentToday && <p className="text-xs font-medium text-amber-300">{receptionPersonToday.absentToday}, Vertretung nötig</p>}
+              </div>
             </div>
+            <Link to="/reception" className="flex items-center justify-between border-t border-white/10 px-5 py-3 text-sm text-brand-100 hover:bg-white/5">
+              <span>
+                {format(nextWorkday, 'EEEE', { locale: de })}: <strong className="font-medium text-white">{receptionNext}</strong>
+              </span>
+              <ChevronRight className="h-4 w-4" />
+            </Link>
+          </Card>
 
-            {/* Quick Actions Grid */}
-            <div className="grid grid-cols-2 gap-3">
-                 <button onClick={() => navigate('/production')} className="p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-2xl flex flex-col items-center justify-center gap-2 hover:bg-indigo-100 dark:hover:bg-indigo-900/30 transition-colors text-indigo-700 dark:text-indigo-300">
-                    <TrendingUp className="w-6 h-6" />
-                    <span className="text-xs font-bold">Umsatz +</span>
-                 </button>
-                 <button onClick={() => navigate('/calls?tab=tasks')} className="p-4 bg-white border border-gray-100 dark:bg-gray-800 dark:border-gray-700 rounded-2xl flex flex-col items-center justify-center gap-2 hover:border-indigo-200 transition-colors">
-                    <Phone className="w-6 h-6 text-gray-400" />
-                    <span className="text-xs font-bold text-gray-600 dark:text-gray-300">Rückruf</span>
-                 </button>
+          {/* Team */}
+          <Card padded={false}>
+            <div className="px-5 pb-2 pt-5">
+              <CardHeader
+                className="mb-1"
+                title="Team"
+                icon={Users}
+                action={
+                  <Link to="/directory" className="text-sm font-medium text-brand-700 hover:underline dark:text-brand-300">
+                    Verzeichnis
+                  </Link>
+                }
+              />
+              <p className="text-xs text-gray-500">
+                {availableCount} erreichbar{absentCount > 0 && ` · ${absentCount} abwesend`}
+              </p>
             </div>
+            <ul className="scrollbar-thin max-h-[26rem] overflow-y-auto px-2 pb-3">
+              {colleagues.map((c) => {
+                const fresh = c.status && isStatusFresh(c.status.updated_at);
+                const cfg = fresh ? getStatusConfig(c.status!.status) : undefined;
+                const label = c.absentToday || cfg?.label || 'Noch kein Status';
+                const dim = !cfg?.available;
+                return (
+                  <li key={c.id} className="flex items-center gap-3 rounded-lg px-3 py-2">
+                    <span className="relative">
+                      <Avatar name={c.full_name} src={c.avatar_url} size="sm" className={cn(dim && 'opacity-60 grayscale')} />
+                      <span
+                        className={cn(
+                          'absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full ring-2 ring-white dark:ring-gray-800',
+                          c.absentToday ? 'bg-gray-400' : cfg?.dot || 'bg-gray-200 dark:bg-gray-600',
+                        )}
+                      />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className={cn('block truncate text-sm font-medium', dim ? 'text-gray-500 dark:text-gray-400' : 'text-gray-900 dark:text-white')}>
+                        {c.full_name || 'Ohne Namen'}
+                        {c.id === user?.id && <span className="font-normal text-gray-400"> (du)</span>}
+                      </span>
+                      <span className="block truncate text-xs text-gray-500">
+                        {label}
+                        {fresh && !c.absentToday && c.status?.message ? ` · ${c.status.message}` : ''}
+                      </span>
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          </Card>
 
-            {/* Pinnwand Teaser */}
-             <div className="bg-gradient-to-br from-gray-50 to-white dark:from-gray-800 dark:to-gray-900 rounded-3xl p-5 shadow-sm border border-gray-100 dark:border-gray-700">
-                <div className="flex justify-between items-center mb-3">
-                    <h3 className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                        <MessageSquare className="w-4 h-4 text-gray-400" /> Pinnwand
-                    </h3>
-                    <span className="text-xs bg-gray-200 dark:bg-gray-700 px-2 py-0.5 rounded-full text-gray-600 dark:text-gray-300">{boardMessages.length}</span>
-                </div>
-                {boardMessages.length > 0 ? (
-                    <div className="bg-white dark:bg-gray-800 p-3 rounded-xl border border-gray-100 dark:border-gray-700/50 shadow-sm">
-                        <p className="text-xs font-bold text-indigo-600 mb-1">{boardMessages[0].profiles?.full_name}</p>
-                        <p className="text-xs text-gray-600 dark:text-gray-300 line-clamp-3 leading-relaxed">"{boardMessages[0].content}"</p>
-                    </div>
-                ) : (
-                    <p className="text-xs text-gray-400 italic">Alles ruhig heute.</p>
+          {/* Schnellzugriff */}
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { label: 'Vertrag', icon: TrendingUp, onClick: () => navigate('/production', { state: { prefill: {} } }) },
+              { label: 'Rückruf', icon: Phone, onClick: () => navigate('/calls?tab=tasks&new=1') },
+              { label: 'Paket', icon: Package, onClick: () => navigate('/parcels?new=1'), count: parcelCount.mine },
+            ].map((a) => (
+              <button
+                key={a.label}
+                type="button"
+                onClick={a.onClick}
+                className="card relative flex flex-col items-center gap-1.5 px-2 py-3.5 text-xs font-medium text-gray-700 transition-colors hover:border-brand-300 hover:text-brand-800 dark:text-gray-200 dark:hover:border-brand-700"
+              >
+                <span className="flex items-center gap-1">
+                  <Plus className="h-3 w-3 text-gray-400" />
+                  <a.icon className="h-4 w-4" />
+                </span>
+                {a.label}
+                {!!a.count && (
+                  <span className="tabular absolute right-2 top-2 rounded bg-amber-400 px-1 text-2xs font-semibold text-gray-950" title="Pakete für dich">
+                    {a.count}
+                  </span>
                 )}
-                <button onClick={() => navigate('/board')} className="w-full mt-3 text-xs text-center text-gray-500 hover:text-indigo-600 font-medium">Zur Pinnwand &rarr;</button>
-             </div>
+              </button>
+            ))}
+          </div>
 
+          {/* Schwarzes Brett */}
+          <Card>
+            <CardHeader
+              title="Schwarzes Brett"
+              icon={ClipboardList}
+              action={
+                <Link to="/board" className="text-sm font-medium text-brand-700 hover:underline dark:text-brand-300">
+                  Alle
+                </Link>
+              }
+            />
+            {posts.length === 0 ? (
+              <p className="text-sm text-gray-500">Noch keine Beiträge.</p>
+            ) : (
+              <ul className="space-y-4">
+                {posts.map((p) => (
+                  <li key={p.id}>
+                    <Link to="/board" className="group block">
+                      <p className="text-sm font-medium text-gray-900 group-hover:text-brand-700 dark:text-white dark:group-hover:text-brand-300">{p.title}</p>
+                      <p className="mt-0.5 line-clamp-2 text-sm text-gray-500">{p.content.replace(/<[^>]+>/g, ' ')}</p>
+                      <p className="mt-1 text-2xs text-gray-400">
+                        {p.profiles?.full_name} · {isSameDay(new Date(p.created_at), today) ? 'heute' : format(new Date(p.created_at), 'd. MMM', { locale: de })}
+                      </p>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
         </div>
-
       </div>
     </div>
   );

@@ -73,14 +73,14 @@ export const LiabilityTrackerModal: React.FC<LiabilityTrackerModalProps> = ({ is
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     onClick={onClose}
-                    className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm" 
+                    className="absolute inset-0 bg-gray-900/40" 
                 />
                 
                 <motion.div 
                     initial={{ opacity: 0, scale: 0.95, y: 20 }}
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                    className="relative w-full max-w-4xl bg-white dark:bg-gray-800 rounded-3xl shadow-2xl border border-gray-100 dark:border-gray-700 overflow-hidden flex flex-col max-h-[90vh]"
+                    className="relative w-full max-w-4xl bg-white dark:bg-gray-800 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden flex flex-col max-h-[90vh]"
                 >
                     <div className="flex items-center justify-between p-6 border-b border-gray-100 dark:border-gray-700">
                         <div className="flex items-center gap-3">
@@ -101,16 +101,16 @@ export const LiabilityTrackerModal: React.FC<LiabilityTrackerModalProps> = ({ is
                         
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="bg-orange-50 dark:bg-orange-900/10 p-5 rounded-2xl border border-orange-100 dark:border-orange-900/30">
-                                <p className="text-xs font-bold text-orange-600/70 uppercase tracking-wider mb-1">Offene Haftung (Gesamt)</p>
-                                <p className="text-3xl font-black text-orange-600 dark:text-orange-500">{formatCurrency(totalLiability)}</p>
+                                <p className="text-xs font-bold text-orange-600/70 mb-1">Offene Haftung (Gesamt)</p>
+                                <p className="text-3xl font-semibold text-orange-600 dark:text-orange-500">{formatCurrency(totalLiability)}</p>
                             </div>
                             <div className="bg-emerald-50 dark:bg-emerald-900/10 p-5 rounded-2xl border border-emerald-100 dark:border-emerald-900/30">
-                                <p className="text-xs font-bold text-emerald-600/70 uppercase tracking-wider mb-1">Wird in 12 Monaten frei</p>
-                                <p className="text-3xl font-black text-emerald-600 dark:text-emerald-500">{formatCurrency(next12MonthsRelease)}</p>
+                                <p className="text-xs font-bold text-emerald-600/70 mb-1">Wird in 12 Monaten frei</p>
+                                <p className="text-3xl font-semibold text-emerald-600 dark:text-emerald-500">{formatCurrency(next12MonthsRelease)}</p>
                             </div>
                         </div>
 
-                        <div className="bg-gray-50/50 dark:bg-gray-900/20 p-6 rounded-2xl border border-gray-100 dark:border-gray-700/50">
+                        <div className="bg-gray-50/50 dark:bg-gray-900/20 p-6 rounded-2xl border border-gray-100 dark:border-gray-700">
                             <div className="flex items-center gap-2 mb-6">
                                 <Info className="w-4 h-4 text-gray-400" />
                                 <h3 className="text-sm font-bold text-gray-700 dark:text-gray-300">Freiwerdende Haftungsreserve pro Monat (Nächste 3 Jahre)</h3>

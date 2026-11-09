@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react';
+import { Avatar } from '@/components/ui';
+import { PageHeader, Button } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
+import { PROFILE_PUBLIC } from '@/lib/profiles';
 import { useStore } from '@/store/useStore';
 import { Poll } from '@/types';
 import { Plus, BarChart2, Trash2, CheckCircle2 } from 'lucide-react';
@@ -29,7 +32,7 @@ export const Polls = () => {
         .from('polls')
         .select(`
           *,
-          profiles(*),
+          profiles(${PROFILE_PUBLIC}),
           options:poll_options(*),
           votes:poll_votes(*)
         `)
@@ -176,40 +179,12 @@ export const Polls = () => {
   const isAdmin = profile?.roles?.includes('admin');
 
   return (
-    <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-8">
-      <div className="flex items-center justify-between">
-        <div>
-            <motion.h1 
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-400 flex items-center gap-3"
-            >
-              <BarChart2 className="w-8 h-8 text-indigo-600" />
-              Umfragen
-            </motion.h1>
-            <motion.p 
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.1 }}
-                className="text-lg text-gray-500 dark:text-gray-400 mt-2 font-medium"
-            >
-                Stimme ab und entscheide mit.
-            </motion.p>
-        </div>
-        {user && (
-          <motion.button
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.2 }}
-            onClick={() => setIsCreateModalOpen(true)}
-            className="group relative px-6 py-3 bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-semibold rounded-2xl shadow-lg shadow-indigo-500/30 hover:shadow-indigo-500/50 hover:scale-[1.02] transition-all flex items-center gap-2 overflow-hidden"
-          >
-            <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
-            <Plus className="w-5 h-5 relative z-10" />
-            <span className="relative z-10">Neue Umfrage</span>
-          </motion.button>
-        )}
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        title="Umfragen"
+        description="Gemeinsam abstimmen, zum Beispiel über Termine oder Anschaffungen."
+        actions={user ? <Button icon={Plus} onClick={() => setIsCreateModalOpen(true)}>Umfrage starten</Button> : undefined}
+      />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <AnimatePresence>
@@ -238,18 +213,14 @@ export const Polls = () => {
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: index * 0.05 }}
-                        className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-3xl p-6 border border-white/20 shadow-xl flex flex-col group relative overflow-hidden"
+                        className="bg-white dark:bg-gray-800 rounded-3xl p-6 border border-gray-200 shadow-sm flex flex-col group relative overflow-hidden"
                     >
                         {/* Decorative background element */}
                         <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
 
                         <div className="flex justify-between items-start mb-6 relative z-10">
                             <div className="flex items-center gap-3">
-                                <img 
-                                    src={poll.profiles?.avatar_url || `https://ui-avatars.com/api/?name=${poll.profiles?.full_name || 'User'}`}
-                                    className="w-10 h-10 rounded-full shadow-sm ring-2 ring-white dark:ring-gray-700"
-                                    alt=""
-                                />
+                                <Avatar name={poll.profiles?.full_name} src={poll.profiles?.avatar_url} size="md" className="w-10 h-10 rounded-full shadow-sm ring-2 ring-white dark:ring-gray-700" />
                                 <div>
                                     <span className="text-sm font-bold text-gray-700 dark:text-gray-200 block">
                                         {poll.profiles?.full_name}
@@ -270,7 +241,7 @@ export const Polls = () => {
                             )}
                         </div>
 
-                        <h3 className="text-xl font-black text-gray-900 dark:text-white mb-6 leading-tight relative z-10">
+                        <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-6 leading-tight relative z-10">
                             {poll.question}
                         </h3>
 
@@ -309,7 +280,7 @@ export const Polls = () => {
                                     </span>
                                     <div className="flex items-center gap-2">
                                         {isSelected && <CheckCircle2 className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />}
-                                        <span className="text-xs font-bold text-gray-500 dark:text-gray-400 bg-white/50 dark:bg-gray-800/50 px-2 py-0.5 rounded-md">
+                                        <span className="text-xs font-bold text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-800 px-2 py-0.5 rounded-md">
                                             {percentage}%
                                         </span>
                                     </div>
@@ -319,7 +290,7 @@ export const Polls = () => {
                             })}
                         </div>
 
-                        <div className="mt-6 pt-4 border-t border-gray-100 dark:border-gray-700/50 flex justify-between items-center text-xs font-medium text-gray-500 dark:text-gray-400 relative z-10">
+                        <div className="mt-6 pt-4 border-t border-gray-100 dark:border-gray-700 flex justify-between items-center text-xs font-medium text-gray-500 dark:text-gray-400 relative z-10">
                             <span className="bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded-lg">
                                 {totalVotes} {totalVotes === 1 ? 'Stimme' : 'Stimmen'}
                             </span>
@@ -344,7 +315,7 @@ export const Polls = () => {
       >
         <form onSubmit={handleCreatePoll} className="space-y-6">
           <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+            <label className="block text-xs font-semibold text-gray-500 mb-1.5">
               Frage
             </label>
             <input
@@ -358,7 +329,7 @@ export const Polls = () => {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+            <label className="block text-xs font-semibold text-gray-500 mb-2">
               Antwortmöglichkeiten
             </label>
             <div className="space-y-3">
@@ -404,7 +375,7 @@ export const Polls = () => {
             <button
               type="submit"
               disabled={creating}
-              className="px-6 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-lg shadow-indigo-500/30 transition-all hover:scale-[1.02] disabled:opacity-50 disabled:hover:scale-100"
+              className="px-6 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-sm transition-all hover:scale-[1.02] disabled:opacity-50 disabled:hover:scale-100"
             >
               {creating ? 'Erstelle...' : 'Erstellen'}
             </button>

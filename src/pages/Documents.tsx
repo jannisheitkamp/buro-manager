@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from 'react';
+import { openStoredFile } from '@/lib/storage';
+import { PageHeader, Button } from '@/components/ui';
 import { useStore } from '../store/useStore';
-import { supabase } from '../lib/supabase';
+import { supabase } from '@/lib/supabase';
+import { PROFILE_COLUMNS } from '@/lib/profiles';
 import { Document, Profile } from '../types';
 import { Plus, FileText, File, Download, Trash2, Edit2, Users, Check } from 'lucide-react';
 import { Modal } from '../components/Modal';
@@ -58,7 +61,7 @@ export function Documents() {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('*')
+        .select(PROFILE_COLUMNS)
         .neq('id', user?.id) // Don't list self
         .eq('is_approved', true); // Only approved users
 
@@ -230,19 +233,7 @@ export function Documents() {
   const handleDownload = async (doc: Document) => {
     // 1. If it's a file upload, download the file
     if (doc.file_type === 'file' && doc.file_path) {
-      try {
-        const { data, error } = await supabase.storage
-          .from('documents')
-          .createSignedUrl(doc.file_path, 60);
-
-        if (error) throw error;
-        if (data?.signedUrl) {
-          window.open(data.signedUrl, '_blank');
-        }
-      } catch (error) {
-        console.error('Error downloading file:', error);
-        toast.error('Download fehlgeschlagen');
-      }
+      await openStoredFile('documents', doc.file_path);
       return;
     }
 
@@ -295,23 +286,15 @@ export function Documents() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Dokumente</h1>
-          <p className="text-gray-500 dark:text-gray-400">Verwalten und teilen Sie Dokumente mit Ihrem Team</p>
-        </div>
-        <button
-          onClick={() => setIsModalOpen(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors"
-        >
-          <Plus className="w-5 h-5" />
-          Neues Dokument
-        </button>
-      </div>
+      <PageHeader
+        title="Dokumente"
+        description="Texte und Dateien anlegen und gezielt mit Kolleginnen und Kollegen teilen."
+        actions={<Button icon={Plus} onClick={() => setIsModalOpen(true)}>Dokument anlegen</Button>}
+      />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {documents.map((doc) => (
-          <div key={doc.id} className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700 p-4 hover:shadow-md transition-shadow">
+          <div key={doc.id} className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700 p-4 hover:border-gray-300 dark:hover:border-gray-600 transition-shadow">
             <div className="flex justify-between items-start mb-4">
               <div className="flex items-center gap-3">
                 <div className={`p-2 rounded-lg ${doc.file_type === 'file' ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400' : 'bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-400'}`}>

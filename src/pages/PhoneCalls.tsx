@@ -12,13 +12,15 @@ import { ConfirmModal } from '@/components/ConfirmModal';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Callback, Profile } from '@/types';
 import { useSearchParams } from 'react-router-dom';
+import { Avatar, Badge, Button, EmptyState, PageHeader, Segmented } from '@/components/ui';
 
 export const PhoneCalls = () => {
   const { user, profile } = useStore();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [activeTab, setActiveTab] = useState<'live' | 'tasks' | 'dialer' | 'history'>(
-      (searchParams.get('tab') as 'live' | 'tasks' | 'dialer' | 'history') || 'live'
-  );
+  type Tab = 'live' | 'tasks' | 'dialer' | 'history';
+  const tabParam = searchParams.get('tab') as Tab | null;
+  const activeTab: Tab = tabParam && ['live', 'tasks', 'dialer', 'history'].includes(tabParam) ? tabParam : 'live';
+  const setActiveTab = (tab: Tab) => setSearchParams({ tab }, { replace: true });
 
   // --- CALL LOGS STATE ---
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -135,6 +137,10 @@ export const PhoneCalls = () => {
       }
       const lead = leads[currentLeadIndex];
       const start = new Date(`${appointmentDate}T${appointmentTime}`);
+      if (isNaN(start.getTime())) {
+          toast.error('Bitte Datum und Uhrzeit angeben.');
+          return;
+      }
       const end = new Date(start.getTime() + 30 * 60000); // 30 min default
 
       // 1. Create Calendar Event
@@ -225,10 +231,14 @@ export const PhoneCalls = () => {
       if (activeTab === 'dialer') fetchLeads();
   }, [activeTab]);
   
-  // Update URL when tab changes
+  // "?new=1" öffnet direkt das Formular für einen neuen Rückruf (z. B. aus der Übersicht)
   useEffect(() => {
-      setSearchParams({ tab: activeTab });
-  }, [activeTab, setSearchParams]);
+      if (searchParams.get('new') === '1') {
+          setIsModalOpen(true);
+          setSearchParams({ tab: 'tasks' }, { replace: true });
+      }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   
   // --- STATE FOR LIVE CALLS ---
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -274,9 +284,11 @@ export const PhoneCalls = () => {
   };
 
   const handleMarkDone = async (id: string) => {
+      const call = calls.find(c => c.id === id);
+      const notes = call?.notes ? `${call.notes} · erledigt` : 'erledigt';
       const { error } = await supabase
         .from('phone_calls')
-        .update({ notes: 'Rückruf erledigt' }) 
+        .update({ notes })
         .eq('id', id);
       
       if (error) toast.error('Fehler');
@@ -322,9 +334,9 @@ export const PhoneCalls = () => {
         .from('callbacks')
         .select(`
           *,
-          creator:created_by(*),
-          assignee:assigned_to(*),
-          completer:completed_by(*)
+          creator:created_by(id, full_name, avatar_url),
+          assignee:assigned_to(id, full_name, avatar_url),
+          completer:completed_by(id, full_name)
         `)
         .order('created_at', { ascending: false });
 
@@ -338,8 +350,8 @@ export const PhoneCalls = () => {
   };
 
   const fetchProfiles = async () => {
-    const { data } = await supabase.from('profiles').select('*').order('full_name');
-    setProfiles(data || []);
+    const { data } = await supabase.from('profiles').select('id, full_name, avatar_url, is_approved').order('full_name');
+    setProfiles(((data || []) as Profile[]).filter(p => p.is_approved !== false));
   };
 
   const handleCreateCallback = async (e: React.FormEvent) => {
@@ -360,7 +372,8 @@ export const PhoneCalls = () => {
 
       if (error) throw error;
 
-      toast.success('Notiz erstellt!');
+      toast.success('Rückruf angelegt');
+      fetchCallbacks();
       setIsModalOpen(false);
       setCustomerName('');
       setPhone('');
@@ -388,7 +401,8 @@ export const PhoneCalls = () => {
             .eq('id', id);
         
         if (error) throw error;
-        toast.success('Erledigt! ✅');
+        toast.success('Rückruf erledigt');
+        fetchCallbacks();
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (error) {
         toast.error('Fehler.');
@@ -398,9 +412,11 @@ export const PhoneCalls = () => {
   const handleDeleteTask = async () => {
     if (!deleteId) return;
     try {
-        await supabase.from('callbacks').delete().eq('id', deleteId);
-        toast.success('Gelöscht.');
+        const { error } = await supabase.from('callbacks').delete().eq('id', deleteId);
+        if (error) throw error;
+        toast.success('Rückruf gelöscht');
         setDeleteId(null);
+        fetchCallbacks();
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (error) {
         toast.error('Fehler beim Löschen.');
@@ -467,8 +483,12 @@ export const PhoneCalls = () => {
       }
   };
 
-  const handleDeleteCallLog = async (id: string) => {
-      if (!window.confirm('Eintrag wirklich löschen?')) return;
+  const [deleteLogId, setDeleteLogId] = useState<string | null>(null);
+  const handleDeleteCallLog = (id: string) => setDeleteLogId(id);
+  const confirmDeleteCallLog = async () => {
+      const id = deleteLogId;
+      setDeleteLogId(null);
+      if (!id) return;
       try {
           await supabase.from('call_logs').delete().eq('id', id);
           toast.success('Gelöscht');
@@ -486,7 +506,7 @@ export const PhoneCalls = () => {
 
   // --- EFFECTS ---
   useEffect(() => {
-    let timeoutId: NodeJS.Timeout;
+    let timeoutId: ReturnType<typeof setTimeout>;
     const debouncedFetchCallbacks = () => {
         clearTimeout(timeoutId);
         timeoutId = setTimeout(() => {
@@ -532,410 +552,187 @@ export const PhoneCalls = () => {
     };
   }, []);
 
+  const missedOpen = uniqueCalls.filter(c => c.status === 'missed' && !isDone(c)).length;
+  const openTasks = callbacks.filter(c => c.status !== 'done').length;
+
   return (
-    <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-8">
-      {/* HEADER & TABS */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <div>
-          <h1 className="text-3xl font-black text-gray-900 dark:text-white flex items-center gap-3">
-            <Phone className="w-8 h-8 text-indigo-600" />
-            Telefonie
-          </h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-2">
-            Zentrale Übersicht für alle Anrufe und Rückruf-Aufgaben.
-          </p>
-        </div>
-        
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-            <button
-                onClick={() => setIsLogModalOpen(true)}
-                className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-indigo-500/20 hover:scale-105 transition-all flex items-center gap-2"
-            >
-                <Plus className="w-5 h-5" />
-                Anruf protokollieren
-            </button>
+    <div className="space-y-6">
+      <PageHeader
+        title="Anrufe"
+        description="Verpasste Anrufe, Rückrufe, Power Dialer und Gesprächsprotokoll."
+        actions={
+          <>
+            <Button variant="secondary" icon={BookOpen} onClick={() => setIsLogModalOpen(true)}>Gespräch protokollieren</Button>
+            <Button icon={Plus} onClick={() => setIsModalOpen(true)}>Rückruf notieren</Button>
+          </>
+        }
+      >
+        <Segmented
+          value={activeTab}
+          onChange={(v) => setActiveTab(v as Tab)}
+          options={[
+            { value: 'live', label: 'Eingang', icon: PhoneIncoming, count: missedOpen },
+            { value: 'tasks', label: 'Rückrufe', icon: ClipboardList, count: openTasks },
+            { value: 'dialer', label: 'Power Dialer', icon: PhoneOutgoing },
+            { value: 'history', label: 'Protokoll', icon: BookOpen },
+          ]}
+        />
+      </PageHeader>
 
-            <div className="flex bg-gray-100 dark:bg-gray-800 p-1.5 rounded-2xl">
-                <button 
-                    onClick={() => setActiveTab('live')}
-                className={cn(
-                    "px-6 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2",
-                    activeTab === 'live' 
-                        ? "bg-white dark:bg-gray-700 shadow-sm text-indigo-600 dark:text-indigo-400" 
-                        : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
-                )}
-            >
-                <PhoneIncoming className="w-4 h-4" />
-                Live / Verpasst
-            </button>
-            <button 
-                onClick={() => setActiveTab('tasks')}
-                className={cn(
-                    "px-6 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2",
-                    activeTab === 'tasks' 
-                        ? "bg-white dark:bg-gray-700 shadow-sm text-indigo-600 dark:text-indigo-400" 
-                        : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
-                )}
-            >
-                <ClipboardList className="w-4 h-4" />
-                Rückruf-Aufgaben
-            </button>
-            <button 
-                onClick={() => setActiveTab('dialer')}
-                className={cn(
-                    "px-6 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2",
-                    activeTab === 'dialer' 
-                        ? "bg-white dark:bg-gray-700 shadow-sm text-indigo-600 dark:text-indigo-400" 
-                        : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
-                )}
-            >
-                <PhoneOutgoing className="w-4 h-4" />
-                Power Dialer
-            </button>
-            <button 
-                onClick={() => setActiveTab('history')}
-                className={cn(
-                    "px-6 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2",
-                    activeTab === 'history' 
-                        ? "bg-white dark:bg-gray-700 shadow-sm text-indigo-600 dark:text-indigo-400" 
-                        : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
-                )}
-            >
-                <BookOpen className="w-4 h-4" />
-                Anrufhistorie
-            </button>
-            </div>
-        </div>
-      </div>
-
-      {/* CONTENT LIVE CALLS */}
+      {/* EINGANG */}
       {activeTab === 'live' && (
-        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="flex justify-end">
-                <div className="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-xl">
-                    <button 
-                        onClick={() => setFilterCalls('all')}
-                        className={cn(
-                            "px-4 py-2 rounded-lg text-xs font-bold transition-all",
-                            filterCalls === 'all' ? "bg-white dark:bg-gray-700 shadow-sm text-indigo-600" : "text-gray-500"
-                        )}
-                    >
-                        Alle
-                    </button>
-                    <button 
-                        onClick={() => setFilterCalls('missed')}
-                        className={cn(
-                            "px-4 py-2 rounded-lg text-xs font-bold transition-all",
-                            filterCalls === 'missed' ? "bg-white dark:bg-gray-700 shadow-sm text-red-600" : "text-gray-500"
-                        )}
-                    >
-                        Nur Verpasste
-                    </button>
-                </div>
-            </div>
-
-            <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
-                {loadingCalls ? (
-                    <div className="p-12 text-center text-gray-500">Lade Anrufe...</div>
-                ) : filteredCalls.length === 0 ? (
-                    <div className="p-20 text-center">
-                        <div className="w-16 h-16 bg-gray-50 dark:bg-gray-700/50 rounded-full flex items-center justify-center mx-auto mb-4">
-                            <PhoneIncoming className="w-8 h-8 text-gray-400" />
-                        </div>
-                        <h3 className="text-lg font-bold text-gray-900 dark:text-white">Keine Anrufe</h3>
-                        <p className="text-gray-500 text-sm mt-1">Die Liste ist leer.</p>
+        <div className="card animate-fade-in overflow-hidden">
+          <div className="flex items-center justify-between border-b border-gray-100 px-5 py-3 dark:border-gray-700 sm:px-6">
+            <p className="text-sm text-gray-500">Die letzten 50 Anrufe</p>
+            <Segmented size="sm" value={filterCalls} onChange={(v) => setFilterCalls(v as 'all' | 'missed')} options={[{ value: 'all', label: 'Alle' }, { value: 'missed', label: 'Offen verpasst', count: missedOpen }]} />
+          </div>
+          {loadingCalls ? (
+            <p className="p-12 text-center text-sm text-gray-500">Anrufe werden geladen</p>
+          ) : filteredCalls.length === 0 ? (
+            <EmptyState icon={PhoneIncoming} title={filterCalls === 'missed' ? 'Keine offenen verpassten Anrufe' : 'Noch keine Anrufe'} description="Eingehende Anrufe der Telefonanlage erscheinen hier automatisch." />
+          ) : (
+            <ul className="divide-y divide-gray-100 dark:divide-gray-700/70">
+              {filteredCalls.map((call) => {
+                const open = call.status === 'missed' && !isDone(call);
+                const caller = call.notes?.replace('Anrufer: ', '').replace(/ · erledigt$|^erledigt$|Rückruf erledigt/, '').trim();
+                return (
+                  <li key={call.id} className="group flex flex-col gap-3 px-5 py-3.5 sm:flex-row sm:items-center sm:px-6">
+                    <div className="flex min-w-0 flex-1 items-center gap-3">
+                      <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-lg', open ? 'bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-300' : 'bg-gray-100 text-gray-400 dark:bg-gray-700 dark:text-gray-400')}>
+                        {call.status === 'missed' ? <PhoneMissed className="h-4 w-4" /> : <PhoneIncoming className="h-4 w-4" />}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="flex items-center gap-2">
+                          <a href={`tel:${(call.caller_number || '').replace(/\s/g, '')}`} className={cn('tabular font-medium hover:underline', open ? 'text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400')}>{call.caller_number || 'Unbekannt'}</a>
+                          {open && <Badge tone="danger">Verpasst</Badge>}
+                          {isDone(call) && <Badge tone="success" icon={CheckCircle}>Erledigt</Badge>}
+                        </p>
+                        <p className="truncate text-xs text-gray-500">
+                          {format(new Date(call.created_at), "EEE, dd.MM. 'um' HH:mm", { locale: de })}
+                          {call.duration > 0 && ` · ${Math.floor(call.duration / 60)}:${String(call.duration % 60).padStart(2, '0')} Min.`}
+                          {caller && ` · ${caller}`}
+                        </p>
+                      </div>
                     </div>
-                ) : (
-                    <div className="divide-y divide-gray-100 dark:divide-gray-700">
-                        {filteredCalls.map((call) => (
-                            <div key={call.id} className={cn(
-                                "p-4 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-4 group rounded-2xl border mb-3",
-                                call.status === 'missed' && !isDone(call) 
-                                    ? "bg-white dark:bg-gray-800 border-indigo-100 dark:border-indigo-900/30 shadow-sm" 
-                                    : "bg-gray-50 dark:bg-gray-900/20 border-transparent opacity-75"
-                            )}>
-                                <div className="flex items-center gap-4">
-                                    <div className={cn(
-                                        "w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-inner",
-                                        call.status === 'missed' && !isDone(call)
-                                            ? "bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400" 
-                                            : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400"
-                                    )}>
-                                        <PhoneIncoming className="w-6 h-6" />
-                                    </div>
-                                    <div>
-                                        <h3 className={cn(
-                                            "font-bold text-lg",
-                                            call.status === 'missed' && !isDone(call) ? "text-gray-900 dark:text-white" : "text-gray-500 dark:text-gray-400"
-                                        )}>
-                                            {call.caller_number || 'Unbekannt'}
-                                        </h3>
-                                        <div className="flex items-center gap-3 text-sm text-gray-500">
-                                            <span className="flex items-center gap-1">
-                                                <Clock className="w-3 h-3" />
-                                                {format(new Date(call.created_at), 'dd.MM. HH:mm', { locale: de })}
-                                            </span>
-                                            {call.duration > 0 && (
-                                                <span>• {Math.floor(call.duration / 60)}m {call.duration % 60}s</span>
-                                            )}
-                                            {isDone(call) && (
-                                                <span className="bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full flex items-center gap-1">
-                                                    <CheckCircle className="w-3 h-3" /> Erledigt
-                                                </span>
-                                            )}
-                                            {call.notes && !isDone(call) && (
-                                                <span className="text-gray-400 italic max-w-md truncate hidden md:inline">• {call.notes}</span>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="flex items-center gap-2 self-end md:self-auto">
-                                    {call.status === 'missed' && !isDone(call) ? (
-                                        <>
-                                            <button 
-                                                onClick={() => handleCreateTaskFromCall(call)}
-                                                className="px-4 py-2 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 rounded-xl text-sm font-bold transition-colors flex items-center gap-2"
-                                                title="Rückruf-Aufgabe erstellen"
-                                            >
-                                                <ClipboardList className="w-4 h-4" />
-                                                <span className="hidden md:inline">Aufgabe</span>
-                                            </button>
-                                            <button 
-                                                onClick={() => handleMarkDone(call.id)}
-                                                className="px-4 py-2 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 rounded-xl text-sm font-bold transition-colors flex items-center gap-2"
-                                                title="Als erledigt markieren (keine Aktion nötig)"
-                                            >
-                                                <Check className="w-4 h-4" />
-                                                <span className="hidden md:inline">Erledigt</span>
-                                            </button>
-                                            <button 
-                                                onClick={() => handleDeleteCall(call.id)}
-                                                className="px-4 py-2 bg-gray-50 dark:bg-gray-800 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl text-sm font-bold transition-colors flex items-center gap-2"
-                                                title="Eintrag löschen"
-                                            >
-                                                <Trash2 className="w-4 h-4" />
-                                            </button>
-                                        </>
-                                    ) : (
-                                        <button 
-                                            onClick={() => handleDeleteCall(call.id)}
-                                            className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors opacity-50 hover:opacity-100"
-                                            title="Löschen"
-                                        >
-                                            <XCircle className="w-5 h-5" />
-                                        </button>
-                                    )}
-                                </div>
-                            </div>
-                        ))}
+                    <div className="flex items-center gap-1.5 self-end sm:self-auto">
+                      {open && (
+                        <>
+                          <button type="button" onClick={() => handleCreateTaskFromCall(call)} className="btn-secondary btn-sm"><ClipboardList className="h-3.5 w-3.5" /> Rückruf anlegen</button>
+                          <button type="button" onClick={() => handleMarkDone(call.id)} className="btn-secondary btn-sm"><Check className="h-3.5 w-3.5" /> Erledigt</button>
+                        </>
+                      )}
+                      <button type="button" onClick={() => handleDeleteCall(call.id)} className="btn-icon p-1.5 opacity-60 hover:!text-red-600 group-hover:opacity-100" title="Eintrag löschen" aria-label="Eintrag löschen"><Trash2 className="h-4 w-4" /></button>
                     </div>
-                )}
-            </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </div>
       )}
 
-      {/* CONTENT CALLBACK TASKS */}
+      {/* RÜCKRUFE */}
       {activeTab === 'tasks' && (
-        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-             <div className="flex flex-col sm:flex-row justify-between gap-4">
-                 <div className="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-xl self-start">
-                    <button 
-                        onClick={() => setFilterCallbacks('open')}
-                        className={cn(
-                            "px-4 py-2 rounded-lg text-xs font-bold transition-all",
-                            filterCallbacks === 'open' ? "bg-white dark:bg-gray-700 shadow-sm text-indigo-600" : "text-gray-500"
-                        )}
-                    >
-                        Offen
-                    </button>
-                    <button 
-                        onClick={() => setFilterCallbacks('done')}
-                        className={cn(
-                            "px-4 py-2 rounded-lg text-xs font-bold transition-all",
-                            filterCallbacks === 'done' ? "bg-white dark:bg-gray-700 shadow-sm text-green-600" : "text-gray-500"
-                        )}
-                    >
-                        Erledigt
-                    </button>
-                </div>
+        <div className="animate-fade-in space-y-4">
+          <Segmented size="sm" value={filterCallbacks} onChange={(v) => setFilterCallbacks(v as 'open' | 'done')} options={[{ value: 'open', label: 'Offen', count: openTasks }, { value: 'done', label: 'Erledigt' }]} />
 
-                <button
-                    onClick={() => setIsModalOpen(true)}
-                    className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-indigo-500/20 hover:scale-105 transition-all flex items-center gap-2"
-                >
-                    <Plus className="w-5 h-5" />
-                    Aufgabe erstellen
-                </button>
-             </div>
-
-             <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-                <AnimatePresence>
-                    {loadingCallbacks ? (
-                        <div className="col-span-full py-20 text-center text-gray-400">Lade Aufgaben...</div>
-                    ) : filteredCallbacks.length === 0 ? (
-                        <motion.div 
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            className="col-span-full text-center py-20"
-                        >
-                            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-800 mb-4">
-                                <ClipboardList className="w-8 h-8 text-gray-400" />
-                            </div>
-                            <p className="text-lg text-gray-500 font-medium">Keine Aufgaben gefunden.</p>
-                        </motion.div>
-                    ) : (
-                        filteredCallbacks.map((cb, index) => {
-                            const isHighPrio = cb.priority === 'high';
-                            const isDone = cb.status === 'done';
-                            const isForMe = cb.assigned_to === user?.id;
-                            const isCreator = cb.created_by === user?.id;
-
-                            return (
-                                <motion.div 
-                                    key={cb.id} 
-                                    initial={{ opacity: 0, y: 20 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    transition={{ delay: index * 0.05 }}
-                                    layout
-                                    className={cn(
-                                        "bg-white dark:bg-gray-800 rounded-3xl p-6 border shadow-sm flex flex-col relative overflow-hidden group hover:-translate-y-1 transition-all duration-300",
-                                        isForMe && !isDone ? "ring-2 ring-indigo-500/50 border-indigo-200 dark:border-indigo-900" : "border-gray-100 dark:border-gray-700",
-                                        isHighPrio && !isDone ? "bg-red-50/50 dark:bg-red-900/10 border-red-100" : "",
-                                        isDone && "opacity-60 grayscale-[0.5]"
-                                    )}
-                                >
-                                    {isHighPrio && !isDone && (
-                                        <div className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-black tracking-wider px-3 py-1 rounded-bl-2xl flex items-center gap-1 shadow-sm z-10">
-                                            <AlertCircle className="w-3 h-3" /> WICHTIG
-                                        </div>
-                                    )}
-                                    
-                                    {isForMe && !isDone && (
-                                        <div className="absolute top-0 left-0 bg-indigo-600 text-white text-[10px] font-black tracking-wider px-3 py-1 rounded-br-2xl shadow-sm z-10">
-                                            FÜR DICH
-                                        </div>
-                                    )}
-
-                                    <div className="mb-4 mt-2">
-                                        <div className="flex items-start justify-between">
-                                            <div className="flex items-start gap-4">
-                                                <div className={cn(
-                                                    "w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-inner",
-                                                    isHighPrio && !isDone ? "bg-red-100 text-red-600" : "bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400"
-                                                )}>
-                                                    <Phone className="w-6 h-6" />
-                                                </div>
-                                                <div>
-                                                    <h3 className="font-bold text-lg text-gray-900 dark:text-white leading-tight">
-                                                        {cb.customer_name}
-                                                    </h3>
-                                                    <a href={`tel:${cb.phone}`} className="text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 font-semibold text-sm block mt-1 hover:underline">
-                                                        {cb.phone || 'Keine Nummer'}
-                                                    </a>
-                                                </div>
-                                            </div>
-
-                                            {(isCreator || isAdmin || isDone) && (
-                                                <button 
-                                                    onClick={() => setDeleteId(cb.id)}
-                                                    className="text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 p-2 rounded-xl transition-all opacity-0 group-hover:opacity-100"
-                                                    title="Notiz löschen"
-                                                >
-                                                    <Trash2 className="w-5 h-5" />
-                                                </button>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    <div className="bg-gray-50 dark:bg-gray-700/30 rounded-2xl p-4 mb-6 flex-grow border border-gray-100 dark:border-gray-600/30 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors"
-                                         onClick={() => setScriptOpen(cb.id === scriptOpen ? null : cb.id)}
-                                         title="Klicken für Gesprächsleitfaden">
-                                        <p className="text-gray-700 dark:text-gray-300 text-sm leading-relaxed whitespace-pre-wrap">
-                                            {cb.topic || 'Keine Notiz hinterlassen.'}
-                                        </p>
-                                        
-                                        {/* Script Overlay */}
-                                        {scriptOpen === cb.id && (
-                                            <motion.div 
-                                                initial={{ opacity: 0, height: 0 }}
-                                                animate={{ opacity: 1, height: 'auto' }}
-                                                className="mt-4 pt-4 border-t border-indigo-100 dark:border-indigo-800/30"
-                                                onClick={e => e.stopPropagation()}
-                                            >
-                                                <div className="flex items-center gap-2 mb-2 text-indigo-700 dark:text-indigo-300">
-                                                    <MessageSquare className="w-3 h-3" />
-                                                    <span className="text-xs font-bold uppercase tracking-wider">Gesprächsleitfaden</span>
-                                                </div>
-                                                <div className="bg-indigo-50 dark:bg-indigo-900/20 rounded-xl p-3 text-sm text-gray-700 dark:text-gray-300 space-y-2 border border-indigo-100 dark:border-indigo-800/50">
-                                                    <p>👋 "Hallo Herr/Frau {cb.customer_name}, hier ist {profile?.full_name?.split(' ')[0]} von der Agentur..."</p>
-                                                    <p>📞 "Sie hatten um einen Rückruf gebeten bezüglich <strong>{cb.topic || 'Ihrer Anfrage'}</strong>?"</p>
-                                                    <div className="flex justify-end mt-2">
-                                                        <button onClick={() => setScriptOpen(null)} className="text-xs text-indigo-600 dark:text-indigo-400 font-bold hover:underline">
-                                                            Schließen
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            </motion.div>
-                                        )}
-                                    </div>
-
-                                    <div className="flex items-center justify-between pt-4 border-t border-gray-100 dark:border-gray-700/50 mt-auto">
-                                        <div className="flex flex-col gap-1">
-                                            <div className="flex items-center gap-1.5 text-xs font-medium text-gray-500 dark:text-gray-400">
-                                                <PenTool className="w-3 h-3" />
-                                                <span>{cb.creator?.full_name?.split(' ')[0]}</span>
-                                            </div>
-                                            <div className="flex items-center gap-1.5 text-[10px] text-gray-400">
-                                                <Clock className="w-3 h-3" />
-                                                {format(new Date(cb.created_at), 'dd.MM. HH:mm', { locale: de })}
-                                            </div>
-                                        </div>
-
-                                        {!isDone ? (
-                                            <div className="flex items-center gap-3">
-                                                <div className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
-                                                    <ArrowRight className="w-3 h-3" />
-                                                    {cb.assignee?.full_name?.split(' ')[0] || 'Alle'}
-                                                </div>
-                                                
-                                                <button 
-                                                    onClick={() => handleCompleteTask(cb.id)}
-                                                    className="p-2.5 bg-green-500 hover:bg-green-600 text-white rounded-xl shadow-lg shadow-green-500/30 hover:shadow-green-500/50 hover:scale-105 transition-all"
-                                                    title="Als erledigt markieren"
-                                                >
-                                                    <Check className="w-5 h-5" />
-                                                </button>
-                                            </div>
-                                        ) : (
-                                            <div className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">
-                                                <Check className="w-3 h-3" /> Erledigt
-                                            </div>
-                                        )}
-                                    </div>
-                                </motion.div>
-                            );
-                        })
+          {loadingCallbacks ? (
+            <p className="py-16 text-center text-sm text-gray-500">Rückrufe werden geladen</p>
+          ) : filteredCallbacks.length === 0 ? (
+            <div className="card">
+              <EmptyState
+                icon={ClipboardList}
+                title={filterCallbacks === 'open' ? 'Keine offenen Rückrufe' : 'Noch nichts erledigt'}
+                description={filterCallbacks === 'open' ? 'Wenn jemand um Rückruf bittet, notiere es hier und weise es einer Person zu.' : undefined}
+                action={filterCallbacks === 'open' ? <Button icon={Plus} onClick={() => setIsModalOpen(true)}>Rückruf notieren</Button> : undefined}
+              />
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
+              {[...filteredCallbacks]
+                .sort((a, b) => Number(b.assigned_to === user?.id) - Number(a.assigned_to === user?.id) || Number(b.priority === 'high') - Number(a.priority === 'high'))
+                .map((cb) => {
+                const isHighPrio = cb.priority === 'high';
+                const done = cb.status === 'done';
+                const isForMe = cb.assigned_to === user?.id;
+                const isCreator = cb.created_by === user?.id;
+                return (
+                  <article
+                    key={cb.id}
+                    className={cn(
+                      'card group flex flex-col p-5',
+                      isHighPrio && !done && 'border-l-4 border-l-red-500',
+                      isForMe && !done && !isHighPrio && 'border-l-4 border-l-brand-500',
+                      done && 'opacity-70'
                     )}
-                </AnimatePresence>
-             </div>
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {isHighPrio && !done && <Badge tone="danger" icon={AlertCircle}>Dringend</Badge>}
+                          {isForMe && !done && <Badge tone="brand">Für dich</Badge>}
+                        </div>
+                        <h3 className="mt-1.5 truncate text-base font-semibold text-gray-900 dark:text-white">{cb.customer_name}</h3>
+                        {cb.phone ? (
+                          <a href={`tel:${cb.phone.replace(/\s/g, '')}`} className="tabular text-sm font-medium text-brand-700 hover:underline dark:text-brand-300">{cb.phone}</a>
+                        ) : (
+                          <span className="text-sm text-gray-400">Keine Nummer</span>
+                        )}
+                      </div>
+                      {(isCreator || isAdmin || done) && (
+                        <button type="button" onClick={() => setDeleteId(cb.id)} className="btn-icon p-1.5 opacity-0 hover:!text-red-600 focus:opacity-100 group-hover:opacity-100" title="Löschen" aria-label="Rückruf löschen">
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+
+                    <button type="button" onClick={() => setScriptOpen(cb.id === scriptOpen ? null : cb.id)} className="mt-3 flex-1 rounded-lg bg-gray-50 p-3 text-left text-sm leading-relaxed text-gray-700 transition-colors hover:bg-gray-100 dark:bg-gray-900/40 dark:text-gray-300 dark:hover:bg-gray-900/60">
+                      <span className="whitespace-pre-wrap">{cb.topic || 'Ohne Notiz'}</span>
+                      {scriptOpen === cb.id && (
+                        <span className="mt-3 block border-t border-gray-200 pt-3 text-gray-600 dark:border-gray-700 dark:text-gray-300">
+                          <span className="mb-1 flex items-center gap-1.5 text-xs font-medium text-brand-700 dark:text-brand-300"><MessageSquare className="h-3.5 w-3.5" /> Gesprächseinstieg</span>
+                          „Guten Tag, hier ist {profile?.full_name?.split(' ')[0]} vom Agenturverbund. Sie hatten um Rückruf gebeten{cb.topic ? <> wegen <strong>{cb.topic}</strong></> : ''}.“
+                        </span>
+                      )}
+                    </button>
+
+                    <div className="mt-4 flex items-center justify-between gap-3 border-t border-gray-100 pt-3 dark:border-gray-700">
+                      <div className="min-w-0 text-xs text-gray-500">
+                        <p className="flex items-center gap-1.5 truncate"><PenTool className="h-3 w-3" /> {cb.creator?.full_name?.split(' ')[0] || 'Unbekannt'} · {format(new Date(cb.created_at), 'dd.MM. HH:mm', { locale: de })}</p>
+                        {done && cb.completer && <p className="mt-0.5 truncate text-emerald-700 dark:text-emerald-400">Erledigt von {cb.completer.full_name?.split(' ')[0]}</p>}
+                      </div>
+                      {!done && (
+                        <div className="flex shrink-0 items-center gap-2">
+                          <span className="flex items-center gap-1.5 text-xs text-gray-500" title="Zuständig">
+                            {cb.assignee ? <Avatar name={cb.assignee.full_name} src={cb.assignee.avatar_url} size="xs" /> : <ArrowRight className="h-3 w-3" />}
+                            {cb.assignee?.full_name?.split(' ')[0] || 'Alle'}
+                          </span>
+                          <button type="button" onClick={() => handleCompleteTask(cb.id)} className="btn-primary btn-sm"><Check className="h-3.5 w-3.5" /> Erledigt</button>
+                        </div>
+                      )}
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
       {/* CONTENT DIALER */}
       {activeTab === 'dialer' && (
-          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="space-y-6 animate-fade-in">
               
               {/* Toolbar */}
               <div className="flex justify-between items-center">
                   <div className="flex items-center gap-2">
-                      <div className="bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 px-3 py-1 rounded-lg text-xs font-bold">
+                      <div className="chip bg-brand-50 text-brand-700 dark:bg-brand-900/50 dark:text-brand-200">
                           {leads.length} Leads in der Liste
                       </div>
                   </div>
                   <button 
                       onClick={() => setShowImporter(!showImporter)}
-                      className="text-sm text-indigo-600 hover:text-indigo-700 font-bold flex items-center gap-1"
+                      className="btn-ghost btn-sm"
                   >
                       <UserPlus className="w-4 h-4" />
                       Leads importieren
@@ -951,18 +748,18 @@ export const PhoneCalls = () => {
                           exit={{ height: 0, opacity: 0 }}
                           className="overflow-hidden"
                       >
-                          <div className="bg-white dark:bg-gray-800 p-6 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm">
+                          <div className="card card-pad">
                               <h3 className="font-bold mb-2">CSV / Text Import</h3>
                               <p className="text-xs text-gray-500 mb-4">Format pro Zeile: <code>Name, Telefonnummer</code></p>
                               <textarea
                                   value={importText}
                                   onChange={e => setImportText(e.target.value)}
                                   placeholder={`Max Mustermann, 0171123456\nErika Musterfrau, 0172987654`}
-                                  className="w-full h-32 rounded-xl border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-900 text-sm p-4 font-mono mb-4"
+                                  className="input mb-4 h-32 font-mono"
                               />
                               <button 
                                   onClick={handleImportLeads}
-                                  className="bg-indigo-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-indigo-700 transition-colors w-full"
+                                  className="btn-primary w-full"
                               >
                                   Importieren
                               </button>
@@ -973,7 +770,7 @@ export const PhoneCalls = () => {
 
               {/* DIALER INTERFACE */}
               {leads.length === 0 ? (
-                  <div className="text-center py-20 bg-white dark:bg-gray-800 rounded-3xl border border-dashed border-gray-300 dark:border-gray-700">
+                  <div className="card py-16 text-center">
                       <div className="w-16 h-16 bg-gray-50 dark:bg-gray-900 rounded-full flex items-center justify-center mx-auto mb-4">
                           <PhoneOutgoing className="w-8 h-8 text-gray-300" />
                       </div>
@@ -984,29 +781,29 @@ export const PhoneCalls = () => {
               ) : (
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                       {/* ACTIVE CARD */}
-                      <div className="bg-white dark:bg-gray-800 rounded-3xl p-8 shadow-xl border border-indigo-100 dark:border-indigo-900/50 relative overflow-hidden flex flex-col items-center text-center">
-                          <div className="absolute top-0 left-0 w-full h-2 bg-gray-100">
+                      <div className="card relative flex flex-col items-center overflow-hidden p-8 text-center">
+                          <div className="absolute left-0 top-0 h-1 w-full bg-gray-100 dark:bg-gray-700">
                               <div 
-                                  className="h-full bg-indigo-500 transition-all duration-500"
+                                  className="h-full bg-brand-600 transition-all duration-500"
                                   style={{ width: `${((currentLeadIndex + 1) / leads.length) * 100}%` }}
                               />
                           </div>
                           
-                          <span className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-6 mt-2">
+                          <span className="text-xs font-bold text-gray-400 mb-6 mt-2">
                               Lead {currentLeadIndex + 1} von {leads.length}
                           </span>
 
-                          <div className="w-24 h-24 bg-indigo-50 dark:bg-indigo-900/20 rounded-full flex items-center justify-center mb-6 animate-pulse">
-                              <PhoneOutgoing className="w-10 h-10 text-indigo-600" />
+                          <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-brand-50 dark:bg-brand-900/40">
+                              <PhoneOutgoing className="h-7 w-7 text-brand-600 dark:text-brand-300" />
                           </div>
 
-                          <h2 className="text-3xl font-black text-gray-900 dark:text-white mb-2">
+                          <h2 className="text-3xl font-semibold text-gray-900 dark:text-white mb-2">
                               {leads[currentLeadIndex].customer_name}
                           </h2>
                           
                           <a 
                               href={`tel:${leads[currentLeadIndex].phone}`}
-                              className="text-4xl font-mono font-bold text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 my-8 block hover:scale-105 transition-transform cursor-pointer"
+                              className="tabular my-6 block font-mono text-3xl font-semibold text-brand-700 hover:underline dark:text-brand-300"
                           >
                               {leads[currentLeadIndex].phone}
                           </a>
@@ -1014,44 +811,44 @@ export const PhoneCalls = () => {
                           {dialerMode === 'idle' ? (
                               <button 
                                   onClick={() => setDialerMode('calling')}
-                                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-3 rounded-xl font-bold text-lg shadow-lg shadow-indigo-500/30 animate-pulse"
+                                  className="btn-primary px-6 py-2.5 text-base"
                               >
-                                  📞 Anruf gestartet
+                                  Ich rufe jetzt an
                               </button>
                           ) : (
-                              <div className="w-full space-y-3 animate-in fade-in slide-in-from-bottom-4">
-                                  <p className="text-xs font-bold text-indigo-500 uppercase mb-2 animate-pulse">Gespräch läuft... Ergebnis wählen:</p>
+                              <div className="w-full space-y-3 animate-fade-in">
+                                  <p className="mb-2 text-xs font-medium text-gray-500">Wie ist das Gespräch gelaufen?</p>
                                   
                                   <div className="grid grid-cols-2 gap-3">
                                       <button 
                                           onClick={() => handleLeadResult(leads[currentLeadIndex].id, 'appointment')}
-                                          className="bg-emerald-500 hover:bg-emerald-600 text-white p-4 rounded-2xl font-bold flex flex-col items-center gap-1 transition-transform hover:scale-105 shadow-md"
+                                          className="flex flex-col items-center gap-1 rounded-lg bg-emerald-600 p-3 text-sm font-medium text-white hover:bg-emerald-700"
                                       >
-                                          <CheckCircle className="w-6 h-6" />
+                                          <CheckCircle className="h-5 w-5" />
                                           Termin
                                       </button>
                                       
                                       <button 
                                           onClick={() => handleLeadResult(leads[currentLeadIndex].id, 'later')}
-                                          className="bg-amber-500 hover:bg-amber-600 text-white p-4 rounded-2xl font-bold flex flex-col items-center gap-1 transition-transform hover:scale-105 shadow-md"
+                                          className="flex flex-col items-center gap-1 rounded-lg bg-amber-400 p-3 text-sm font-medium text-gray-950 hover:bg-amber-500"
                                       >
-                                          <Clock className="w-6 h-6" />
-                                          Später (Erreicht)
+                                          <Clock className="h-5 w-5" />
+                                          Später nochmal
                                       </button>
 
                                       <button 
                                           onClick={() => handleLeadResult(leads[currentLeadIndex].id, 'unreachable')}
-                                          className="bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 p-4 rounded-2xl font-bold flex flex-col items-center gap-1 transition-transform hover:scale-105 shadow-sm"
+                                          className="flex flex-col items-center gap-1 rounded-lg border border-gray-200 p-3 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700/50"
                                       >
-                                          <PhoneMissed className="w-6 h-6" />
+                                          <PhoneMissed className="h-5 w-5" />
                                           Nicht erreicht
                                       </button>
 
                                       <button 
                                           onClick={() => handleLeadResult(leads[currentLeadIndex].id, 'no_interest')}
-                                          className="bg-red-100 hover:bg-red-200 dark:bg-red-900/30 dark:hover:bg-red-900/50 text-red-600 dark:text-red-400 p-4 rounded-2xl font-bold flex flex-col items-center gap-1 transition-transform hover:scale-105 shadow-sm"
+                                          className="flex flex-col items-center gap-1 rounded-lg border border-red-200 p-3 text-sm font-medium text-red-700 hover:bg-red-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-900/20"
                                       >
-                                          <XCircle className="w-6 h-6" />
+                                          <XCircle className="h-5 w-5" />
                                           Kein Interesse
                                       </button>
                                   </div>
@@ -1067,16 +864,16 @@ export const PhoneCalls = () => {
                       </div>
 
                       {/* UPCOMING LIST */}
-                      <div className="bg-gray-50 dark:bg-gray-800/50 rounded-3xl p-6 border border-gray-100 dark:border-gray-700">
-                          <h3 className="font-bold text-gray-500 uppercase text-xs tracking-wider mb-4">Nächste Anrufe</h3>
-                          <div className="space-y-3 opacity-60 pointer-events-none">
+                      <div className="card card-pad">
+                          <h3 className="mb-4 text-sm font-semibold text-gray-900 dark:text-white">Nächste Anrufe</h3>
+                          <div className="divide-y divide-gray-100 dark:divide-gray-700">
                               {leads.slice(currentLeadIndex + 1, currentLeadIndex + 6).map((lead, idx) => (
-                                  <div key={lead.id} className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm flex justify-between items-center">
+                                  <div key={lead.id} className="flex items-center justify-between py-2.5">
                                       <div>
-                                          <p className="font-bold text-gray-900 dark:text-white">{lead.customer_name}</p>
+                                          <p className="text-sm font-medium text-gray-900 dark:text-white">{lead.customer_name}</p>
                                           <p className="text-xs text-gray-500">{lead.phone}</p>
                                       </div>
-                                      <div className="w-8 h-8 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center text-gray-400 font-bold text-xs">
+                                      <div className="tabular text-xs text-gray-400">
                                           {currentLeadIndex + idx + 2}
                                       </div>
                                   </div>
@@ -1093,21 +890,21 @@ export const PhoneCalls = () => {
 
       {/* CONTENT HISTORY */}
       {activeTab === 'history' && (
-          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="space-y-6 animate-fade-in">
               <div className="flex flex-col sm:flex-row justify-between gap-4">
                   <div className="relative flex-1 max-w-md">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                       <input 
-                          type="text" 
-                          placeholder="Suchen (Name, Nummer, Notiz...)" 
-                          className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-indigo-500"
+                          type="search" 
+                          placeholder="Name, Nummer oder Notiz" 
+                          className="input pl-10"
                           value={logSearchQuery}
                           onChange={(e) => setLogSearchQuery(e.target.value)}
                       />
                   </div>
               </div>
 
-              <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+              <div className="card overflow-hidden">
                   {loadingCallLogs ? (
                       <div className="p-12 text-center text-gray-500">Lade Historie...</div>
                   ) : filteredCallLogs.length === 0 ? (
@@ -1118,37 +915,37 @@ export const PhoneCalls = () => {
                       </div>
                   ) : (
                       <div className="overflow-x-auto">
-                          <table className="w-full text-sm text-left">
-                              <thead className="text-xs text-gray-500 bg-gray-50 dark:bg-gray-700/50 uppercase">
+                          <table className="table-base">
+                              <thead>
                                   <tr>
-                                      <th className="px-6 py-4">Datum / Zeit</th>
-                                      <th className="px-6 py-4">Kunde</th>
-                                      <th className="px-6 py-4">Erreichbarkeit</th>
-                                      <th className="px-6 py-4">Status</th>
-                                      <th className="px-6 py-4">Notiz</th>
-                                      <th className="px-6 py-4">Benutzer</th>
-                                      <th className="px-6 py-4"></th>
+                                      <th >Datum / Zeit</th>
+                                      <th >Kunde</th>
+                                      <th >Erreichbarkeit</th>
+                                      <th >Status</th>
+                                      <th >Notiz</th>
+                                      <th >Benutzer</th>
+                                      <th ></th>
                                   </tr>
                               </thead>
                               <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                                   {filteredCallLogs.map((log) => (
                                       <tr key={log.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
-                                          <td className="px-6 py-4 whitespace-nowrap text-gray-500">
+                                          <td className="whitespace-nowrap text-gray-500">
                                               {format(new Date(log.call_time), 'dd.MM.yyyy HH:mm')}
                                           </td>
-                                          <td className="px-6 py-4 font-bold text-gray-900 dark:text-white">
+                                          <td className="font-bold text-gray-900 dark:text-white">
                                               {log.customer_name}
                                               <div className="text-xs text-gray-500 font-normal">{log.phone_number}</div>
                                           </td>
-                                          <td className="px-6 py-4">
+                                          <td>
                                               <span className={cn(
-                                                  "px-2.5 py-1 rounded-full text-xs font-medium",
-                                                  log.reachability === 'erreicht' ? 'bg-green-100 text-green-700' :
-                                                  log.reachability === 'nicht_erreicht' ? 'bg-amber-100 text-amber-700' :
-                                                  log.reachability === 'mailbox' ? 'bg-blue-100 text-blue-700' :
-                                                  'bg-red-100 text-red-700'
+                                                  "chip",
+                                                  log.reachability === 'erreicht' ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' :
+                                                  log.reachability === 'nicht_erreicht' ? 'bg-amber-50 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' :
+                                                  log.reachability === 'mailbox' ? 'bg-sky-50 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300' :
+                                                  'bg-red-50 text-red-700 dark:bg-red-900/40 dark:text-red-300'
                                               )}>
-                                                  {log.reachability.replace('_', ' ').toUpperCase()}
+                                                  {({ erreicht: 'Erreicht', nicht_erreicht: 'Nicht erreicht', mailbox: 'Mailbox', falsche_nummer: 'Falsche Nummer' } as Record<string, string>)[log.reachability] || log.reachability}
                                               </span>
                                               {log.reachability === 'erreicht' && log.reach_time && (
                                                   <div className="text-xs text-gray-500 mt-1 flex items-center gap-1">
@@ -1157,32 +954,32 @@ export const PhoneCalls = () => {
                                                   </div>
                                               )}
                                           </td>
-                                          <td className="px-6 py-4">
+                                          <td>
                                               <span className={cn(
-                                                  "px-2.5 py-1 rounded-full text-xs font-medium",
-                                                  log.status === 'erledigt' ? 'bg-green-100 text-green-700' :
-                                                  log.status === 'wiedervorlage' ? 'bg-purple-100 text-purple-700' :
-                                                  'bg-indigo-100 text-indigo-700'
+                                                  "chip",
+                                                  log.status === 'erledigt' ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' :
+                                                  log.status === 'wiedervorlage' ? 'bg-amber-50 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' :
+                                                  'bg-brand-50 text-brand-700 dark:bg-brand-900/50 dark:text-brand-200'
                                               )}>
-                                                  {log.status.replace('_', ' ').toUpperCase()}
+                                                  {({ erledigt: 'Erledigt', wiedervorlage: 'Wiedervorlage', termin_vereinbart: 'Termin vereinbart' } as Record<string, string>)[log.status] || log.status}
                                               </span>
                                               {log.status === 'wiedervorlage' && log.follow_up_date && (
-                                                  <div className="text-xs text-purple-600 mt-1 flex items-center gap-1">
+                                                  <div className="text-xs text-amber-700 dark:text-amber-300 mt-1 flex items-center gap-1">
                                                       <Clock className="w-3 h-3" />
                                                       {format(new Date(log.follow_up_date), 'dd.MM.yyyy')}
                                                       {log.follow_up_time ? ` ${log.follow_up_time.substring(0, 5)} Uhr` : ''}
                                                   </div>
                                               )}
                                           </td>
-                                          <td className="px-6 py-4 max-w-xs truncate text-gray-500" title={log.notes}>
+                                          <td className="max-w-xs truncate text-gray-500" title={log.notes}>
                                               {log.notes || '-'}
                                           </td>
-                                          <td className="px-6 py-4 text-gray-500">
+                                          <td className="text-gray-500">
                                               {log.user?.full_name?.split(' ')[0] || 'Unbekannt'}
                                           </td>
-                                          <td className="px-6 py-4 text-right">
+                                          <td className="text-right">
                                               {(isAdmin || user?.id === log.user_id) && (
-                                                  <button onClick={() => handleDeleteCallLog(log.id)} className="text-gray-400 hover:text-red-500">
+                                                  <button type="button" onClick={() => handleDeleteCallLog(log.id)} className="btn-icon p-1.5 hover:!text-red-600" aria-label="Eintrag löschen">
                                                       <Trash2 className="w-4 h-4" />
                                                   </button>
                                               )}
@@ -1198,22 +995,22 @@ export const PhoneCalls = () => {
       )}
 
       {/* MODAL FOR LOGGING A CALL */}
-      <Modal isOpen={isLogModalOpen} onClose={() => setIsLogModalOpen(false)} title="Anruf protokollieren">
+      <Modal isOpen={isLogModalOpen} onClose={() => setIsLogModalOpen(false)} title="Gespräch protokollieren">
           <form onSubmit={handleCreateCallLog} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                   <div>
-                      <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Name *</label>
-                      <input required type="text" value={logCustomerName} onChange={e => setLogCustomerName(e.target.value)} className="w-full rounded-xl border-gray-300 p-2 text-sm" />
+                      <label className="field-label">Name</label>
+                      <input required type="text" value={logCustomerName} onChange={e => setLogCustomerName(e.target.value)} className="input" />
                   </div>
                   <div>
-                      <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Nummer</label>
-                      <input type="text" value={logPhone} onChange={e => setLogPhone(e.target.value)} className="w-full rounded-xl border-gray-300 p-2 text-sm" />
+                      <label className="field-label">Nummer</label>
+                      <input type="text" value={logPhone} onChange={e => setLogPhone(e.target.value)} className="input" />
                   </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                   <div>
-                      <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Erreichbarkeit *</label>
-                      <select required value={logReachability} onChange={e => setLogReachability(e.target.value)} className="w-full rounded-xl border-gray-300 p-2 text-sm">
+                      <label className="field-label">Erreichbarkeit</label>
+                      <select required value={logReachability} onChange={e => setLogReachability(e.target.value)} className="input">
                           <option value="erreicht">Erreicht</option>
                           <option value="nicht_erreicht">Nicht erreicht</option>
                           <option value="mailbox">Mailbox / AB</option>
@@ -1221,8 +1018,8 @@ export const PhoneCalls = () => {
                       </select>
                   </div>
                   <div>
-                      <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Status *</label>
-                      <select required value={logStatus} onChange={e => setLogStatus(e.target.value)} className="w-full rounded-xl border-gray-300 p-2 text-sm">
+                      <label className="field-label">Ergebnis</label>
+                      <select required value={logStatus} onChange={e => setLogStatus(e.target.value)} className="input">
                           <option value="erledigt">Erledigt</option>
                           <option value="wiedervorlage">Wiedervorlage</option>
                           <option value="termin_vereinbart">Termin vereinbart</option>
@@ -1232,8 +1029,8 @@ export const PhoneCalls = () => {
 
               {logReachability === 'erreicht' && (
                   <div className="overflow-hidden mt-2">
-                      <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Erreicht um (Uhrzeit)</label>
-                      <input type="time" value={logReachTime} onChange={e => setLogReachTime(e.target.value)} className="w-full rounded-xl border-gray-300 p-2 text-sm" />
+                      <label className="field-label">Erreicht um (Uhrzeit)</label>
+                      <input type="time" value={logReachTime} onChange={e => setLogReachTime(e.target.value)} className="input" />
                   </div>
               )}
               
@@ -1241,24 +1038,24 @@ export const PhoneCalls = () => {
                   <div className="overflow-hidden mt-2">
                       <div className="grid grid-cols-2 gap-4">
                           <div>
-                              <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Wiedervorlage am *</label>
-                              <input required type="date" value={logFollowUpDate} onChange={e => setLogFollowUpDate(e.target.value)} className="w-full rounded-xl border-gray-300 p-2 text-sm" />
+                              <label className="field-label">Wiedervorlage am</label>
+                              <input required type="date" value={logFollowUpDate} onChange={e => setLogFollowUpDate(e.target.value)} className="input" />
                           </div>
                           <div>
-                              <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Uhrzeit</label>
-                              <input type="time" value={logFollowUpTime} onChange={e => setLogFollowUpTime(e.target.value)} className="w-full rounded-xl border-gray-300 p-2 text-sm" />
+                              <label className="field-label">Uhrzeit</label>
+                              <input type="time" value={logFollowUpTime} onChange={e => setLogFollowUpTime(e.target.value)} className="input" />
                           </div>
                       </div>
                   </div>
               )}
 
               <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Notizen</label>
-                  <textarea rows={3} value={logNotes} onChange={e => setLogNotes(e.target.value)} className="w-full rounded-xl border-gray-300 p-2 text-sm resize-none" placeholder="Was wurde besprochen?" />
+                  <label className="field-label">Notizen</label>
+                  <textarea rows={3} value={logNotes} onChange={e => setLogNotes(e.target.value)} className="input resize-none" placeholder="Was wurde besprochen?" />
               </div>
               <div className="flex justify-end gap-3 pt-4">
-                  <button type="button" onClick={() => setIsLogModalOpen(false)} className="px-4 py-2 text-gray-500 text-sm font-medium">Abbrechen</button>
-                  <button type="submit" disabled={submittingLog} className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl shadow-md disabled:opacity-50">Speichern</button>
+                  <button type="button" onClick={() => setIsLogModalOpen(false)} className="btn-secondary">Abbrechen</button>
+                  <button type="submit" disabled={submittingLog} className="btn-primary">Speichern</button>
               </div>
           </form>
       </Modal>
@@ -1267,13 +1064,14 @@ export const PhoneCalls = () => {
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title="Rückruf-Aufgabe erstellen"
+        title="Rückruf notieren"
+        description="Erscheint bei der zuständigen Person in der Übersicht und als Benachrichtigung."
       >
         <form onSubmit={handleCreateCallback} className="space-y-6">
           {/* ... existing task form ... */}
           <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
-              Wer hat angerufen? *
+            <label className="field-label">
+              Wer hat angerufen?
             </label>
             <input
               required
@@ -1281,13 +1079,13 @@ export const PhoneCalls = () => {
               value={customerName}
               onChange={(e) => setCustomerName(e.target.value)}
               placeholder="Name / Firma"
-              className="w-full rounded-xl border-transparent bg-gray-50/50 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 px-4 py-3 text-sm transition-all"
+              className="input"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
-              Rückruf-Nummer *
+            <label className="field-label">
+              Rückrufnummer
             </label>
             <input
               required
@@ -1295,51 +1093,50 @@ export const PhoneCalls = () => {
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               placeholder="0171..."
-              className="w-full rounded-xl border-transparent bg-gray-50/50 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 px-4 py-3 text-sm transition-all"
+              className="input"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
-              Worum geht es? (Notiz)
+            <label className="field-label">
+              Worum geht es?
             </label>
             <textarea
               rows={4}
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
               placeholder="Hat Fragen zu Vertrag XYZ..."
-              className="w-full rounded-xl border-transparent bg-gray-50/50 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 px-4 py-3 text-sm transition-all resize-none"
+              className="input resize-none"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
-                Für wen? *
+                <label className="field-label">
+                Wer ruft zurück?
                 </label>
                 <select
-                required
                 value={assignedTo}
                 onChange={(e) => setAssignedTo(e.target.value)}
-                className="w-full rounded-xl border-transparent bg-gray-50/50 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 px-4 py-3 text-sm transition-all"
+                className="input"
                 >
-                <option value="">-- Bitte wählen --</option>
+                <option value="">Wer zuerst Zeit hat</option>
                 {profiles.map(p => (
                     <option key={p.id} value={p.id}>{p.full_name}</option>
                 ))}
                 </select>
             </div>
              <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+                <label className="field-label">
                 Dringlichkeit
                 </label>
                 <select
                 value={priority}
                 onChange={(e) => setPriority(e.target.value as 'normal' | 'high')}
-                className="w-full rounded-xl border-transparent bg-gray-50/50 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 px-4 py-3 text-sm transition-all"
+                className="input"
                 >
                 <option value="normal">Normal</option>
-                <option value="high">🔥 Wichtig</option>
+                <option value="high">Dringend</option>
                 </select>
             </div>
           </div>
@@ -1348,16 +1145,16 @@ export const PhoneCalls = () => {
             <button
               type="button"
               onClick={() => setIsModalOpen(false)}
-              className="px-6 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
+              className="btn-secondary"
             >
               Abbrechen
             </button>
             <button
               type="submit"
               disabled={submitting}
-              className="px-6 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-lg shadow-indigo-500/30 transition-all hover:scale-[1.02] disabled:opacity-50 disabled:hover:scale-100"
+              className="btn-primary"
             >
-              {submitting ? 'Speichere...' : 'Notieren'}
+              {submitting ? 'Wird gespeichert' : 'Rückruf speichern'}
             </button>
           </div>
         </form>
@@ -1376,18 +1173,18 @@ export const PhoneCalls = () => {
                           key={val}
                           onClick={() => setLaterDelay(val)}
                           className={cn(
-                              "p-4 rounded-xl font-bold border transition-all",
-                              laterDelay === val ? "bg-indigo-50 border-indigo-500 text-indigo-700" : "bg-white border-gray-200 text-gray-600 hover:border-indigo-200"
+                              "p-3 rounded-lg text-sm font-medium border transition-colors",
+                              laterDelay === val ? "bg-brand-50 border-brand-500 text-brand-800 dark:bg-brand-900/40 dark:text-brand-100" : "border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700/50"
                           )}
                       >
-                          In {val}
+                          {{ '1h': 'In 1 Stunde', '3h': 'In 3 Stunden', '1d': 'Morgen', '3d': 'In 3 Tagen' }[val]}
                       </button>
                   ))}
                   <button
                           onClick={() => setLaterDelay('custom')}
                           className={cn(
-                              "p-4 rounded-xl font-bold border transition-all col-span-2",
-                              laterDelay === 'custom' ? "bg-indigo-50 border-indigo-500 text-indigo-700" : "bg-white border-gray-200 text-gray-600 hover:border-indigo-200"
+                              "p-3 rounded-lg text-sm font-medium border transition-colors col-span-2",
+                              laterDelay === 'custom' ? "bg-brand-50 border-brand-500 text-brand-800 dark:bg-brand-900/40 dark:text-brand-100" : "border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700/50"
                           )}
                       >
                           Datum wählen
@@ -1397,15 +1194,15 @@ export const PhoneCalls = () => {
               {laterDelay === 'custom' && (
                   <input 
                       type="datetime-local" 
-                      className="w-full rounded-xl border-gray-300 p-3"
+                      className="input"
                       value={laterCustomDate}
                       onChange={e => setLaterCustomDate(e.target.value)}
                   />
               )}
 
               <div className="flex justify-end gap-3 pt-4">
-                  <button onClick={() => setIsLaterModalOpen(false)} className="px-4 py-2 text-gray-500">Abbrechen</button>
-                  <button onClick={handleConfirmLater} className="px-6 py-2 bg-indigo-600 text-white rounded-xl font-bold">Speichern</button>
+                  <button type="button" onClick={() => setIsLaterModalOpen(false)} className="btn-secondary">Abbrechen</button>
+                  <button type="button" onClick={handleConfirmLater} disabled={laterDelay === 'custom' && !laterCustomDate} className="btn-primary">Wiedervorlage speichern</button>
               </div>
           </div>
       </Modal>
@@ -1418,35 +1215,35 @@ export const PhoneCalls = () => {
       >
           <div className="space-y-4">
               <div>
-                  <label className="text-xs font-bold text-gray-500 uppercase">Datum</label>
+                  <label className="field-label">Datum</label>
                   <input 
                       type="date" 
-                      className="w-full rounded-xl border-gray-300 p-3 mt-1"
+                      className="input"
                       value={appointmentDate}
                       onChange={e => setAppointmentDate(e.target.value)}
                   />
               </div>
               <div>
-                  <label className="text-xs font-bold text-gray-500 uppercase">Uhrzeit</label>
+                  <label className="field-label">Uhrzeit</label>
                   <input 
                       type="time" 
-                      className="w-full rounded-xl border-gray-300 p-3 mt-1"
+                      className="input"
                       value={appointmentTime}
                       onChange={e => setAppointmentTime(e.target.value)}
                   />
               </div>
               <div>
-                  <label className="text-xs font-bold text-gray-500 uppercase">Notiz / Thema</label>
+                  <label className="field-label">Notiz / Thema</label>
                   <textarea 
-                      className="w-full rounded-xl border-gray-300 p-3 mt-1 h-24"
+                      className="input h-24 resize-none"
                       placeholder="Was wird besprochen?"
                       value={appointmentNote}
                       onChange={e => setAppointmentNote(e.target.value)}
                   />
               </div>
               <div className="flex justify-end gap-3 pt-4">
-                  <button onClick={() => setIsAppointmentModalOpen(false)} className="px-4 py-2 text-gray-500">Abbrechen</button>
-                  <button onClick={handleConfirmAppointment} className="px-6 py-2 bg-emerald-600 text-white rounded-xl font-bold">Termin buchen</button>
+                  <button type="button" onClick={() => setIsAppointmentModalOpen(false)} className="btn-secondary">Abbrechen</button>
+                  <button type="button" onClick={handleConfirmAppointment} disabled={!appointmentDate || !appointmentTime} className="btn-primary">Termin eintragen</button>
               </div>
           </div>
       </Modal>
@@ -1458,6 +1255,15 @@ export const PhoneCalls = () => {
         title="Löschen"
         message="Wirklich löschen?"
         confirmText="Weg damit"
+        isDestructive
+      />
+      <ConfirmModal
+        isOpen={!!deleteLogId}
+        onClose={() => setDeleteLogId(null)}
+        onConfirm={confirmDeleteCallLog}
+        title="Protokolleintrag löschen?"
+        message="Der Eintrag wird endgültig entfernt."
+        confirmText="Löschen"
         isDestructive
       />
     </div>

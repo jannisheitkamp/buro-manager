@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
+import { PageHeader, Button } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
 import { useStore } from '@/store/useStore';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, ArrowRight, ArrowLeft, Trash2, User, Phone, Mail, Clock, Box, FileInput, CheckCircle2, Archive } from 'lucide-react';
+import { Plus, ArrowRight, ArrowLeft, Trash2, Phone, Mail, Clock, Box, FileInput, CheckCircle2, Archive } from 'lucide-react';
 import { Modal } from '@/components/Modal';
 import { toast } from 'react-hot-toast';
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -220,7 +221,7 @@ export const Leads = () => {
             <div className="max-w-[1600px] mx-auto space-y-8 h-[calc(100vh-140px)] md:h-[calc(100vh-100px)] flex flex-col pb-4">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 flex-shrink-0">
                     <div>
-                        <h1 className="text-3xl font-black text-gray-900 dark:text-white flex items-center gap-3">
+                        <h1 className="text-3xl font-semibold text-gray-900 dark:text-white flex items-center gap-3">
                             <div className="p-2 bg-gray-100 dark:bg-gray-800 rounded-xl">
                                 <Archive className="w-8 h-8 text-gray-600 dark:text-gray-400" />
                             </div>
@@ -282,39 +283,18 @@ export const Leads = () => {
     }
 
     return (
-        <div className="max-w-[1600px] mx-auto space-y-8 h-[calc(100vh-100px)] flex flex-col pb-4">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 flex-shrink-0">
-                <div>
-                    <motion.h1 
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        className="text-3xl font-black text-gray-900 dark:text-white flex items-center gap-3"
-                    >
-                        <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-xl">
-                            <User className="w-8 h-8 text-blue-600 dark:text-blue-400" />
-                        </div>
-                        Lead Pipeline
-                    </motion.h1>
-                    <p className="text-gray-500 dark:text-gray-400 mt-2 ml-1">Verwalte deine offenen Verkaufschancen.</p>
-                </div>
-
-                <div className="flex items-center gap-4">
-                    <button
-                        onClick={() => setShowArchived(true)}
-                        className="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white px-4 py-2 rounded-xl flex items-center gap-2 transition-colors"
-                    >
-                        <Archive className="w-5 h-5" /> Archiv
-                    </button>
-                    <motion.button
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        onClick={handleNewLead}
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-2xl flex items-center gap-2 shadow-lg shadow-blue-500/30 transition-all hover:scale-105"
-                    >
-                        <Plus className="w-5 h-5" /> Neuer Lead
-                    </motion.button>
-                </div>
-            </div>
+        <div className="flex h-[calc(100dvh-9rem)] flex-col lg:h-[calc(100dvh-7.5rem)]">
+            <PageHeader
+                className="mb-5 flex-shrink-0 sm:mb-6"
+                title="Leads"
+                description="Deine offenen Verkaufschancen. Karten per Ziehen in die nächste Spalte schieben."
+                actions={
+                    <>
+                        <Button variant="ghost" icon={Archive} onClick={() => setShowArchived(true)}>Archiv</Button>
+                        <Button icon={Plus} onClick={handleNewLead}>Lead anlegen</Button>
+                    </>
+                }
+            />
 
             {/* Kanban Board (Scrollable Container) */}
             <div className="flex-1 overflow-x-auto overflow-y-hidden pb-4 -mx-4 px-4 md:mx-0 md:px-0 snap-x snap-mandatory">
@@ -325,7 +305,7 @@ export const Leads = () => {
                         return (
                             <div 
                                 key={col.id} 
-                                className="flex flex-col w-[85vw] md:w-auto md:flex-1 bg-gray-50/50 dark:bg-gray-800/20 rounded-3xl border border-gray-100 dark:border-gray-700/50 flex-shrink-0 snap-center"
+                                className="flex flex-col w-[85vw] md:w-auto md:flex-1 bg-gray-50/50 dark:bg-gray-800/20 rounded-3xl border border-gray-100 dark:border-gray-700 flex-shrink-0 snap-center"
                                 onDragOver={(e) => e.preventDefault()}
                                 onDrop={(e) => {
                                     e.preventDefault();
@@ -334,7 +314,7 @@ export const Leads = () => {
                                 }}
                             >
                                 {/* Column Header */}
-                                <div className={`p-4 rounded-t-3xl border-b border-gray-100 dark:border-gray-700/50 flex items-center justify-between ${col.color.split(' ')[0]} bg-opacity-50`}>
+                                <div className={`p-4 rounded-t-3xl border-b border-gray-100 dark:border-gray-700 flex items-center justify-between ${col.color.split(' ')[0]} bg-opacity-50`}>
                                     <div>
                                         <h3 className={`font-bold ${col.color.split(' ')[1]}`}>{col.label}</h3>
                                         <p className="text-xs opacity-70 font-medium">{colLeads.length} Leads</p>
@@ -358,7 +338,7 @@ export const Leads = () => {
                                                     (e as any).dataTransfer.setData('leadId', lead.id);
                                                 }}
                                                 onClick={() => handleEdit(lead)}
-                                                className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 group hover:shadow-md transition-all cursor-grab active:cursor-grabbing hover:ring-2 hover:ring-indigo-500/20 relative"
+                                                className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 group hover:border-gray-300 dark:hover:border-gray-600 transition-all cursor-grab active:cursor-grabbing hover:ring-2 hover:ring-indigo-500/20 relative"
                                             >
                                                 <div className="flex justify-between items-start mb-3">
                                                     <h4 className="font-bold text-gray-900 dark:text-white line-clamp-1 text-base">{lead.customer_name}</h4>
@@ -490,34 +470,34 @@ export const Leads = () => {
             >
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
-                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Kunde / Name</label>
+                        <label className="block text-xs font-bold text-gray-500  mb-1">Kunde / Name</label>
                         <input required type="text" value={formData.customer_name} onChange={e => setFormData({...formData, customer_name: e.target.value})} className="w-full rounded-xl border-gray-200 bg-gray-50 px-4 py-2" placeholder="Max Mustermann" />
                     </div>
                     
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Telefon</label>
+                            <label className="block text-xs font-bold text-gray-500  mb-1">Telefon</label>
                             <input type="tel" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} className="w-full rounded-xl border-gray-200 bg-gray-50 px-4 py-2" placeholder="0171..." />
                         </div>
                         <div>
-                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">E-Mail</label>
+                            <label className="block text-xs font-bold text-gray-500  mb-1">E-Mail</label>
                             <input type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} className="w-full rounded-xl border-gray-200 bg-gray-50 px-4 py-2" placeholder="kunde@mail.de" />
                         </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
                          <div>
-                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Produkt / Interesse</label>
+                            <label className="block text-xs font-bold text-gray-500  mb-1">Produkt / Interesse</label>
                             <input type="text" value={formData.product} onChange={e => setFormData({...formData, product: e.target.value})} className="w-full rounded-xl border-gray-200 bg-gray-50 px-4 py-2" placeholder="z.B. KFZ, BU..." />
                         </div>
                         <div>
-                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Erreichbarkeit</label>
+                            <label className="block text-xs font-bold text-gray-500  mb-1">Erreichbarkeit</label>
                             <input type="text" value={formData.availability} onChange={e => setFormData({...formData, availability: e.target.value})} className="w-full rounded-xl border-gray-200 bg-gray-50 px-4 py-2" placeholder="ab 18 Uhr..." />
                         </div>
                     </div>
 
                     <div>
-                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Notizen</label>
+                        <label className="block text-xs font-bold text-gray-500  mb-1">Notizen</label>
                         <textarea value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})} className="w-full rounded-xl border-gray-200 bg-gray-50 px-4 py-2 h-24" placeholder="Details zum Gespräch..." />
                     </div>
                     <div className="flex justify-end gap-2 pt-4">
@@ -526,7 +506,7 @@ export const Leads = () => {
                             setEditingId(null);
                             setFormData({ customer_name: '', phone: '', email: '', availability: '', product: '', notes: '', status: 'new' });
                         }} className="px-4 py-2 text-gray-500 hover:bg-gray-100 rounded-xl">Abbrechen</button>
-                        <button type="submit" disabled={submitting} className="px-6 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-500/30">Speichern</button>
+                        <button type="submit" disabled={submitting} className="px-6 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 shadow-sm">Speichern</button>
                     </div>
                 </form>
             </Modal>

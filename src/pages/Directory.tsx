@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react';
+import { Avatar, PageHeader, IconButton, Segmented } from '@/components/ui';
+import { useSearchParams } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
+import { PROFILE_COLUMNS } from '@/lib/profiles';
 import { Profile, UserStatus } from '@/types';
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { Mail, Shield, User, Edit, CheckCircle, Clock, RefreshCcw, Briefcase, Home, Coffee, Users, Palmtree, ThermometerSun, LogOut, Copy, X, Phone } from 'lucide-react';
@@ -64,12 +67,22 @@ export const Directory = () => {
   const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
   const [view, setView] = useState<'all' | 'pending'>('all');
   const [selectedUser, setSelectedUser] = useState<(Profile & { status?: UserStatus }) | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Aus der Suche (?user=<id>) direkt die Karte der Person öffnen
+  useEffect(() => {
+      const id = searchParams.get('user');
+      if (!id || profiles.length === 0) return;
+      const match = profiles.find(p => p.id === id);
+      if (match) setSelectedUser(match);
+      setSearchParams({}, { replace: true });
+  }, [searchParams, profiles, setSearchParams]);
 
   const fetchProfiles = async () => {
     setLoading(true); 
     try {
       const [profilesRes, statusRes] = await Promise.all([
-          supabase.from('profiles').select('*').order('full_name', { ascending: true }),
+          supabase.from('profiles').select(PROFILE_COLUMNS).order('full_name', { ascending: true }),
           supabase.from('user_status').select('*').order('updated_at', { ascending: false })
       ]);
 
@@ -193,64 +206,23 @@ export const Directory = () => {
   });
 
   return (
-    <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-8">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <motion.h1 
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-400 flex items-center gap-3"
-        >
-            <User className="w-8 h-8 text-indigo-600" />
-            Mitarbeiter
-        </motion.h1>
-        
-        <div className="flex items-center gap-3">
-            <motion.button 
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                onClick={fetchProfiles} 
-                className="p-3 bg-white dark:bg-gray-800 text-gray-500 hover:text-indigo-600 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 transition-all"
-                title="Aktualisieren"
-            >
-                <RefreshCcw className={cn("w-5 h-5", loading && "animate-spin")} />
-            </motion.button>
-
+    <div className="space-y-6">
+      <PageHeader
+        title="Verzeichnis"
+        description="Alle Kolleginnen und Kollegen mit Durchwahl und aktuellem Status."
+        actions={
+          <>
+            <IconButton icon={RefreshCcw} label="Aktualisieren" onClick={fetchProfiles} className={cn(loading && '[&>svg]:animate-spin')} />
             {currentUserProfile?.roles?.includes('admin') && (
-                <motion.div 
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: 0.1 }}
-                    className="flex bg-white/50 dark:bg-gray-800/50 backdrop-blur-md p-1.5 rounded-2xl border border-gray-100 dark:border-gray-700"
-                >
-                    <button
-                        onClick={() => setView('all')}
-                        className={cn(
-                            "px-4 py-2 text-sm font-bold rounded-xl transition-all",
-                            view === 'all' 
-                                ? "bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-lg shadow-gray-200/50 dark:shadow-none" 
-                                : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
-                        )}
-                    >
-                        Alle
-                    </button>
-                    <button
-                        onClick={() => setView('pending')}
-                        className={cn(
-                            "px-4 py-2 text-sm font-bold rounded-xl transition-all flex items-center gap-2",
-                            view === 'pending' 
-                                ? "bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-lg shadow-gray-200/50 dark:shadow-none" 
-                                : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
-                        )}
-                    >
-                        Freigabe
-                        {pendingCount > 0 && (
-                            <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">{pendingCount}</span>
-                        )}
-                    </button>
-                </motion.div>
+              <Segmented
+                value={view}
+                onChange={(v) => setView(v as typeof view)}
+                options={[{ value: 'all', label: 'Alle' }, { value: 'pending', label: 'Freigabe', count: pendingCount }]}
+              />
             )}
-        </div>
-      </div>
+          </>
+        }
+      />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         <AnimatePresence>
@@ -281,7 +253,7 @@ export const Directory = () => {
                             transition={{ delay: index * 0.05 }}
                             layout
                             onClick={() => setSelectedUser(profile)}
-                            className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-3xl shadow-xl border border-white/20 dark:border-gray-700 p-6 flex flex-col items-center text-center relative group hover:-translate-y-1 transition-all duration-300 cursor-pointer"
+                            className="bg-white dark:bg-gray-800 rounded-3xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 flex flex-col items-center text-center relative group transition-all duration-300 cursor-pointer"
                         >
                             
                             {/* Status Dot */}
@@ -313,14 +285,10 @@ export const Directory = () => {
 
                             <div className="relative mb-4">
                                 <div className="absolute inset-0 bg-gradient-to-tr from-indigo-500 to-violet-500 rounded-full blur-lg opacity-20 group-hover:opacity-40 transition-opacity" />
-                                <img
-                                    src={profile.avatar_url || `https://ui-avatars.com/api/?name=${profile.full_name || 'User'}&background=random`}
-                                    alt={profile.full_name || ''}
-                                    className={cn(
-                                        "w-28 h-28 rounded-full shadow-lg object-cover ring-4 ring-white dark:ring-gray-700 relative z-10",
+                                <Avatar name={profile.full_name} src={profile.avatar_url} size="xl" className={cn(
+                                        "w-28 h-28 rounded-full shadow-sm object-cover ring-4 ring-white dark:ring-gray-700 relative z-10",
                                         !profile.is_approved && "grayscale opacity-70"
-                                    )}
-                                />
+                                    )} />
                                 {/* Status Icon Badge */}
                                 <div className={cn(
                                     "absolute bottom-0 right-0 z-20 p-1.5 rounded-full shadow-md border-2 border-white dark:border-gray-800",
@@ -370,13 +338,13 @@ export const Directory = () => {
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
                       onClick={() => setSelectedUser(null)}
-                      className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+                      className="absolute inset-0 bg-black/50"
                   />
                   <motion.div 
                       initial={{ opacity: 0, scale: 0.9, y: 20 }}
                       animate={{ opacity: 1, scale: 1, y: 0 }}
                       exit={{ opacity: 0, scale: 0.9, y: 20 }}
-                      className="relative w-full max-w-md bg-white dark:bg-gray-800 rounded-3xl shadow-2xl overflow-hidden"
+                      className="relative w-full max-w-md bg-white dark:bg-gray-800 rounded-3xl shadow-sm overflow-hidden"
                   >
                       {/* Header Background */}
                       <div className="h-32 bg-gradient-to-r from-indigo-500 to-purple-600 relative">
@@ -390,10 +358,7 @@ export const Directory = () => {
 
                       {/* Avatar */}
                       <div className="flex justify-center -mt-16 relative z-10">
-                          <img 
-                              src={selectedUser.avatar_url || `https://ui-avatars.com/api/?name=${selectedUser.full_name}&background=random`} 
-                              className="w-32 h-32 rounded-full border-4 border-white dark:border-gray-800 shadow-lg object-cover bg-white"
-                          />
+                          <Avatar name={selectedUser.full_name} src={selectedUser.avatar_url} size="xl" className="w-32 h-32 rounded-full border-4 border-white dark:border-gray-800 shadow-sm object-cover bg-white" />
                       </div>
 
                       <div className="p-6 text-center space-y-6">
@@ -446,7 +411,7 @@ export const Directory = () => {
                           </div>
 
                           <div className="text-left space-y-3">
-                              <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Informationen</h3>
+                              <h3 className="text-xs font-bold text-gray-400 ">Informationen</h3>
                               <div className="bg-gray-50 dark:bg-gray-700/30 rounded-2xl p-4 space-y-3">
                                   <div className="flex justify-between items-center text-sm">
                                       <span className="text-gray-500">Status-Update</span>
@@ -477,11 +442,8 @@ export const Directory = () => {
         title="Rollen bearbeiten"
       >
         <div className="space-y-6">
-            <div className="flex items-center gap-3 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-2xl border border-gray-100 dark:border-gray-700">
-                <img 
-                    src={editingProfile?.avatar_url || `https://ui-avatars.com/api/?name=${editingProfile?.full_name}`} 
-                    className="w-12 h-12 rounded-full"
-                />
+            <div className="flex items-center gap-3 p-4 bg-gray-50 dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700">
+                <Avatar name={editingProfile?.full_name} src={editingProfile?.avatar_url} size="md" className="w-12 h-12 rounded-full" />
                 <div>
                     <p className="font-bold text-gray-900 dark:text-white">{editingProfile?.full_name}</p>
                     <p className="text-xs text-gray-500">{editingProfile?.email}</p>
@@ -535,7 +497,7 @@ export const Directory = () => {
                 </button>
                 <button
                     onClick={saveRoles}
-                    className="px-6 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-lg shadow-indigo-500/30 transition-all hover:scale-[1.02]"
+                    className="px-6 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-sm transition-all hover:scale-[1.02]"
                 >
                     Speichern
                 </button>

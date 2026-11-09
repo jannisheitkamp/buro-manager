@@ -7,5 +7,5 @@ test('has title and login page loads', async ({ page }) => {
   await expect(page).toHaveTitle(/Büro Manager/i);
 
   // Expect to see the login form
-  await expect(page.locator('text=Willkommen zurück')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Anmelden' })).toBeVisible();
 });

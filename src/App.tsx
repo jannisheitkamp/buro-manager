@@ -1,104 +1,91 @@
 import { useEffect, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast';
+import { Lock } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useStore } from '@/store/useStore';
 import { Layout } from '@/components/Layout';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
-import { PageTransition } from '@/components/PageTransition';
 import { OnboardingCheck } from '@/components/OnboardingCheck';
 import { MfaCheck } from '@/components/MfaCheck';
-import { Toaster } from 'react-hot-toast';
-import { Loader2, Lock } from 'lucide-react';
+import { FullScreenLoader } from '@/components/FullScreenLoader';
 
-import { Login } from '@/pages/Login';
-import { Dashboard } from '@/pages/Dashboard';
+const page = <T extends string>(loader: () => Promise<Record<T, React.ComponentType>>, name: T) =>
+  lazy(() => loader().then((m) => ({ default: m[name] })));
 
-// Lazy load other pages
-const Leads = lazy(() => import('@/pages/Leads').then(module => ({ default: module.Leads })));
-const Calendar = lazy(() => import('@/pages/Calendar').then(module => ({ default: module.Calendar })));
-const Bookings = lazy(() => import('@/pages/Bookings').then(module => ({ default: module.Bookings })));
-const Board = lazy(() => import('@/pages/Board').then(module => ({ default: module.Board })));
-const Polls = lazy(() => import('@/pages/Polls').then(module => ({ default: module.Polls })));
-const Parcels = lazy(() => import('@/pages/Parcels').then(module => ({ default: module.Parcels })));
-const Directory = lazy(() => import('@/pages/Directory').then(module => ({ default: module.Directory })));
-const Documents = lazy(() => import('@/pages/Documents').then(module => ({ default: module.Documents })));
-const ProfilePage = lazy(() => import('@/pages/Profile').then(module => ({ default: module.ProfilePage })));
-const GeneralCalendar = lazy(() => import('@/pages/GeneralCalendar').then(module => ({ default: module.GeneralCalendar })));
-const Production = lazy(() => import('@/pages/Production').then(module => ({ default: module.Production })));
-const Vacation = lazy(() => import('@/pages/Vacation').then(module => ({ default: module.Vacation })));
-const Reception = lazy(() => import('@/pages/Reception').then(module => ({ default: module.Reception })));
-const Admin = lazy(() => import('@/pages/Admin').then(module => ({ default: module.Admin })));
-const Onboarding = lazy(() => import('@/pages/Onboarding').then(module => ({ default: module.Onboarding })));
-const MfaSetup = lazy(() => import('@/pages/MfaSetup').then(module => ({ default: module.MfaSetup })));
-const MfaVerify = lazy(() => import('@/pages/MfaVerify').then(module => ({ default: module.MfaVerify })));
-const PhoneCalls = lazy(() => import('@/pages/PhoneCalls').then(module => ({ default: module.PhoneCalls })));
-const IncomingCallHandler = lazy(() => import('@/pages/IncomingCallHandler').then(module => ({ default: module.IncomingCallHandler })));
+const Login = page(() => import('@/pages/Login'), 'Login');
+const Dashboard = page(() => import('@/pages/Dashboard'), 'Dashboard');
+const Leads = page(() => import('@/pages/Leads'), 'Leads');
+const Calendar = page(() => import('@/pages/Calendar'), 'Calendar');
+const Bookings = page(() => import('@/pages/Bookings'), 'Bookings');
+const Board = page(() => import('@/pages/Board'), 'Board');
+const Polls = page(() => import('@/pages/Polls'), 'Polls');
+const Parcels = page(() => import('@/pages/Parcels'), 'Parcels');
+const Directory = page(() => import('@/pages/Directory'), 'Directory');
+const Documents = page(() => import('@/pages/Documents'), 'Documents');
+const ProfilePage = page(() => import('@/pages/Profile'), 'ProfilePage');
+const GeneralCalendar = page(() => import('@/pages/GeneralCalendar'), 'GeneralCalendar');
+const Production = page(() => import('@/pages/Production'), 'Production');
+const Vacation = page(() => import('@/pages/Vacation'), 'Vacation');
+const Reception = page(() => import('@/pages/Reception'), 'Reception');
+const Admin = page(() => import('@/pages/Admin'), 'Admin');
+const Onboarding = page(() => import('@/pages/Onboarding'), 'Onboarding');
+const MfaSetup = page(() => import('@/pages/MfaSetup'), 'MfaSetup');
+const MfaVerify = page(() => import('@/pages/MfaVerify'), 'MfaVerify');
+const PhoneCalls = page(() => import('@/pages/PhoneCalls'), 'PhoneCalls');
+const IncomingCallHandler = page(() => import('@/pages/IncomingCallHandler'), 'IncomingCallHandler');
 
-function PageLoader() {
+const PendingApproval = () => {
+  const signOut = useStore((s) => s.signOut);
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-50">
-      <div className="flex flex-col items-center gap-4">
-        <Loader2 className="w-10 h-10 animate-spin text-indigo-600" />
-        <p className="text-sm text-gray-500 font-medium">Laden...</p>
+    <div className="flex min-h-dvh items-center justify-center bg-gray-50 px-4 dark:bg-gray-900">
+      <div className="card card-pad w-full max-w-md text-center">
+        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-300">
+          <Lock className="h-6 w-6" />
+        </div>
+        <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Konto wartet auf Freischaltung</h1>
+        <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+          Dein Konto ist angelegt. Sobald die Büroleitung es freischaltet, kannst du dich anmelden.
+        </p>
+        <button type="button" onClick={() => signOut()} className="btn-secondary mt-6">
+          Zurück zur Anmeldung
+        </button>
       </div>
     </div>
   );
-}
-
-const PendingApproval = () => (
-  <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900 px-4">
-    <div className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-sm max-w-md w-full text-center space-y-4">
-      <div className="w-16 h-16 bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded-full flex items-center justify-center mx-auto mb-4">
-        <Lock className="w-8 h-8" />
-      </div>
-      <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Warten auf Freischaltung</h2>
-      <p className="text-gray-500 dark:text-gray-400">
-        Dein Account wurde erfolgreich erstellt, muss aber noch von einem Administrator freigeschaltet werden.
-      </p>
-      <button
-        onClick={() => supabase.auth.signOut()}
-        className="mt-6 px-6 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors font-medium"
-      >
-        Zurück zum Login
-      </button>
-    </div>
-  </div>
-);
+};
 
 function App() {
-  const setUser = useStore((state) => state.setUser);
-  const setLoading = useStore((state) => state.setLoading);
-  const fetchProfile = useStore((state) => state.fetchProfile);
-  const fetchSchoolHolidays = useStore((state) => state.fetchSchoolHolidays);
+  const setUser = useStore((s) => s.setUser);
+  const setLoading = useStore((s) => s.setLoading);
+  const fetchProfile = useStore((s) => s.fetchProfile);
+  const fetchSchoolHolidays = useStore((s) => s.fetchSchoolHolidays);
 
   useEffect(() => {
-    // Check active session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        // Fetch profile first to determine routing/roles
-        fetchProfile().finally(() => {
-          setLoading(false);
-        });
-        // Fetch holidays in background
-        fetchSchoolHolidays();
-      } else {
-        setLoading(false);
-      }
-    }).catch(err => {
-      console.error("Session error:", err);
-      setLoading(false);
-    });
+    let lastUserId: string | undefined;
 
-    // Listen for auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchProfile();
-        fetchSchoolHolidays();
-      }
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      const user = session?.user ?? null;
+      setUser(user);
+
+      // Supabase-Aufrufe nicht direkt im Callback ausführen (kann sonst hängen)
+      setTimeout(() => {
+        if (!user) {
+          lastUserId = undefined;
+          setLoading(false);
+          return;
+        }
+        // Profil nur bei neuem Nutzer oder echten Änderungen neu laden, nicht bei jedem Token-Refresh
+        if (user.id !== lastUserId || event === 'USER_UPDATED') {
+          lastUserId = user.id;
+          fetchProfile().finally(() => setLoading(false));
+          fetchSchoolHolidays();
+        } else {
+          setLoading(false);
+        }
+      }, 0);
     });
 
     return () => subscription.unsubscribe();
@@ -106,36 +93,48 @@ function App() {
 
   return (
     <BrowserRouter>
-      <Toaster position="top-right" />
-      <Suspense fallback={<PageLoader />}>
+      <Toaster
+        position="top-center"
+        toastOptions={{
+          duration: 3500,
+          className: '!rounded-lg !border !border-gray-200 !bg-white !text-sm !text-gray-900 !shadow-lg dark:!border-gray-700 dark:!bg-gray-800 dark:!text-gray-100',
+          success: { iconTheme: { primary: '#146A68', secondary: '#fff' } },
+        }}
+      />
+      <Suspense fallback={<FullScreenLoader />}>
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/incoming-call" element={<IncomingCallHandler />} />
           <Route path="/pending-approval" element={<PendingApproval />} />
-          
+
           <Route element={<ProtectedRoute />}>
             <Route path="/mfa-setup" element={<MfaSetup />} />
             <Route path="/mfa-verify" element={<MfaVerify />} />
-            
+
             <Route element={<MfaCheck />}>
               <Route path="/onboarding" element={<Onboarding />} />
               <Route element={<OnboardingCheck />}>
-                <Route path="/" element={<Layout><PageTransition><Dashboard /></PageTransition></Layout>} />
-                <Route path="/leads" element={<Layout><PageTransition><Leads /></PageTransition></Layout>} />
-                <Route path="/general-calendar" element={<Layout><PageTransition><GeneralCalendar /></PageTransition></Layout>} />
-                <Route path="/calendar" element={<Layout><PageTransition><Calendar /></PageTransition></Layout>} />
-                <Route path="/vacation" element={<Layout><PageTransition><Vacation /></PageTransition></Layout>} />
-                <Route path="/reception" element={<Layout><PageTransition><Reception /></PageTransition></Layout>} />
-                <Route path="/bookings" element={<Layout><PageTransition><Bookings /></PageTransition></Layout>} />
-                <Route path="/production" element={<Layout><PageTransition><Production /></PageTransition></Layout>} />
-                <Route path="/board" element={<Layout><PageTransition><Board /></PageTransition></Layout>} />
-                <Route path="/polls" element={<Layout><PageTransition><Polls /></PageTransition></Layout>} />
-                <Route path="/parcels" element={<Layout><PageTransition><Parcels /></PageTransition></Layout>} />
-                <Route path="/directory" element={<Layout><PageTransition><Directory /></PageTransition></Layout>} />
-                <Route path="/admin" element={<Layout><PageTransition><Admin /></PageTransition></Layout>} />
-                <Route path="/documents" element={<Layout><PageTransition><Documents /></PageTransition></Layout>} />
-                <Route path="/calls" element={<Layout><PageTransition><PhoneCalls /></PageTransition></Layout>} />
-                <Route path="/profile" element={<Layout><PageTransition><ProfilePage /></PageTransition></Layout>} />
+                <Route element={<Layout />}>
+                  <Route index element={<Dashboard />} />
+                  <Route path="/leads" element={<Leads />} />
+                  <Route path="/general-calendar" element={<GeneralCalendar />} />
+                  <Route path="/calendar" element={<Calendar />} />
+                  <Route path="/vacation" element={<Vacation />} />
+                  <Route path="/reception" element={<Reception />} />
+                  <Route path="/bookings" element={<Bookings />} />
+                  <Route path="/production" element={<Production />} />
+                  <Route path="/board" element={<Board />} />
+                  <Route path="/polls" element={<Polls />} />
+                  <Route path="/parcels" element={<Parcels />} />
+                  <Route path="/directory" element={<Directory />} />
+                  <Route path="/admin" element={<Admin />} />
+                  <Route path="/documents" element={<Documents />} />
+                  <Route path="/calls" element={<PhoneCalls />} />
+                  <Route path="/profile" element={<ProfilePage />} />
+                  {/* Alte Links weiterleiten */}
+                  <Route path="/callbacks" element={<Navigate to="/calls?tab=tasks" replace />} />
+                  <Route path="/dashboard" element={<Navigate to="/" replace />} />
+                </Route>
               </Route>
             </Route>
           </Route>

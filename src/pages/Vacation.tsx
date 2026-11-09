@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
+import { PageHeader, Button } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
 import { useStore } from '@/store/useStore';
 import { Absence } from '@/types';
 import { format, parseISO } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { motion } from 'framer-motion';
-import { Palmtree, Check, X, RefreshCw } from 'lucide-react';
+import { Check, X, RefreshCw } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { toast } from 'react-hot-toast';
 import { getVacationDaysToDeduct } from '@/utils/dateUtils';
@@ -145,30 +145,12 @@ export const Vacation = () => {
     };
 
     return (
-        <div className="max-w-7xl mx-auto space-y-8 pb-20">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
-                <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}>
-                    <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
-                        <div className="p-2 bg-indigo-100 dark:bg-indigo-900/30 rounded-xl">
-                            <Palmtree className="w-8 h-8 text-indigo-600 dark:text-indigo-400" />
-                        </div>
-                        Urlaubskonto
-                    </h1>
-                    <p className="text-gray-500 dark:text-gray-400 mt-2 ml-1">
-                        Übersicht deiner Urlaubszeiträume und ob sie vom Urlaubskonto abgezogen werden.
-                    </p>
-                </motion.div>
-
-                <motion.button
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    onClick={fetchVacations}
-                    className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 px-5 py-3 rounded-2xl flex items-center justify-center gap-2 transition-all shadow-sm border border-gray-200 dark:border-gray-700"
-                >
-                    <RefreshCw className={cn('w-5 h-5', loading ? 'animate-spin' : '')} />
-                    <span className="font-semibold">Aktualisieren</span>
-                </motion.button>
-            </div>
+        <div className="space-y-6">
+            <PageHeader
+                title="Urlaubskonto"
+                description="Deine Urlaubstage im Jahr und welche Abwesenheiten davon abgezogen werden."
+                actions={<Button variant="secondary" icon={RefreshCw} loading={loading} onClick={fetchVacations}>Aktualisieren</Button>}
+            />
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
@@ -187,7 +169,7 @@ export const Vacation = () => {
                 </div>
             </div>
 
-            <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-3xl shadow-xl border border-white/20 dark:border-gray-700/50 p-6 sm:p-8">
+            <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 sm:p-8">
                 <h2 className="text-xl font-bold mb-6 text-gray-900 dark:text-white">Urlaubszeiträume</h2>
 
                 {loading ? (

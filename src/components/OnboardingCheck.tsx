@@ -1,47 +1,33 @@
 import { useEffect, useState } from 'react';
-import { Navigate, useLocation, Outlet } from 'react-router-dom';
+import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { useStore } from '@/store/useStore';
+import { FullScreenLoader } from './FullScreenLoader';
 
+// Wer noch keine Provisionssätze hinterlegt hat, wird einmalig durchs Onboarding geführt
 export const OnboardingCheck = () => {
-  const { user } = useStore();
+  const userId = useStore((s) => s.user?.id);
   const location = useLocation();
-  const [checking, setChecking] = useState(true);
-  const [needsOnboarding, setNeedsOnboarding] = useState(false);
+  const [needsOnboarding, setNeedsOnboarding] = useState<boolean | null>(null);
 
   useEffect(() => {
-    const checkSettings = async () => {
-      if (!user) {
-        setChecking(false);
-        return;
-      }
-
-      // Skip check if we are already on onboarding or profile page (to allow setup)
-      if (location.pathname === '/onboarding' || location.pathname === '/profile') {
-          setChecking(false);
-          return;
-      }
-
-      const { count } = await supabase
-        .from('user_commission_settings')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', user.id);
-
-      // If no settings found (count === 0), user needs onboarding
-      if (count === 0) {
-        setNeedsOnboarding(true);
-      }
-      setChecking(false);
+    if (!userId) return;
+    let cancelled = false;
+    supabase
+      .from('user_commission_settings')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .then(({ count, error }) => {
+        if (cancelled) return;
+        // Bei Fehlern nicht blockieren
+        setNeedsOnboarding(!error && count === 0);
+      });
+    return () => {
+      cancelled = true;
     };
+  }, [userId]);
 
-    checkSettings();
-  }, [user?.id, location.pathname]);
-
-  if (checking) return null; // Or a loading spinner
-
-  if (needsOnboarding && location.pathname !== '/onboarding') {
-    return <Navigate to="/onboarding" replace />;
-  }
-
+  if (needsOnboarding === null) return <FullScreenLoader />;
+  if (needsOnboarding && location.pathname !== '/profile') return <Navigate to="/onboarding" replace />;
   return <Outlet />;
 };
