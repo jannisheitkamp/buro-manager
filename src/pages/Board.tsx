@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react';
+import { Avatar } from '@/components/ui';
+import { PageHeader, Button } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
+import { PROFILE_PUBLIC } from '@/lib/profiles';
 import { Post } from '@/types';
 import { useStore } from '@/store/useStore';
 import { format, parseISO } from 'date-fns';
@@ -30,7 +33,7 @@ export const Board = () => {
     try {
       const { data, error } = await supabase
         .from('posts')
-        .select('*, profiles(*)')
+        .select(`*, profiles(${PROFILE_PUBLIC})`)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -122,38 +125,12 @@ export const Board = () => {
   };
 
   return (
-    <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-8">
-      <div className="flex items-center justify-between">
-        <div>
-            <motion.h1 
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-400 flex items-center gap-3"
-            >
-              <MessageSquare className="w-8 h-8 text-gray-800 dark:text-gray-200" />
-              Schwarzes Brett
-            </motion.h1>
-            <motion.p 
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.1 }}
-                className="text-lg text-gray-500 dark:text-gray-400 mt-2 font-medium"
-            >
-                Neuigkeiten und Aufgaben für das Team.
-            </motion.p>
-        </div>
-        <motion.button
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.2 }}
-          onClick={() => setIsModalOpen(true)}
-          className="group relative px-6 py-3 bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-semibold rounded-2xl shadow-lg shadow-indigo-500/30 hover:shadow-indigo-500/50 hover:scale-[1.02] transition-all flex items-center gap-2 overflow-hidden"
-        >
-          <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
-          <Plus className="w-5 h-5 relative z-10" />
-          <span className="relative z-10">Eintrag erstellen</span>
-        </motion.button>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        title="Schwarzes Brett"
+        description="Ankündigungen und Aufgaben für das ganze Team."
+        actions={<Button icon={Plus} onClick={() => setIsModalOpen(true)}>Beitrag schreiben</Button>}
+      />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <AnimatePresence>
@@ -180,7 +157,7 @@ export const Board = () => {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: index * 0.05 }}
                     layout
-                    className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-3xl p-6 border border-white/20 shadow-xl flex flex-col h-full relative group hover:shadow-2xl hover:shadow-indigo-500/10 transition-all hover:-translate-y-1"
+                    className="bg-white dark:bg-gray-800 rounded-3xl p-6 border border-gray-200 shadow-sm flex flex-col h-full relative group hover:border-gray-300 dark:hover:border-gray-600 hover: transition-all"
                 >
                     <div className="flex items-start justify-between mb-4">
                         <div className="flex items-center gap-3">
@@ -192,7 +169,7 @@ export const Board = () => {
                             </div>
                             <div>
                                 <span className={cn(
-                                    "text-xs font-bold uppercase tracking-wider",
+                                    "text-xs font-bold ",
                                     post.type === 'task' ? "text-green-600 dark:text-green-400" : "text-indigo-600 dark:text-indigo-400"
                                 )}>
                                     {getTypeLabel(post.type)}
@@ -221,12 +198,8 @@ export const Board = () => {
                     {post.content}
                     </p>
 
-                    <div className="flex items-center gap-3 pt-4 border-t border-gray-100 dark:border-gray-700/50 mt-auto">
-                        <img
-                            src={post.profiles?.avatar_url || `https://ui-avatars.com/api/?name=${post.profiles?.full_name || 'User'}&background=random`}
-                            alt={post.profiles?.full_name || ''}
-                            className="w-10 h-10 rounded-full shadow-sm ring-2 ring-white dark:ring-gray-700"
-                        />
+                    <div className="flex items-center gap-3 pt-4 border-t border-gray-100 dark:border-gray-700 mt-auto">
+                        <Avatar name={post.profiles?.full_name} src={post.profiles?.avatar_url} size="md" className="w-10 h-10 rounded-full shadow-sm ring-2 ring-white dark:ring-gray-700" />
                         <div>
                             <span className="text-sm font-bold text-gray-700 dark:text-gray-200 block">
                                 {post.profiles?.full_name}
@@ -248,7 +221,7 @@ export const Board = () => {
       >
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+            <label className="block text-xs font-semibold text-gray-500 mb-2">
               Typ
             </label>
             <div className="grid grid-cols-2 gap-4">
@@ -256,7 +229,7 @@ export const Board = () => {
                     type="button"
                     onClick={() => setFormData({ ...formData, type: 'announcement' })}
                     className={cn(
-                        "flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border transition-all hover:scale-105 active:scale-95",
+                        "flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border transition-all",
                         formData.type === 'announcement' 
                             ? "border-indigo-500 bg-indigo-50 text-indigo-700 ring-2 ring-indigo-500 ring-offset-2 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-500 dark:ring-offset-gray-800" 
                             : "border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-gray-300"
@@ -269,7 +242,7 @@ export const Board = () => {
                     type="button"
                     onClick={() => setFormData({ ...formData, type: 'task' })}
                     className={cn(
-                        "flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border transition-all hover:scale-105 active:scale-95",
+                        "flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border transition-all",
                         formData.type === 'task' 
                             ? "border-green-500 bg-green-50 text-green-700 ring-2 ring-green-500 ring-offset-2 dark:bg-green-900/30 dark:text-green-300 dark:border-green-500 dark:ring-offset-gray-800" 
                             : "border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-gray-300"
@@ -282,7 +255,7 @@ export const Board = () => {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+            <label className="block text-xs font-semibold text-gray-500 mb-1.5">
               Titel
             </label>
             <input
@@ -296,7 +269,7 @@ export const Board = () => {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+            <label className="block text-xs font-semibold text-gray-500 mb-1.5">
               Inhalt
             </label>
             <textarea
@@ -320,7 +293,7 @@ export const Board = () => {
             <button
               type="submit"
               disabled={submitting}
-              className="px-6 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-lg shadow-indigo-500/30 transition-all hover:scale-[1.02] disabled:opacity-50 disabled:hover:scale-100"
+              className="px-6 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-sm transition-all hover:scale-[1.02] disabled:opacity-50 disabled:hover:scale-100"
             >
               {submitting ? 'Wird erstellt...' : 'Erstellen'}
             </button>

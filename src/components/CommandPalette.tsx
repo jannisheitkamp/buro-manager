@@ -1,179 +1,153 @@
-import { useEffect, useState, Fragment } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  Search, 
-  LayoutDashboard, 
-  Phone, 
-  Package, 
-  TrendingUp, 
-  UserCircle,
-  Calendar,
-  Users,
-  Building2,
-  ClipboardList,
-  BarChart2
-} from 'lucide-react';
-import { Dialog, Combobox, Transition } from '@headlessui/react';
-import { cn } from '@/utils/cn';
+import { Search, CornerDownLeft } from 'lucide-react';
+import { Dialog, DialogPanel, Combobox, ComboboxInput, ComboboxOptions, ComboboxOption } from '@headlessui/react';
+import { create } from 'zustand';
 import { supabase } from '@/lib/supabase';
+import { ALL_NAV_ITEMS } from '@/lib/navigation';
+import { useStore } from '@/store/useStore';
+import { Avatar } from '@/components/ui';
+import { cn } from '@/utils/cn';
+import type { LucideIcon } from 'lucide-react';
 
-type Item = {
-    id: string;
-    name: string;
-    href: string;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    icon: any;
-    type: 'page' | 'colleague';
-    meta?: string;
-};
+export const useCommandPalette = create<{ open: boolean; setOpen: (o: boolean) => void }>((set) => ({
+  open: false,
+  setOpen: (open) => set({ open }),
+}));
+
+type Item =
+  | { kind: 'page'; id: string; name: string; href: string; icon: LucideIcon; keywords: string }
+  | { kind: 'person'; id: string; name: string; href: string; avatar?: string | null; meta?: string | null };
 
 export const CommandPalette = () => {
-  const [isOpen, setIsOpen] = useState(false);
+  const { open, setOpen } = useCommandPalette();
   const [query, setQuery] = useState('');
-  const [colleagues, setColleagues] = useState<Item[]>([]);
+  const [people, setPeople] = useState<Item[]>([]);
   const navigate = useNavigate();
+  const isAdmin = useStore((s) => s.profile?.roles?.includes('admin'));
 
   useEffect(() => {
     const onKeydown = (e: KeyboardEvent) => {
-      if (e.key === 'k' && (e.metaKey || e.ctrlKey)) {
+      if (e.key.toLowerCase() === 'k' && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
-        setIsOpen(!isOpen);
+        setOpen(!useCommandPalette.getState().open);
       }
     };
     window.addEventListener('keydown', onKeydown);
     return () => window.removeEventListener('keydown', onKeydown);
-  }, [isOpen]);
+  }, [setOpen]);
 
-  // Fetch colleagues once when opened or mounted
+  // Kollegen erst laden, wenn die Suche das erste Mal geöffnet wird
   useEffect(() => {
-      const fetchColleagues = async () => {
-          const { data } = await supabase.from('profiles').select('id, full_name, email');
-          if (data) {
-              setColleagues(data.map(p => ({
-                  id: p.id,
-                  name: p.full_name || 'Unbekannt',
-                  href: `/directory`, // In future: /profile/${p.id}
-                  icon: Users,
-                  type: 'colleague',
-                  meta: p.email
-              })));
-          }
-      };
-      fetchColleagues();
-  }, []);
+    if (!open || people.length > 0) return;
+    supabase
+      .from('profiles')
+      .select('id, full_name, avatar_url, phone_extension, is_approved')
+      .order('full_name')
+      .then(({ data }) => {
+        if (!data) return;
+        setPeople(
+          data
+            .filter((p) => p.is_approved !== false)
+            .map((p) => ({
+              kind: 'person' as const,
+              id: p.id,
+              name: p.full_name || 'Ohne Namen',
+              href: `/directory?user=${p.id}`,
+              avatar: p.avatar_url,
+              meta: p.phone_extension ? `Durchwahl ${p.phone_extension}` : null,
+            })),
+        );
+      });
+  }, [open, people.length]);
 
-  const pages: Item[] = [
-    { id: 'dash', name: 'Dashboard', href: '/', icon: LayoutDashboard, type: 'page' },
-    { id: 'prod', name: 'Produktion & Umsatz', href: '/production', icon: TrendingUp, type: 'page' },
-    { id: 'cb', name: 'Rückrufe', href: '/callbacks', icon: Phone, type: 'page' },
-    { id: 'parcels', name: 'Pakete', href: '/parcels', icon: Package, type: 'page' },
-    { id: 'cal', name: 'Kalender', href: '/general-calendar', icon: Calendar, type: 'page' },
-    { id: 'abs', name: 'Abwesenheiten', href: '/calendar', icon: Calendar, type: 'page' },
-    { id: 'dir', name: 'Verzeichnis', href: '/directory', icon: Users, type: 'page' },
-    { id: 'prof', name: 'Profil', href: '/profile', icon: UserCircle, type: 'page' },
-    { id: 'book', name: 'Buchungen', href: '/bookings', icon: Building2, type: 'page' },
-    { id: 'board', name: 'Schwarzes Brett', href: '/board', icon: ClipboardList, type: 'page' },
-    { id: 'polls', name: 'Umfragen', href: '/polls', icon: BarChart2, type: 'page' },
-  ];
+  const pages = useMemo<Item[]>(
+    () =>
+      ALL_NAV_ITEMS.filter((i) => i.href !== '/admin' || isAdmin).map((i) => ({
+        kind: 'page' as const,
+        id: i.href,
+        name: i.name,
+        href: i.href,
+        icon: i.icon,
+        keywords: `${i.name} ${i.keywords || ''}`.toLowerCase(),
+      })),
+    [isAdmin],
+  );
 
-  const filteredItems = query === ''
-    ? [...pages, ...colleagues.slice(0, 3)]
-    : [
-        ...pages.filter((page) => page.name.toLowerCase().includes(query.toLowerCase())),
-        ...colleagues.filter((col) => col.name.toLowerCase().includes(query.toLowerCase()))
-      ];
+  const q = query.trim().toLowerCase();
+  const results = q
+    ? [
+        ...pages.filter((p) => p.kind === 'page' && p.keywords.includes(q)),
+        ...people.filter((p) => p.name.toLowerCase().includes(q)),
+      ]
+    : pages;
+
+  const close = () => {
+    setOpen(false);
+    setTimeout(() => setQuery(''), 150);
+  };
 
   return (
-    <Transition.Root show={isOpen} as={Fragment} afterLeave={() => setQuery('')}>
-      <Dialog as="div" className="relative z-50" onClose={setIsOpen}>
-        <Transition.Child
-          as={Fragment}
-          enter="ease-out duration-300"
-          enterFrom="opacity-0"
-          enterTo="opacity-100"
-          leave="ease-in duration-200"
-          leaveFrom="opacity-100"
-          leaveTo="opacity-0"
-        >
-          <div className="fixed inset-0 bg-gray-500/25 dark:bg-black/50 backdrop-blur-sm transition-opacity" />
-        </Transition.Child>
-
-        <div className="fixed inset-0 z-10 overflow-y-auto p-4 sm:p-6 md:p-20">
-          <Transition.Child
-            as={Fragment}
-            enter="ease-out duration-300"
-            enterFrom="opacity-0 scale-95"
-            enterTo="opacity-100 scale-100"
-            leave="ease-in duration-200"
-            leaveFrom="opacity-100 scale-100"
-            leaveTo="opacity-0 scale-95"
+    <Dialog open={open} onClose={close} className="relative z-[70]">
+      <div className="fixed inset-0 animate-fade-in bg-gray-950/40 backdrop-blur-[2px]" aria-hidden />
+      <div className="fixed inset-0 overflow-y-auto p-3 pt-[12vh] sm:p-6 sm:pt-[14vh]">
+        <DialogPanel className="mx-auto max-w-xl animate-pop-in overflow-hidden rounded-xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-800">
+          <Combobox
+            onChange={(item: Item | null) => {
+              if (!item) return;
+              navigate(item.href);
+              close();
+            }}
           >
-            <Dialog.Panel className="mx-auto max-w-xl transform divide-y divide-gray-100 dark:divide-gray-700 overflow-hidden rounded-xl bg-white dark:bg-gray-800 shadow-2xl ring-1 ring-black ring-opacity-5 transition-all">
-              <Combobox onChange={(item: Item) => {
-                if (item) {
-                    navigate(item.href);
-                    setIsOpen(false);
-                }
-              }}>
-                <div className="relative">
-                  <Search
-                    className="pointer-events-none absolute left-4 top-3.5 h-5 w-5 text-gray-400"
-                    aria-hidden="true"
-                  />
-                  <Combobox.Input
-                    className="h-12 w-full border-0 bg-transparent pl-11 pr-4 text-gray-900 dark:text-white placeholder:text-gray-400 focus:ring-0 sm:text-sm"
-                    placeholder="Suche nach Seiten oder Kollegen... (Cmd+K)"
-                    onChange={(event) => setQuery(event.target.value)}
-                  />
-                </div>
+            <div className="relative border-b border-gray-100 dark:border-gray-700">
+              <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+              <ComboboxInput
+                autoFocus
+                className="h-12 w-full !rounded-none !border-0 bg-transparent pl-11 pr-4 text-sm !ring-0 focus:!ring-0"
+                placeholder="Seite oder Kollegen suchen"
+                onChange={(e) => setQuery(e.target.value)}
+              />
+            </div>
 
-                {filteredItems.length > 0 && (
-                  <Combobox.Options static className="max-h-96 scroll-py-2 overflow-y-auto py-2 text-sm text-gray-800 dark:text-gray-200">
-                    {filteredItems.map((item) => (
-                      <Combobox.Option
-                        key={`${item.type}-${item.id}`}
-                        value={item}
-                        className={({ active }) =>
-                          cn(
-                            'cursor-default select-none px-4 py-2 flex items-center gap-3',
-                            active ? 'bg-indigo-600 text-white' : ''
-                          )
-                        }
-                      >
-                        {({ active }) => (
-                          <>
-                            <div className={cn(
-                                "p-1.5 rounded-lg",
-                                active ? "bg-white/20" : "bg-gray-100 dark:bg-gray-700"
-                            )}>
-                                <item.icon className={cn("h-4 w-4", active ? "text-white" : "text-gray-500 dark:text-gray-400")} />
-                            </div>
-                            <div className="flex-1">
-                                <span className={cn("block truncate font-medium", active ? "text-white" : "text-gray-900 dark:text-white")}>
-                                    {item.name}
-                                </span>
-                                {item.type === 'colleague' && (
-                                    <span className={cn("block truncate text-xs", active ? "text-indigo-200" : "text-gray-500")}>
-                                        Kollege • {item.meta}
-                                    </span>
-                                )}
-                            </div>
-                            {active && <span className="text-xs text-indigo-200">Öffnen</span>}
-                          </>
-                        )}
-                      </Combobox.Option>
-                    ))}
-                  </Combobox.Options>
-                )}
-
-                {query !== '' && filteredItems.length === 0 && (
-                  <p className="p-4 text-sm text-gray-500">Keine Ergebnisse gefunden.</p>
-                )}
-              </Combobox>
-            </Dialog.Panel>
-          </Transition.Child>
-        </div>
-      </Dialog>
-    </Transition.Root>
+            <ComboboxOptions static className="scrollbar-thin max-h-80 overflow-y-auto p-1.5">
+              {results.length === 0 && <p className="px-3 py-6 text-center text-sm text-gray-500">Keine Treffer für „{query}“.</p>}
+              {results.map((item) => (
+                <ComboboxOption
+                  key={`${item.kind}-${item.id}`}
+                  value={item}
+                  className={({ focus }) =>
+                    cn(
+                      'flex cursor-default select-none items-center gap-3 rounded-lg px-2.5 py-2 text-sm',
+                      focus ? 'bg-brand-50 text-brand-900 dark:bg-brand-900/50 dark:text-white' : 'text-gray-700 dark:text-gray-200',
+                    )
+                  }
+                >
+                  {({ focus }) => (
+                    <>
+                      {item.kind === 'page' ? (
+                        <span className="flex h-7 w-7 items-center justify-center rounded-md border border-gray-200 text-gray-500 dark:border-gray-700 dark:text-gray-400">
+                          <item.icon className="h-4 w-4" />
+                        </span>
+                      ) : (
+                        <Avatar name={item.name} src={item.avatar} size="xs" className="mx-0.5" />
+                      )}
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate font-medium">{item.name}</span>
+                        {item.kind === 'person' && item.meta && <span className="block truncate text-xs text-gray-500">{item.meta}</span>}
+                      </span>
+                      {focus && <CornerDownLeft className="h-3.5 w-3.5 text-gray-400" />}
+                    </>
+                  )}
+                </ComboboxOption>
+              ))}
+            </ComboboxOptions>
+          </Combobox>
+          <div className="flex items-center justify-between border-t border-gray-100 px-4 py-2 text-2xs text-gray-400 dark:border-gray-700">
+            <span>Pfeiltasten zum Auswählen, Enter zum Öffnen</span>
+            <kbd className="rounded border border-gray-200 px-1.5 font-mono dark:border-gray-700">Esc</kbd>
+          </div>
+        </DialogPanel>
+      </div>
+    </Dialog>
   );
 };

@@ -5,7 +5,7 @@ test.describe('Dashboard und Navigation', () => {
     await page.goto('/');
     
     // Prüfen, ob der Login-Titel gerendert wird
-    const heading = page.locator('h2', { hasText: 'Willkommen zurück' });
+    const heading = page.getByRole('heading', { name: 'Anmelden' });
     await expect(heading).toBeVisible();
 
     // Prüfen, ob Email und Passwort Felder existieren

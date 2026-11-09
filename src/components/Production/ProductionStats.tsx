@@ -1,67 +1,42 @@
-import { motion } from 'framer-motion';
-import { Euro, TrendingUp } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 
-const formatCurrency = (amount: number | null | undefined) => {
-  if (amount === null || amount === undefined || isNaN(amount)) return '0,00 €';
-  return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(amount);
-};
+const eur = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' });
+const num = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 });
 
 type Props = {
-    totalCommission: number;
-    totalLifeValues: number;
-    totalLiability: number;
-    onOpenLiabilityModal: () => void;
+  totalCommission: number;
+  totalLifeValues: number;
+  totalLiability: number;
+  contractCount: number;
+  cancelledCount: number;
+  onOpenLiabilityModal: () => void;
 };
 
-export const ProductionStats = ({ totalCommission, totalLifeValues, totalLiability, onOpenLiabilityModal }: Props) => {
-    return (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-3xl p-6 border border-white/20 shadow-xl relative overflow-hidden group"
-            >
-                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                    <Euro className="w-24 h-24 text-indigo-600" />
-                </div>
-                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Gesamtprovision (Liste)</p>
-                <p className="text-3xl font-black text-indigo-600 dark:text-indigo-400 mt-2">{formatCurrency(totalCommission)}</p>
-            </motion.div>
-
-            <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.35 }}
-            className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-3xl p-6 border border-white/20 shadow-xl relative overflow-hidden group"
-            >
-                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                    <TrendingUp className="w-24 h-24 text-emerald-500" />
-                </div>
-                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Lebenswerte (Gesamt)</p>
-                <p className="text-3xl font-black text-emerald-500 dark:text-emerald-400 mt-2">
-                    {new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 }).format(totalLifeValues)}
-                </p>
-            </motion.div>
-
-            <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
-            className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-3xl p-6 border border-white/20 shadow-xl relative overflow-hidden group cursor-pointer hover:bg-orange-50 dark:hover:bg-orange-900/10"
-            onClick={onOpenLiabilityModal}
-            >
-                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                    <TrendingUp className="w-24 h-24 text-orange-500" />
-                </div>
-                <div className="flex items-center justify-between">
-                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Haftungsreserve (Total)</p>
-                    <span className="text-xs bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400 px-2 py-1 rounded-lg font-semibold group-hover:scale-105 transition-transform">
-                        Details ansehen
-                    </span>
-                </div>
-                <p className="text-3xl font-black text-orange-500 dark:text-orange-400 mt-2">{formatCurrency(totalLiability)}</p>
-            </motion.div>
-        </div>
-    );
-};
+export const ProductionStats = ({ totalCommission, totalLifeValues, totalLiability, contractCount, cancelledCount, onOpenLiabilityModal }: Props) => (
+  <div className="card grid grid-cols-2 divide-gray-100 dark:divide-gray-700 lg:grid-cols-4 lg:divide-x [&>*]:p-5 [&>*]:sm:px-6">
+    <div className="border-b border-r border-gray-100 dark:border-gray-700 lg:border-0">
+      <p className="text-xs text-gray-500">Provision</p>
+      <p className="tabular mt-1 font-display text-2xl font-semibold text-gray-900 dark:text-white sm:text-[1.75rem]">{eur.format(totalCommission)}</p>
+    </div>
+    <div className="border-b border-gray-100 dark:border-gray-700 lg:border-0">
+      <p className="text-xs text-gray-500">Lebenswerte</p>
+      <p className="tabular mt-1 font-display text-2xl font-semibold text-brand-700 dark:text-brand-300 sm:text-[1.75rem]">{num.format(totalLifeValues)}</p>
+    </div>
+    <div className="border-r border-gray-100 dark:border-gray-700 lg:border-0">
+      <p className="text-xs text-gray-500">Verträge</p>
+      <p className="tabular mt-1 font-display text-2xl font-semibold text-gray-900 dark:text-white sm:text-[1.75rem]">
+        {contractCount}
+        {cancelledCount > 0 && <span className="ml-2 align-middle font-sans text-xs font-normal text-gray-500">+ {cancelledCount} storniert</span>}
+      </p>
+    </div>
+    <button type="button" onClick={onOpenLiabilityModal} className="group text-left transition-colors hover:bg-amber-50/60 dark:hover:bg-amber-900/10">
+      <p className="flex items-center justify-between text-xs text-gray-500">
+        Stornohaftung
+        <span className="flex items-center gap-0.5 text-amber-700 dark:text-amber-300">
+          Verlauf <ChevronRight className="h-3 w-3" />
+        </span>
+      </p>
+      <p className="tabular mt-1 font-display text-2xl font-semibold text-amber-700 dark:text-amber-300 sm:text-[1.75rem]">{eur.format(totalLiability)}</p>
+    </button>
+  </div>
+);

@@ -55,6 +55,19 @@ export function getHolidays(year: number): Date[] {
     return holidays;
 }
 
+const holidayCache = new Map<number, Set<string>>();
+
+/** Gesetzlicher Feiertag in NRW? */
+export function isHoliday(date: Date): boolean {
+    const year = date.getFullYear();
+    let set = holidayCache.get(year);
+    if (!set) {
+        set = new Set(getHolidays(year).map(h => `${h.getMonth()}-${h.getDate()}`));
+        holidayCache.set(year, set);
+    }
+    return set.has(`${date.getMonth()}-${date.getDate()}`);
+}
+
 export function getHolidayName(date: Date): string | null {
     // ...existing logic
     const year = date.getFullYear();

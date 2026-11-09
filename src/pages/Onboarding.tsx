@@ -2,9 +2,9 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { useStore } from '@/store/useStore';
-import { motion, AnimatePresence } from 'framer-motion';
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-import { ArrowRight, Check, Sparkles, Shield, Heart, Car, Home, Gavel, Save } from 'lucide-react';
+import { Sparkles, Shield, Heart, Car, Home, Gavel } from 'lucide-react';
+import { AuthShell } from '@/components/AuthShell';
+import { Button } from '@/components/ui';
 import { toast } from 'react-hot-toast';
 
 // Default config structure
@@ -20,7 +20,6 @@ const INSURANCE_TYPES = [
 export const Onboarding = () => {
   const { user } = useStore();
   const navigate = useNavigate();
-  const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [rates, setRates] = useState<Record<string, number>>({});
 
@@ -50,18 +49,10 @@ export const Onboarding = () => {
         }
     };
     loadSettings();
-  }, [user?.id]);
+  }, [user]);
 
   const handleRateChange = (sub: string, val: string) => {
       setRates(prev => ({ ...prev, [sub]: parseFloat(val) || 0 }));
-  };
-
-  const handleNext = async () => {
-      if (step < INSURANCE_TYPES.length - 1) {
-          setStep(step + 1);
-      } else {
-          await saveSettings();
-      }
   };
 
   const saveSettings = async () => {
@@ -87,8 +78,8 @@ export const Onboarding = () => {
 
           if (error) throw error;
 
-          toast.success('Einstellungen gespeichert!');
-          navigate('/');
+          toast.success('Provisionssätze gespeichert');
+          navigate('/', { replace: true });
       } catch (err) {
           console.error(err);
           toast.error('Fehler beim Speichern.');
@@ -97,134 +88,53 @@ export const Onboarding = () => {
       }
   };
 
-  const currentType = INSURANCE_TYPES[step];
-  const Icon = currentType.icon;
-
   return (
-    <div className="min-h-screen bg-[#F3F4F6] dark:bg-gray-900 flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative overflow-hidden">
-        {/* Background Gradients */}
-        <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
-          <motion.div 
-            animate={{ 
-                background: `radial-gradient(circle at 80% 20%, ${currentType.id === 'life' ? '#FCD34D' : currentType.id === 'health' ? '#FDA4AF' : '#818CF8'}10 0%, transparent 50%)` 
-            }}
-            className="absolute top-0 right-0 w-[600px] h-[600px] rounded-full blur-3xl transition-colors duration-1000" 
-          />
-          <div className="absolute bottom-[-10%] left-[-5%] w-[500px] h-[500px] bg-gray-200/50 dark:bg-gray-800/50 rounded-full blur-3xl" />
-      </div>
-
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="sm:mx-auto sm:w-full sm:max-w-xl relative z-10"
+    <AuthShell
+      wide
+      title="Willkommen im Büro Manager"
+      description="Hinterlege einmal deine Provisionssätze. Damit rechnet die Produktion Provision und Lebenswerte automatisch aus. Die Standardwerte sind schon eingetragen, du kannst sie später im Profil ändern."
+    >
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          saveSettings();
+        }}
+        className="space-y-6"
       >
-        <div className="text-center mb-8">
-            <motion.div 
-                key={currentType.id}
-                initial={{ scale: 0.8, rotate: -10 }}
-                animate={{ scale: 1, rotate: 0 }}
-                className={`mx-auto h-20 w-20 bg-gradient-to-br ${currentType.color} rounded-3xl shadow-xl flex items-center justify-center mb-6 text-white`}
-            >
-                <Icon className="h-10 w-10" />
-            </motion.div>
-            <h2 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">
-                Provisions-Setup
-            </h2>
-            <p className="mt-2 text-gray-500 dark:text-gray-400">
-                Schritt {step + 1} von {INSURANCE_TYPES.length}
-            </p>
+        {INSURANCE_TYPES.map((type) => {
+          const TypeIcon = type.icon;
+          return (
+            <fieldset key={type.id}>
+              <legend className="mb-2 flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white">
+                <TypeIcon className="h-4 w-4 text-gray-400" />
+                {type.label}
+                <span className="font-normal text-gray-400">· {type.unit}</span>
+              </legend>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                {type.subcategories.map((sub) => (
+                  <label key={sub} className="block">
+                    <span className="field-label">{sub}</span>
+                    <input
+                      type="number"
+                      step="0.1"
+                      min={0}
+                      inputMode="decimal"
+                      value={rates[sub] ?? ''}
+                      onChange={(e) => handleRateChange(sub, e.target.value)}
+                      className="input tabular"
+                    />
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+          );
+        })}
+        <div className="flex justify-end border-t border-gray-100 pt-5 dark:border-gray-700">
+          <Button type="submit" loading={loading}>
+            Sätze speichern und loslegen
+          </Button>
         </div>
-
-        <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl shadow-2xl rounded-3xl border border-white/20 dark:border-gray-700/50 relative overflow-hidden">
-            
-            {/* Progress Bar */}
-            <div className="h-1.5 w-full bg-gray-100 dark:bg-gray-700/50">
-                <motion.div 
-                    className={`h-full bg-gradient-to-r ${currentType.color}`}
-                    initial={{ width: `${((step) / INSURANCE_TYPES.length) * 100}%` }}
-                    animate={{ width: `${((step + 1) / INSURANCE_TYPES.length) * 100}%` }}
-                    transition={{ duration: 0.5, ease: "easeInOut" }}
-                />
-            </div>
-
-            <div className="p-8 sm:p-10">
-                <AnimatePresence mode="wait">
-                    <motion.div
-                        key={step}
-                        initial={{ opacity: 0, x: 50 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: -50 }}
-                        transition={{ duration: 0.3 }}
-                    >
-                        <div className="flex items-center justify-between mb-8">
-                            <div>
-                                <h3 className="text-2xl font-bold text-gray-900 dark:text-white">{currentType.label}</h3>
-                                <p className="text-sm text-gray-500 mt-1">Einheit: <span className="font-semibold text-gray-700 dark:text-gray-300">{currentType.unit}</span></p>
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                            {currentType.subcategories.map(sub => (
-                                <div key={sub} className="group">
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
-                                        {sub} {sub === 'KV Voll' || sub === 'KV Zusatz' ? '(MB)' : ''}
-                                    </label>
-                                    <div className="relative">
-                                        <input
-                                            type="number"
-                                            step="0.1"
-                                            value={rates[sub] || ''}
-                                            onChange={e => handleRateChange(sub, e.target.value)}
-                                            className="block w-full rounded-2xl border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 pl-5 pr-12 py-4 text-lg font-semibold focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all focus:bg-white dark:focus:bg-gray-800"
-                                            placeholder="0.0"
-                                        />
-                                        <div className="absolute inset-y-0 right-0 flex items-center pr-5 pointer-events-none">
-                                            <span className="text-gray-400 font-medium">
-                                                {currentType.id === 'life' ? '‰' : (sub.includes('KV') && !sub.includes('Reise') ? 'MB' : '%')}
-                                            </span>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </motion.div>
-                </AnimatePresence>
-
-                <div className="mt-10 flex justify-between items-center gap-4 pt-8 border-t border-gray-100 dark:border-gray-700">
-                    <button
-                        type="button"
-                        onClick={() => step > 0 && setStep(step - 1)}
-                        disabled={step === 0}
-                        className={`px-6 py-3 rounded-2xl font-medium transition-all ${
-                            step === 0 
-                                ? 'text-gray-300 cursor-not-allowed' 
-                                : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
-                        }`}
-                    >
-                        Zurück
-                    </button>
-                    
-                    <button
-                        type="button"
-                        onClick={handleNext}
-                        disabled={loading}
-                        className={`flex items-center gap-2 px-8 py-3 rounded-2xl text-white font-bold shadow-lg shadow-indigo-200 dark:shadow-none transition-all hover:scale-105 active:scale-95 bg-gradient-to-r ${currentType.color}`}
-                    >
-                        {loading ? 'Speichere...' : (step === INSURANCE_TYPES.length - 1 ? 'Fertigstellen' : 'Weiter')}
-                        {!loading && (step === INSURANCE_TYPES.length - 1 ? <Check className="w-5 h-5" /> : <ArrowRight className="w-5 h-5" />)}
-                    </button>
-                </div>
-            </div>
-
-        </div>
-        
-        <div className="mt-8 text-center">
-            <button onClick={() => navigate('/')} className="text-sm text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors">
-                Überspringen und Standardwerte nutzen
-            </button>
-        </div>
-
-      </motion.div>
-    </div>
+      </form>
+    </AuthShell>
   );
 };

@@ -1,5 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
+import { Avatar } from '@/components/ui';
+import { PageHeader } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
+import { getMyWebhookSecret } from '@/lib/profiles';
 import { useStore } from '@/store/useStore';
 import { motion } from 'framer-motion';
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -54,7 +57,7 @@ export const ProfilePage = () => {
             setAgencyNumber(profile.agency_number || ''); 
             setPhoneExtension(profile.phone_extension || '');
             setAddress(profile.address || ''); // Load
-            setWebhookSecret(profile.webhook_secret || ''); // Load
+            getMyWebhookSecret(profile.id).then(setWebhookSecret);
             setMonthlyGoal(profile.monthly_goal || 10000); // Load
             setYearlyGoal(profile.yearly_goal || (profile.monthly_goal ? profile.monthly_goal * 12 : 120000)); // Load or calc
             setTotalVacationDays(profile.total_vacation_days ?? 30);
@@ -306,17 +309,8 @@ export const ProfilePage = () => {
     };
 
     return (
-        <div className="max-w-5xl mx-auto p-4 md:p-8 space-y-8 pb-24">
-            <motion.h1 
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="text-3xl font-black text-gray-900 dark:text-white flex items-center gap-3"
-            >
-                <div className="p-2 bg-indigo-100 dark:bg-indigo-900/30 rounded-2xl">
-                    <User className="w-8 h-8 text-indigo-600 dark:text-indigo-400" />
-                </div>
-                Mein Profil
-            </motion.h1>
+        <div className="mx-auto max-w-4xl space-y-6">
+            <PageHeader title="Mein Profil" description="Persönliche Daten, Ziele, Provisionssätze und Sicherheit." />
 
             {/* Badges Section */}
             {badges.length > 0 && (
@@ -364,11 +358,7 @@ export const ProfilePage = () => {
                             <div className="flex justify-center mb-6">
                                 <div className="relative group">
                                     <div className="absolute inset-0 bg-gradient-to-tr from-indigo-500 to-purple-500 rounded-full blur opacity-20 group-hover:opacity-40 transition-opacity" />
-                                    <img 
-                                        src={avatarUrl || `https://ui-avatars.com/api/?name=${fullName}&background=random`} 
-                                        alt="Avatar" 
-                                        className="w-24 h-24 rounded-full object-cover ring-4 ring-white dark:ring-gray-700 relative z-10"
-                                    />
+                                    <Avatar name={fullName} src={avatarUrl} size="xl" className="w-24 h-24 rounded-full object-cover ring-4 ring-white dark:ring-gray-700 relative z-10" />
                                     {/* Upload Button */}
                                     <input 
                                         type="file" 
@@ -388,7 +378,7 @@ export const ProfilePage = () => {
                             </div>
 
                             <div>
-                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Name</label>
+                                <label className="block text-xs font-bold text-gray-500 mb-1.5">Name</label>
                                 <input 
                                     type="text" 
                                     value={fullName}
@@ -398,7 +388,7 @@ export const ProfilePage = () => {
                             </div>
 
                             <div>
-                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Agenturnummer</label>
+                                <label className="block text-xs font-bold text-gray-500 mb-1.5">Agenturnummer</label>
                                 <input 
                                     type="text" 
                                     value={agencyNumber}
@@ -409,7 +399,7 @@ export const ProfilePage = () => {
                             </div>
 
                             <div>
-                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">3CX Durchwahl (für Anruferkennung)</label>
+                                <label className="block text-xs font-bold text-gray-500 mb-1.5">3CX Durchwahl (für Anruferkennung)</label>
                                 <input 
                                     type="text" 
                                     value={phoneExtension}
@@ -421,7 +411,7 @@ export const ProfilePage = () => {
                             </div>
 
                             <div>
-                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Adresse (für Anträge)</label>
+                                <label className="block text-xs font-bold text-gray-500 mb-1.5">Adresse (für Anträge)</label>
                                 <textarea 
                                     value={address}
                                     onChange={e => setAddress(e.target.value)}
@@ -432,7 +422,7 @@ export const ProfilePage = () => {
                             </div>
 
                             <div>
-                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Jahresziel (Bewertungssumme)</label>
+                                <label className="block text-xs font-bold text-gray-500 mb-1.5">Jahresziel (Bewertungssumme)</label>
                                 <div className="relative">
                                     <Target className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
                                     <input 
@@ -450,7 +440,7 @@ export const ProfilePage = () => {
                             </div>
 
                             <div>
-                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Monatsziel (automatisch berechnet)</label>
+                                <label className="block text-xs font-bold text-gray-500 mb-1.5">Monatsziel (automatisch berechnet)</label>
                                 <div className="relative">
                                     <Target className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
                                     <input 
@@ -468,7 +458,7 @@ export const ProfilePage = () => {
                             </div>
 
                             <div>
-                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Jahresurlaub (Tage)</label>
+                                <label className="block text-xs font-bold text-gray-500 mb-1.5">Jahresurlaub (Tage)</label>
                                 <div className="relative">
                                     <Palmtree className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
                                     <input 
@@ -531,7 +521,7 @@ export const ProfilePage = () => {
                             </div>
 
                             <div>
-                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">E-Mail</label>
+                                <label className="block text-xs font-bold text-gray-500 mb-1.5">E-Mail</label>
                                 <div className="relative opacity-70">
                                     <Mail className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
                                     <input 
@@ -544,7 +534,7 @@ export const ProfilePage = () => {
                             </div>
                             
                             <div className="pt-2">
-                                <button type="submit" disabled={loading} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-xl shadow-lg shadow-indigo-500/20 transition-all active:scale-95 flex items-center justify-center gap-2">
+                                <button type="submit" disabled={loading} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-xl shadow-sm transition-all flex items-center justify-center gap-2">
                                     <Save className="w-4 h-4" /> Speichern
                                 </button>
                             </div>
@@ -565,7 +555,7 @@ export const ProfilePage = () => {
                         
                         <form onSubmit={handleUpdatePassword} className="space-y-4">
                             <div>
-                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Neues Passwort</label>
+                                <label className="block text-xs font-bold text-gray-500 mb-1.5">Neues Passwort</label>
                                 <div className="relative">
                                     <Key className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
                                     <input 
@@ -585,7 +575,7 @@ export const ProfilePage = () => {
                                 )}
                             </div>
                             <div>
-                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Bestätigen</label>
+                                <label className="block text-xs font-bold text-gray-500 mb-1.5">Bestätigen</label>
                                 <div className="relative">
                                     <Key className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
                                     <input 
@@ -598,7 +588,7 @@ export const ProfilePage = () => {
                                 </div>
                             </div>
                              <div className="pt-2">
-                                <button type="submit" disabled={loading || !password} className="w-full bg-gray-900 dark:bg-gray-700 hover:bg-gray-800 text-white font-bold py-2.5 rounded-xl transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed">
+                                <button type="submit" disabled={loading || !password} className="w-full bg-gray-900 dark:bg-gray-700 hover:bg-gray-800 text-white font-bold py-2.5 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed">
                                     Passwort ändern
                                 </button>
                             </div>
@@ -618,7 +608,7 @@ export const ProfilePage = () => {
                                 type="button"
                                 onClick={handleResetAuthenticator}
                                 disabled={loading}
-                                className="w-full bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/40 text-red-600 dark:text-red-400 font-bold py-2.5 rounded-xl transition-all active:scale-95 text-sm border border-red-200 dark:border-red-800/50"
+                                className="w-full bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/40 text-red-600 dark:text-red-400 font-bold py-2.5 rounded-xl transition-all text-sm border border-red-200 dark:border-red-800/50"
                             >
                                 Authenticator zurücksetzen
                             </button>
@@ -646,7 +636,7 @@ export const ProfilePage = () => {
                         <button 
                             onClick={handleSaveRates}
                             disabled={loading}
-                            className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl font-bold text-sm shadow-lg shadow-indigo-500/20 transition-all hover:scale-105 active:scale-95 flex items-center gap-2"
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl font-bold text-sm shadow-sm transition-all flex items-center gap-2"
                         >
                             <Save className="w-4 h-4" /> Speichern
                         </button>
@@ -708,7 +698,7 @@ export const ProfilePage = () => {
                             <button 
                                 onClick={handleGenerateSecret}
                                 disabled={loading}
-                                className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-indigo-500/20 transition-all active:scale-95"
+                                className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-bold shadow-sm transition-all"
                             >
                                 Key generieren
                             </button>
@@ -716,7 +706,7 @@ export const ProfilePage = () => {
                     ) : (
                         <div className="space-y-6">
                             <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-700">
-                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Dein Secret Key</label>
+                                <label className="block text-xs font-bold text-gray-500 mb-2">Dein Secret Key</label>
                                 <div className="flex items-center gap-2">
                                     <code className="flex-1 bg-white dark:bg-gray-800 p-2 rounded-lg font-mono text-sm border border-gray-200 dark:border-gray-700 overflow-hidden text-ellipsis">
                                         {webhookSecret}
@@ -740,7 +730,7 @@ export const ProfilePage = () => {
                                     { label: 'Pause', status: 'break', icon: '☕' },
                                     { label: 'Home Office', status: 'remote', icon: '💻' }
                                 ].map((action) => (
-                                    <div key={action.status} className="flex items-center justify-between p-3 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl hover:shadow-md transition-all">
+                                    <div key={action.status} className="flex items-center justify-between p-3 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl hover:border-gray-300 dark:hover:border-gray-600 transition-all">
                                         <div className="flex items-center gap-3">
                                             <span className="text-xl">{action.icon}</span>
                                             <div>

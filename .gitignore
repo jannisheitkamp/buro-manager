@@ -22,3 +22,14 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+# Lokale Umgebungsvariablen
+.env
+.env.*
+!.env.example
+
+# Claude-Startkonfiguration
+.claude/
+
+# Playwright
+test-results/
+playwright-report/

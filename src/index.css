@@ -2,78 +2,268 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
-  line-height: 1.5;
-  font-weight: 400;
+/* ------------------------------------------------------------------
+   Büro Manager 2.0 – Basis
+   ------------------------------------------------------------------ */
 
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+@layer base {
+  :root {
+    color-scheme: light;
+    --surface: 255 255 255;
+    --canvas: 245 246 243;
+    --line: 223 227 221;
+    --ink: 20 33 43;
+    --muted: 110 120 114;
+    --focus: 20 106 104;
+  }
+
+  .dark {
+    color-scheme: dark;
+    --surface: 31 42 42;
+    --canvas: 20 28 29;
+    --line: 46 58 57;
+    --ink: 236 238 234;
+    --muted: 154 163 156;
+    --focus: 63 156 151;
+  }
+
+  html {
+    font-family: theme('fontFamily.sans');
+    font-feature-settings: 'ss01', 'cv11';
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    @apply bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100;
+    min-height: 100dvh;
+  }
+
+  h1, h2, h3 {
+    @apply font-display tracking-tight;
+    font-optical-sizing: auto;
+  }
+
+  /* Zahlen sollen in Tabellen und Kennzahlen sauber untereinander stehen */
+  table, .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Einheitliche Formularfelder überall, auch in alten Seiten */
+  input[type='text'],
+  input[type='email'],
+  input[type='password'],
+  input[type='number'],
+  input[type='tel'],
+  input[type='url'],
+  input[type='search'],
+  input[type='date'],
+  input[type='time'],
+  input[type='datetime-local'],
+  input[type='month'],
+  select,
+  textarea {
+    @apply rounded-lg border border-gray-200 bg-white text-sm text-gray-900 placeholder:text-gray-400
+           dark:border-gray-700 dark:bg-gray-950/40 dark:text-gray-100 dark:placeholder:text-gray-500;
+    transition: border-color 120ms, box-shadow 120ms;
+  }
+
+  input[type='text']:focus,
+  input[type='email']:focus,
+  input[type='password']:focus,
+  input[type='number']:focus,
+  input[type='tel']:focus,
+  input[type='url']:focus,
+  input[type='search']:focus,
+  input[type='date']:focus,
+  input[type='time']:focus,
+  input[type='datetime-local']:focus,
+  input[type='month']:focus,
+  select:focus,
+  textarea:focus {
+    @apply border-brand-500 outline-none ring-2 ring-brand-500/20;
+  }
+
+  input[type='checkbox'],
+  input[type='radio'] {
+    accent-color: theme('colors.brand.600');
+  }
+
+  :focus-visible {
+    outline: 2px solid rgb(var(--focus));
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: theme('colors.brand.200');
+    color: theme('colors.ink');
+  }
 }
 
-/* TipTap Editor Styles */
+@layer components {
+  /* Flächen */
+  .card {
+    @apply rounded-2xl border border-gray-200 bg-white dark:border-gray-700/70 dark:bg-gray-800;
+  }
+
+  .card-pad {
+    @apply p-5 sm:p-6;
+  }
+
+  /* Buttons */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg px-3.5 py-2 text-sm font-medium
+           transition-colors duration-150 disabled:pointer-events-none disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply btn bg-brand-600 text-white hover:bg-brand-700 active:bg-brand-800 dark:bg-brand-500 dark:hover:bg-brand-400 dark:text-gray-950;
+  }
+  .btn-secondary {
+    @apply btn border border-gray-200 bg-white text-gray-800 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700;
+  }
+  .btn-ghost {
+    @apply btn text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700/60 dark:hover:text-white;
+  }
+  .btn-danger {
+    @apply btn bg-red-600 text-white hover:bg-red-700;
+  }
+  .btn-sm {
+    @apply px-2.5 py-1.5 text-xs;
+  }
+  .btn-icon {
+    @apply btn p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-700/60 dark:hover:text-white;
+  }
+
+  /* Formulare */
+  .field-label {
+    @apply mb-1.5 block text-xs font-medium text-gray-600 dark:text-gray-400;
+  }
+  .input {
+    @apply block w-full px-3 py-2;
+  }
+
+  /* Kleine Kennzeichnungen */
+  .chip {
+    @apply inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-2xs font-medium;
+  }
+
+  /* Tabellen */
+  .table-base {
+    @apply w-full text-left text-sm;
+  }
+  .table-base thead th {
+    @apply border-b border-gray-200 px-4 py-2.5 text-xs font-medium text-gray-500 dark:border-gray-700 dark:text-gray-400;
+  }
+  .table-base tbody td {
+    @apply border-b border-gray-100 px-4 py-3 dark:border-gray-700/60;
+  }
+  .table-base tbody tr:last-child td {
+    @apply border-b-0;
+  }
+  .table-base tbody tr {
+    @apply transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/30;
+  }
+}
+
+@layer utilities {
+  .safe-area-pb {
+    padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+  }
+
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: theme('colors.gray.300') transparent;
+  }
+  .dark .scrollbar-thin {
+    scrollbar-color: theme('colors.gray.700') transparent;
+  }
+
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Alte Hilfsklasse aus v1 */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: theme('colors.gray.300') transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ------------------------------------------------------------------
+   TipTap-Editor
+   ------------------------------------------------------------------ */
 .ProseMirror {
   outline: none;
 }
-
 .ProseMirror > * + * {
   margin-top: 0.75em;
 }
-
 .ProseMirror ul,
 .ProseMirror ol {
   padding: 0 1rem;
 }
-
 .ProseMirror ul {
-    list-style-type: disc;
+  list-style-type: disc;
 }
-
 .ProseMirror ol {
-    list-style-type: decimal;
+  list-style-type: decimal;
 }
-
 .ProseMirror h1,
 .ProseMirror h2,
 .ProseMirror h3,
-.ProseMirror h4,
-.ProseMirror h5,
-.ProseMirror h6 {
-  line-height: 1.1;
-  font-weight: 700;
+.ProseMirror h4 {
+  font-family: theme('fontFamily.display');
+  line-height: 1.15;
+  font-weight: 600;
 }
-
-.ProseMirror h1 { font-size: 2rem; }
-.ProseMirror h2 { font-size: 1.5rem; }
-.ProseMirror h3 { font-size: 1.25rem; }
-
+.ProseMirror h1 { font-size: 1.75rem; }
+.ProseMirror h2 { font-size: 1.375rem; }
+.ProseMirror h3 { font-size: 1.125rem; }
 .ProseMirror code {
-  background-color: rgba(#616161, 0.1);
-  color: #616161;
+  background-color: rgb(var(--line) / 0.6);
+  border-radius: 4px;
+  padding: 0.1em 0.3em;
+  font-family: theme('fontFamily.mono');
+  font-size: 0.9em;
 }
-
 .ProseMirror pre {
-  background: #0D0D0D;
-  color: #FFF;
-  font-family: 'JetBrainsMono', monospace;
+  background: theme('colors.gray.900');
+  color: theme('colors.gray.100');
+  font-family: theme('fontFamily.mono');
   padding: 0.75rem 1rem;
   border-radius: 0.5rem;
 }
-
 .ProseMirror blockquote {
   padding-left: 1rem;
-  border-left: 2px solid rgba(13, 13, 13, 0.1);
+  border-left: 3px solid theme('colors.brand.300');
+  color: rgb(var(--muted));
 }
-
 .ProseMirror hr {
   border: none;
-  border-top: 2px solid rgba(13, 13, 13, 0.1);
+  border-top: 1px solid rgb(var(--line));
   margin: 2rem 0;
 }
-
-/* Table Styles for TipTap */
+.ProseMirror a {
+  color: theme('colors.brand.600');
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
 .ProseMirror table {
   border-collapse: collapse;
   table-layout: fixed;
@@ -81,47 +271,40 @@
   margin: 0;
   overflow: hidden;
 }
-
 .ProseMirror td,
 .ProseMirror th {
   min-width: 1em;
-  border: 2px solid #ced4da;
-  padding: 3px 5px;
+  border: 1px solid rgb(var(--line));
+  padding: 4px 8px;
   vertical-align: top;
   box-sizing: border-box;
   position: relative;
 }
-
 .ProseMirror th {
-  font-weight: bold;
+  font-weight: 600;
   text-align: left;
-  background-color: #f1f3f5;
+  background-color: rgb(var(--canvas));
 }
-
 .ProseMirror .selectedCell:after {
   z-index: 2;
   position: absolute;
-  content: "";
-  left: 0; right: 0; top: 0; bottom: 0;
-  background: rgba(200, 200, 255, 0.4);
+  content: '';
+  inset: 0;
+  background: rgb(var(--focus) / 0.15);
   pointer-events: none;
 }
-
 .ProseMirror .column-resize-handle {
   position: absolute;
   right: -2px;
   top: 0;
   bottom: -2px;
   width: 4px;
-  background-color: #adf;
+  background-color: rgb(var(--focus));
   pointer-events: none;
 }
 
-/* Dark mode adjustments for Editor */
-.dark .ProseMirror td,
-.dark .ProseMirror th {
-    border-color: #374151;
-}
-.dark .ProseMirror th {
-    background-color: #1f2937;
+/* Diagramme: kein Browser-Fokusrahmen beim Klicken */
+.recharts-wrapper *:focus,
+.recharts-surface:focus {
+  outline: none;
 }

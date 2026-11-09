@@ -1,33 +1,49 @@
 import { useEffect, useState } from 'react';
+import { openStoredFile } from '@/lib/storage';
 import { supabase } from '@/lib/supabase';
 import { useStore } from '@/store/useStore';
 import { useLocation } from 'react-router-dom';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { Plus, Search, Euro, FileText, Trash2, Download, Pencil, FileDown, Medal, Trophy, LayoutGrid, Sparkles, Loader2, UploadCloud } from 'lucide-react';
+import { Menu as MenuRoot, MenuButton, MenuItem, MenuItems } from '@headlessui/react';
+import { Plus, Search, FileText, Trash2, Download, Pencil, FileDown, Trophy, LayoutGrid, Sparkles, Loader2, UploadCloud, FileSpreadsheet, ChevronDown } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { Modal } from '@/components/Modal';
+import { ConfirmModal } from '@/components/ConfirmModal';
+import { Avatar, Badge, Button, EmptyState, Field, PageHeader, Segmented } from '@/components/ui';
 import { toast } from 'react-hot-toast';
-import jsPDF from 'jspdf';
 import { useDropzone } from 'react-dropzone';
-
-import autoTable from 'jspdf-autotable';
-import { motion } from 'framer-motion';
 import { LiabilityTrackerModal } from '@/components/LiabilityTrackerModal';
 import { ProductionStats } from '@/components/Production/ProductionStats';
 import { ProductionCharts } from '@/components/Production/ProductionCharts';
 import { extractPdfText } from '@/utils/extractPdfText';
-// AI Parser Helper
 import { parseContractFromText } from '@/utils/pdfParser';
+import { INSURANCE_TYPES } from '@/utils/constants';
+import { CATEGORY_COLORS } from '@/lib/chartTheme';
+
 const formatCurrency = (amount: number | null | undefined) => {
   if (amount === null || amount === undefined || isNaN(amount)) return '0,00 €';
   return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(amount);
 };
 
-import { INSURANCE_TYPES } from '@/utils/constants';
+const PAYMENT_LABEL: Record<string, string> = {
+  monthly: 'monatlich',
+  quarterly: 'vierteljährlich',
+  half_yearly: 'halbjährlich',
+  yearly: 'jährlich',
+  one_time: 'einmalig',
+};
+
+const STATUS_META: Record<string, { label: string; tone: 'info' | 'success' | 'danger' }> = {
+  submitted: { label: 'Eingereicht', tone: 'info' },
+  policed: { label: 'Policiert', tone: 'success' },
+  cancelled: { label: 'Storniert', tone: 'danger' },
+};
+
+const categoryLabel = (id: string) => INSURANCE_TYPES.find((t) => t.id === id)?.label || id;
 
 export const Production = () => {
-  const { user } = useStore();
+  const { user, profile } = useStore();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [entries, setEntries] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -43,25 +59,13 @@ export const Production = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isLiabilityModalOpen, setIsLiabilityModalOpen] = useState(false);
 
-  const openProductionDoc = async (pathOrUrl: string) => {
+  const openProductionDoc = (pathOrUrl: string) => {
       if (!pathOrUrl) return;
-      try {
-          if (pathOrUrl.startsWith('http://') || pathOrUrl.startsWith('https://')) {
-              window.open(pathOrUrl, '_blank', 'noopener,noreferrer');
-              return;
-          }
-
-          const { data, error } = await supabase.storage
-              .from('production_docs')
-              .createSignedUrl(pathOrUrl, 60 * 10);
-
-          if (error) throw error;
-          if (!data?.signedUrl) throw new Error('Keine Download-URL erhalten.');
-          window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
-      } catch (e) {
-          const msg = (e as Error)?.message || 'Unbekannter Fehler';
-          toast.error(`Dokument konnte nicht geöffnet werden: ${msg}`);
+      if (/^https?:\/\//.test(pathOrUrl) && !pathOrUrl.includes('/storage/v1/object/')) {
+          window.open(pathOrUrl, '_blank', 'noopener,noreferrer');
+          return;
       }
+      openStoredFile('production_docs', pathOrUrl);
   };
 
   // Dropzone for PDF Analysis
@@ -194,7 +198,7 @@ export const Production = () => {
         setUserRates(rates);
     };
     loadRates();
-  }, [user?.id]);
+  }, [user]);
 
   // --- Form State ---
   const [category, setCategory] = useState('life'); 
@@ -535,35 +539,19 @@ export const Production = () => {
       setIsModalOpen(true);
   };
 
-  const handleDelete = async (id: string) => {
-      toast((t) => (
-          <div className="flex flex-col gap-2">
-              <span className="font-semibold">Wirklich löschen?</span>
-              <div className="flex gap-2">
-                  <button 
-                      onClick={async () => {
-                          toast.dismiss(t.id);
-                          const { error } = await supabase.from('production_entries').delete().eq('id', id);
-                          if(!error) {
-                              toast.success('Gelöscht');
-                              fetchEntries();
-                          } else {
-                              toast.error('Fehler beim Löschen');
-                          }
-                      }}
-                      className="bg-red-500 text-white px-3 py-1 rounded-lg text-sm hover:bg-red-600"
-                  >
-                      Löschen
-                  </button>
-                  <button 
-                      onClick={() => toast.dismiss(t.id)}
-                      className="bg-gray-100 text-gray-700 px-3 py-1 rounded-lg text-sm hover:bg-gray-200"
-                  >
-                      Abbrechen
-                  </button>
-              </div>
-          </div>
-      ), { duration: 5000 });
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+
+  const handleDelete = (id: string) => setDeleteId(id);
+
+  const confirmDelete = async () => {
+      if (!deleteId) return;
+      const { error } = await supabase.from('production_entries').delete().eq('id', deleteId);
+      if (error) toast.error('Vertrag konnte nicht gelöscht werden.');
+      else {
+          toast.success('Vertrag gelöscht');
+          fetchEntries();
+      }
+      setDeleteId(null);
   };
 
   // Filter entries based on viewMode
@@ -582,15 +570,18 @@ export const Production = () => {
       );
   });
 
-  const totalCommission = filteredEntries.reduce((acc, curr) => acc + (curr.commission_amount || 0), 0);
-  const totalLifeValues = filteredEntries.reduce((acc, curr) => acc + (curr.life_values || 0), 0); // New Total
-  const totalLiability = filteredEntries.reduce((acc, curr) => acc + ((curr.commission_amount || 0) * (curr.liability_rate || 0) / 100), 0);
+  // Stornierte Verträge zählen nicht in Summen, Diagramme und Rangliste
+  const activeEntries = filteredEntries.filter(e => e.status !== 'cancelled');
+  const cancelledCount = filteredEntries.length - activeEntries.length;
+  const totalCommission = activeEntries.reduce((acc, curr) => acc + Number(curr.commission_amount || 0), 0);
+  const totalLifeValues = activeEntries.reduce((acc, curr) => acc + Number(curr.life_values || 0), 0);
+  const totalLiability = activeEntries.reduce((acc, curr) => acc + (Number(curr.commission_amount || 0) * Number(curr.liability_rate || 0) / 100), 0);
 
   // --- LEADERBOARD CALCULATION ---
   const getLeaderboardData = () => {
       const userTotals: Record<string, { name: string; avatar: string; amount: number; count: number }> = {};
       
-      entries.forEach(e => {
+      entries.filter(e => e.status !== 'cancelled').forEach(e => {
           const userId = e.user_id;
           if (!userTotals[userId]) {
               userTotals[userId] = {
@@ -625,13 +616,9 @@ export const Production = () => {
           const monthKey = format(date, 'yyyy-MM');
           const monthLabel = format(date, 'MMM', { locale: de });
           
-          const total = filteredEntries
-            .filter(e => e.submission_date.startsWith(monthKey))
-            .reduce((acc, curr) => acc + (curr.commission_amount || 0), 0);
-            
-          const totalLifeValues = filteredEntries
-            .filter(e => e.submission_date.startsWith(monthKey))
-            .reduce((acc, curr) => acc + (curr.life_values || 0), 0);
+          const rows = activeEntries.filter(e => String(e.submission_date || '').startsWith(monthKey));
+          const total = rows.reduce((acc, curr) => acc + Number(curr.commission_amount || 0), 0);
+          const totalLifeValues = rows.reduce((acc, curr) => acc + Number(curr.life_values || 0), 0);
 
           return { name: monthLabel, value: total, lifeValues: totalLifeValues };
       });
@@ -642,20 +629,18 @@ export const Production = () => {
   // 2. Category Distribution
   const getCategoryData = () => {
       const data: Record<string, number> = {};
-      filteredEntries.forEach(e => {
-          const label = INSURANCE_TYPES.find(t => t.id === e.category)?.label || e.category;
-          data[label] = (data[label] || 0) + (e.commission_amount || 0);
+      activeEntries.forEach(e => {
+          data[e.category] = (data[e.category] || 0) + Number(e.commission_amount || 0);
       });
 
       return Object.entries(data)
-        .map(([name, value]) => ({ name, value }))
+        .map(([id, value]) => ({ id, name: categoryLabel(id), value }))
         .sort((a, b) => b.value - a.value); // Sort by highest value
   };
 
   const categoryData = getCategoryData();
 
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const handleExport = () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const exportEntries = entries.filter((e: any) => {
@@ -668,7 +653,10 @@ export const Production = () => {
           );
       });
 
-      if (exportEntries.length === 0) return;
+      if (exportEntries.length === 0) {
+          toast.error('Keine eigenen Verträge in dieser Auswahl.');
+          return;
+      }
       
       const headers = [
           'Status',
@@ -746,7 +734,7 @@ export const Production = () => {
       link.click();
   };
 
-  const handleExportPDF = () => {
+  const handleExportPDF = async () => {
       // Filter entries for export: ALWAYS restrict to current user
       const exportEntries = entries.filter(e => {
           // 1. Strict ownership check
@@ -766,22 +754,22 @@ export const Production = () => {
           return;
       }
       
-      toast.success('PDF wird erstellt...');
-
+      const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([import('jspdf'), import('jspdf-autotable')]);
       const doc = new jsPDF();
       
       // Recalculate totals for the PDF based on exportEntries
-      const exportTotalCommission = exportEntries.reduce((acc, curr) => acc + (curr.commission_amount || 0), 0);
-      const exportTotalLifeValues = exportEntries.reduce((acc, curr) => acc + (curr.life_values || 0), 0);
-      const exportTotalLiability = exportEntries.reduce((acc, curr) => acc + ((curr.commission_amount || 0) * (curr.liability_rate || 0) / 100), 0);
+      const exportActive = exportEntries.filter(e => e.status !== 'cancelled');
+      const exportTotalCommission = exportActive.reduce((acc, curr) => acc + (curr.commission_amount || 0), 0);
+      const exportTotalLifeValues = exportActive.reduce((acc, curr) => acc + (curr.life_values || 0), 0);
+      const exportTotalLiability = exportActive.reduce((acc, curr) => acc + ((curr.commission_amount || 0) * (curr.liability_rate || 0) / 100), 0);
       
       doc.setFontSize(18);
       doc.text('Produktionsnachweis (Persönlich)', 14, 20);
       
       doc.setFontSize(10);
       doc.text(`Erstellt: ${new Date().toLocaleDateString('de-DE')}`, 14, 28);
-      doc.text(`Zeitraum: ${filterCategory === 'all' ? 'Alle' : filterCategory}`, 14, 33);
-      doc.text(`Mitarbeiter: ${user?.user_metadata?.full_name || user?.email || 'Ich'}`, 14, 38);
+      doc.text(`Sparte: ${filterCategory === 'all' ? 'Alle' : categoryLabel(filterCategory)}`, 14, 33);
+      doc.text(`Mitarbeiter: ${profile?.full_name || user?.email || ''}`, 14, 38);
 
       const tableData = exportEntries.map(e => [
           format(new Date(e.submission_date), 'dd.MM.yy'),
@@ -798,9 +786,9 @@ export const Production = () => {
           startY: 45,
           head: [['Eingereicht', 'Policiert', 'Kunde', 'Sparte', 'Status', 'Bewertung', 'Lebenswerte', 'Provision']],
           body: tableData,
-          foot: [['', '', '', '', 'Summe:', '', new Intl.NumberFormat('de-DE', { maximumFractionDigits: 2 }).format(exportTotalLifeValues), formatCurrency(exportTotalCommission)]],
+          foot: [['', '', '', '', 'Summe ohne Storno:', '', new Intl.NumberFormat('de-DE', { maximumFractionDigits: 2 }).format(exportTotalLifeValues), formatCurrency(exportTotalCommission)]],
           theme: 'grid',
-          headStyles: { fillColor: [79, 70, 229] }, // Indigo 600
+          headStyles: { fillColor: [20, 106, 104] },
           footStyles: { fillColor: [243, 244, 246], textColor: [0, 0, 0], fontStyle: 'bold' } // Gray 100
       });
 
@@ -812,742 +800,413 @@ export const Production = () => {
       doc.save(`Produktion_Personal_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
   };
 
-  return (
-    <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-8">
-        {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-                <motion.h1 
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-400 flex items-center gap-3"
-                >
-                    Produktion & Umsatz
-                </motion.h1>
-                <motion.p 
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.1 }}
-                  className="text-lg text-gray-500 dark:text-gray-400 mt-2 font-medium"
-                >
-                    Erfasse deine eingereichten Verträge und behalte die Provision im Blick.
-                </motion.p>
-            </div>
-            
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.2 }}
-              className="flex items-center gap-3"
-            >
-                <div className="bg-gray-100 dark:bg-gray-800 p-1 rounded-2xl flex items-center mr-2">
-                    <button
-                        onClick={() => setViewMode('personal')}
-                        className={cn(
-                            "px-4 py-2 rounded-xl text-sm font-medium transition-all flex items-center gap-2",
-                            viewMode === 'personal' 
-                                ? "bg-white dark:bg-gray-700 shadow-sm text-indigo-600 dark:text-indigo-400" 
-                                : "text-gray-500 dark:text-gray-400 hover:text-gray-700"
-                        )}
-                    >
-                        <LayoutGrid className="w-4 h-4" /> Meine
-                    </button>
-                    <button
-                        onClick={() => setViewMode('leaderboard')}
-                        className={cn(
-                            "px-4 py-2 rounded-xl text-sm font-medium transition-all flex items-center gap-2",
-                            viewMode === 'leaderboard' 
-                                ? "bg-white dark:bg-gray-700 shadow-sm text-indigo-600 dark:text-indigo-400" 
-                                : "text-gray-500 dark:text-gray-400 hover:text-gray-700"
-                        )}
-                    >
-                        <Trophy className="w-4 h-4" /> Rangliste
-                    </button>
-                </div>
+  const filterOptions = [
+      { value: 'all', label: 'Alle' },
+      ...INSURANCE_TYPES.map(t => ({ value: t.id, label: t.label, count: (viewMode === 'personal' ? entries.filter(e => e.user_id === user?.id) : entries).filter(e => e.category === t.id).length })),
+  ];
 
-                <button 
-                    onClick={handleExportPDF}
-                    className="p-3 bg-white dark:bg-gray-800 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 transition-all"
-                    title="Als PDF Exportieren"
-                >
-                    <FileDown className="w-5 h-5" />
-                </button>
-                <button
-                    onClick={() => {
-                        resetForm();
-                        setIsModalOpen(true);
-                    }}
-                    className="group relative px-6 py-3 bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-semibold rounded-2xl shadow-lg shadow-indigo-500/30 hover:shadow-indigo-500/50 hover:scale-[1.02] transition-all flex items-center gap-2 overflow-hidden"
-                >
-                    <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
-                    <Plus className="w-5 h-5 relative z-10" /> 
-                    <span className="relative z-10">Neuer Vertrag</span>
-                </button>
-            </motion.div>
-        </div>
+  return (
+    <div className="space-y-6">
+        <PageHeader
+            title="Produktion"
+            description="Verträge erfassen, Provision und Lebenswerte im Blick behalten."
+            actions={
+                <>
+                    <Segmented
+                        value={viewMode}
+                        onChange={(v) => setViewMode(v as 'personal' | 'leaderboard')}
+                        options={[
+                            { value: 'personal', label: 'Meine', icon: LayoutGrid },
+                            { value: 'leaderboard', label: 'Rangliste', icon: Trophy },
+                        ]}
+                    />
+                    <MenuRoot as="div" className="relative">
+                        <MenuButton className="btn-secondary">
+                            <FileDown className="h-4 w-4" /> Export <ChevronDown className="h-3.5 w-3.5 text-gray-400" />
+                        </MenuButton>
+                        <MenuItems anchor={{ to: 'bottom end', gap: 6 }} className="z-50 w-52 animate-pop-in rounded-xl border border-gray-200 bg-white p-1.5 shadow-xl focus:outline-none dark:border-gray-700 dark:bg-gray-800">
+                            <MenuItem>
+                                <button type="button" onClick={handleExportPDF} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-gray-700 data-[focus]:bg-gray-100 dark:text-gray-200 dark:data-[focus]:bg-gray-700">
+                                    <FileText className="h-4 w-4" /> Nachweis als PDF
+                                </button>
+                            </MenuItem>
+                            <MenuItem>
+                                <button type="button" onClick={handleExport} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-gray-700 data-[focus]:bg-gray-100 dark:text-gray-200 dark:data-[focus]:bg-gray-700">
+                                    <FileSpreadsheet className="h-4 w-4" /> Tabelle für Excel
+                                </button>
+                            </MenuItem>
+                        </MenuItems>
+                    </MenuRoot>
+                    <Button icon={Plus} onClick={() => { resetForm(); setIsModalOpen(true); }}>
+                        Vertrag erfassen
+                    </Button>
+                </>
+            }
+        />
 
         {viewMode === 'leaderboard' ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {leaderboardData.map((data, index) => (
-                    <motion.div
-                        key={data.id}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: index * 0.1 }}
-                        className={cn(
-                            "relative overflow-hidden rounded-3xl p-6 border shadow-xl flex flex-col items-center text-center",
-                            index === 0 ? "bg-gradient-to-br from-yellow-50 to-amber-100 border-amber-200 dark:from-yellow-900/20 dark:to-amber-900/20 dark:border-amber-700/50" :
-                            index === 1 ? "bg-gradient-to-br from-gray-50 to-slate-100 border-slate-200 dark:from-gray-800 dark:to-slate-800 dark:border-gray-700" :
-                            index === 2 ? "bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200 dark:from-orange-900/20 dark:to-orange-900/20 dark:border-orange-700/50" :
-                            "bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700"
-                        )}
-                    >
-                        {index < 3 && (
-                            <div className="absolute top-0 right-0 p-4">
-                                <Medal className={cn(
-                                    "w-8 h-8",
-                                    index === 0 ? "text-yellow-500" :
-                                    index === 1 ? "text-slate-400" :
-                                    "text-orange-500"
-                                )} />
-                            </div>
-                        )}
-                        <div className="relative mb-4">
-                            <img 
-                                src={data.avatar || `https://ui-avatars.com/api/?name=${data.name}&background=random`} 
-                                alt={data.name}
-                                className={cn(
-                                    "w-20 h-20 rounded-full object-cover shadow-lg ring-4",
-                                    index === 0 ? "ring-yellow-400" :
-                                    index === 1 ? "ring-slate-300" :
-                                    index === 2 ? "ring-orange-300" :
-                                    "ring-gray-100 dark:ring-gray-700"
-                                )} 
-                            />
-                            <div className="absolute -bottom-2 -right-2 bg-gray-900 text-white w-8 h-8 flex items-center justify-center rounded-full font-bold text-sm shadow-md">
-                                #{index + 1}
-                            </div>
-                        </div>
-                        <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">{data.name}</h3>
-
-                    </motion.div>
-                ))}
+            <div className="card overflow-hidden">
+                <div className="border-b border-gray-100 px-5 py-4 dark:border-gray-700 sm:px-6">
+                    <h2 className="text-base font-semibold text-gray-900 dark:text-white">Rangliste nach Provision</h2>
+                    <p className="text-sm text-gray-500">Alle eingereichten und policierten Verträge, ohne Stornos.</p>
+                </div>
+                {leaderboardData.length === 0 ? (
+                    <EmptyState icon={Trophy} title="Noch keine Verträge erfasst" />
+                ) : (
+                    <ol className="divide-y divide-gray-100 dark:divide-gray-700/70">
+                        {leaderboardData.map((data, index) => (
+                            <li key={data.id} className={cn('flex items-center gap-4 px-5 py-3.5 sm:px-6', data.id === user?.id && 'bg-brand-50/50 dark:bg-brand-900/20')}>
+                                <span className={cn('tabular w-8 font-display text-xl font-semibold', index === 0 ? 'text-amber-500' : 'text-gray-300 dark:text-gray-600')}>{index + 1}</span>
+                                <Avatar name={data.name} src={data.avatar} size="md" />
+                                <div className="min-w-0 flex-1">
+                                    <p className="truncate text-sm font-medium text-gray-900 dark:text-white">{data.name}{data.id === user?.id && <span className="font-normal text-gray-400"> (du)</span>}</p>
+                                    <p className="text-xs text-gray-500">{data.count} {data.count === 1 ? 'Vertrag' : 'Verträge'}</p>
+                                </div>
+                                <div className="hidden w-40 sm:block">
+                                    <div className="h-1.5 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-700">
+                                        <div className="h-full rounded-full bg-brand-600 dark:bg-brand-400" style={{ width: `${leaderboardData[0].amount ? (data.amount / leaderboardData[0].amount) * 100 : 0}%` }} />
+                                    </div>
+                                </div>
+                            </li>
+                        ))}
+                    </ol>
+                )}
             </div>
         ) : (
             <>
-                {/* Stats Cards */}
-                <ProductionStats 
+                <ProductionStats
                     totalCommission={totalCommission}
                     totalLifeValues={totalLifeValues}
                     totalLiability={totalLiability}
+                    contractCount={activeEntries.length}
+                    cancelledCount={cancelledCount}
                     onOpenLiabilityModal={() => setIsLiabilityModalOpen(true)}
                 />
 
-                {/* Charts Section */}
-                    <ProductionCharts 
-                        chartMode={chartMode}
-                        setChartMode={setChartMode}
-                        monthlyData={monthlyData}
-                        categoryData={categoryData}
-                        totalCommission={totalCommission}
-                    />
+                <ProductionCharts chartMode={chartMode} setChartMode={setChartMode} monthlyData={monthlyData} categoryData={categoryData} />
 
-
-                {/* Filters & Table */}
-                <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.5 }}
-                className="bg-white/60 dark:bg-gray-800/60 backdrop-blur-xl rounded-3xl border border-white/20 shadow-xl overflow-hidden"
-                >
-                    <div className="p-6 border-b border-gray-100 dark:border-gray-700/50 flex flex-col sm:flex-row gap-4 justify-between items-center bg-white/40 dark:bg-gray-900/40">
-                        <div className="flex gap-2 overflow-x-auto pb-2 sm:pb-0 w-full sm:w-auto scrollbar-hide">
-                            {['all', 'life', 'property', 'health', 'legal', 'car'].map(cat => (
-                                <button
-                                    key={cat}
-                                    onClick={() => setFilterCategory(cat)}
-                                    className={cn(
-                                        "px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all",
-                                        filterCategory === cat 
-                                            ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/30 scale-105" 
-                                            : "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700"
-                                    )}
-                                >
-                                    {cat === 'all' ? 'Alle' : 
-                                    cat === 'life' ? 'Leben' :
-                                    cat === 'property' ? 'Sach' :
-                                    cat === 'health' ? 'Kranken' :
-                                    cat === 'legal' ? 'Recht' : 'KFZ'}
-                                </button>
-                            ))}
-                        </div>
+                <div className="card overflow-hidden">
+                    <div className="flex flex-col gap-3 border-b border-gray-100 p-4 dark:border-gray-700 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+                        <Segmented size="sm" value={filterCategory} onChange={setFilterCategory} options={filterOptions} />
                         <div className="relative w-full sm:w-64">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                            <input 
-                                type="text" 
-                                placeholder="Suchen..." 
-                                value={searchQuery}
-                                onChange={e => setSearchQuery(e.target.value)}
-                                className="w-full pl-10 pr-4 py-2 rounded-xl border-none bg-white/50 dark:bg-gray-800/50 focus:bg-white dark:focus:bg-gray-800 focus:ring-2 focus:ring-indigo-500/20 transition-all text-sm"
-                            />
+                            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                            <input type="search" placeholder="Kunde, Schein-Nr., Notiz" aria-label="Verträge durchsuchen" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="input pl-9" />
                         </div>
                     </div>
 
-                    <div className="overflow-x-auto hidden md:block">
-                        <table className="w-full text-left text-sm">
-                            <thead className="bg-gray-50/50 dark:bg-gray-900/20">
-                                <tr>
-                                    <th className="px-6 py-4 font-semibold text-gray-900 dark:text-white">Status</th>
-                                    <th className="px-6 py-4 font-semibold text-gray-900 dark:text-white">Kunde</th>
-                                    <th className="px-6 py-4 font-semibold text-gray-900 dark:text-white">Betreuer</th>
-                                    <th className="px-6 py-4 font-semibold text-gray-900 dark:text-white">Sparte</th>
-                                    <th className="px-6 py-4 font-semibold text-gray-900 dark:text-white">Beitrag</th>
-                                    <th className="px-6 py-4 font-semibold text-gray-900 dark:text-white">Bewertung</th>
-                                    <th className="px-6 py-4 font-semibold text-gray-900 dark:text-white">Lebenswerte</th>
-                                    <th className="px-6 py-4 font-semibold text-gray-900 dark:text-white text-right">Provision</th>
-                                    <th className="px-6 py-4 font-semibold text-gray-900 dark:text-white text-right">Aktion</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
-                                {loading ? (
-                                    <tr><td colSpan={8} className="px-6 py-12 text-center text-gray-500">Lade Daten...</td></tr>
-                                ) : filteredEntries.length === 0 ? (
-                                    <tr><td colSpan={8} className="px-6 py-12 text-center text-gray-500">Keine Verträge gefunden.</td></tr>
-                                ) : (
-                                    filteredEntries.map(entry => (
-                                        <tr key={entry.id} className="hover:bg-indigo-50/30 dark:hover:bg-indigo-900/10 transition-colors group">
-                                            <td className="px-6 py-4 whitespace-nowrap">
-                                                <div className="flex flex-col gap-1">
-                                                    <span className={cn(
-                                                        "inline-flex items-center px-2 py-0.5 rounded text-xs font-bold w-fit",
-                                                        entry.status === 'policed' ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" :
-                                                        entry.status === 'cancelled' ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" :
-                                                        "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
-                                                    )}>
-                                                        {entry.status === 'policed' ? 'Policiert' : entry.status === 'cancelled' ? 'Storniert' : 'Eingereicht'}
-                                                    </span>
-                                                    <span className="text-[10px] text-gray-400">
-                                                        {format(new Date(entry.submission_date), 'dd.MM.yy')}
-                                                    </span>
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <div className="font-bold text-gray-900 dark:text-white">{entry.customer_name}, {entry.customer_firstname}</div>
-                                                <div className="flex items-center gap-2 mt-0.5">
-                                                    <span className="text-xs text-gray-500 font-mono">{entry.policy_number || '-'}</span>
-                                                    {entry.document_url && (
-                                                        <button
-                                                            type="button"
-                                                            onClick={(e) => { e.stopPropagation(); openProductionDoc(entry.document_url); }}
-                                                            className="p-1 text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg transition-colors"
-                                                            title="Dokument öffnen"
-                                                        >
-                                                            <FileText className="w-3.5 h-3.5" />
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <div className="text-sm text-gray-900 dark:text-white">{entry.manager?.full_name || '-'}</div>
-                                                {entry.profiles?.full_name && entry.profiles.full_name !== entry.manager?.full_name && (
-                                                    <div className="text-xs text-gray-400 mt-0.5">Von: {entry.profiles.full_name}</div>
-                                                )}
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <span className={cn(
-                                                    "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border",
-                                                    entry.category === 'life' ? "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-800" :
-                                                    entry.category === 'property' ? "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-900/20 dark:text-orange-300 dark:border-orange-800" :
-                                                    entry.category === 'health' ? "bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-300 dark:border-red-800" :
-                                                    "bg-gray-50 text-gray-700 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700"
-                                                )}>
-                                                    {entry.category === 'life' ? 'Leben' : 
-                                                    entry.category === 'property' ? 'Sach' : 
-                                                    entry.category === 'health' ? 'Kranken' : entry.category}
-                                                </span>
-                                                {entry.sub_category && <div className="text-xs text-gray-500 mt-1 pl-1">{entry.sub_category}</div>}
-                                            </td>
-                                            <td className="px-6 py-4 text-gray-600 dark:text-gray-300">
-                                                <div className="font-medium">{formatCurrency(entry.gross_premium || 0)}</div>
-                                                <div className="text-xs text-gray-400">{entry.payment_method}</div>
-                                            </td>
-                                            <td className="px-6 py-4 text-gray-600 dark:text-gray-300">
-                                                <div className="text-xs text-gray-400 mb-0.5">Satz: {entry.commission_rate} {entry.category === 'life' ? '‰' : (entry.category === 'health' && !entry.sub_category?.includes('reise') ? 'MB' : '%')}</div>
-                                                <div className="font-medium">{formatCurrency(entry.valuation_sum || 0)}</div>
-                                            </td>
-                                            <td className="px-6 py-4 text-gray-600 dark:text-gray-300">
-                                                <div className="text-xs text-gray-400 mb-0.5">Faktor: {entry.life_value_factor}</div>
-                                                <div className="font-bold text-indigo-600 dark:text-indigo-400">
-                                                    {new Intl.NumberFormat('de-DE', { maximumFractionDigits: 2 }).format(entry.life_values || 0)}
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4 text-right font-black text-indigo-600 dark:text-indigo-400">
-                                                {formatCurrency(entry.commission_amount || 0)}
-                                            </td>
-                                            <td className="px-6 py-4 text-right">
-                                                <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    <button 
-                                                        onClick={() => handleEdit(entry)}
-                                                        className="p-2 text-gray-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition-all"
-                                                        title="Bearbeiten"
-                                                    >
-                                                        <Pencil className="w-4 h-4" />
-                                                    </button>
-                                                    <button 
-                                                        onClick={() => handleDelete(entry.id)}
-                                                        className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
-                                                        title="Löschen"
-                                                    >
-                                                        <Trash2 className="w-4 h-4" />
-                                                    </button>
-                                                </div>
-                                            </td>
+                    {loading ? (
+                        <p className="px-6 py-12 text-center text-sm text-gray-500">Verträge werden geladen</p>
+                    ) : filteredEntries.length === 0 ? (
+                        <EmptyState
+                            icon={FileText}
+                            title={searchQuery || filterCategory !== 'all' ? 'Keine Verträge in dieser Auswahl' : 'Noch keine Verträge erfasst'}
+                            description={searchQuery || filterCategory !== 'all' ? 'Ändere Filter oder Suche.' : 'Erfasse deinen ersten Vertrag, dann erscheinen hier Provision und Lebenswerte.'}
+                            action={!searchQuery && filterCategory === 'all' ? <Button icon={Plus} onClick={() => { resetForm(); setIsModalOpen(true); }}>Vertrag erfassen</Button> : undefined}
+                        />
+                    ) : (
+                        <>
+                            <div className="hidden overflow-x-auto md:block">
+                                <table className="table-base">
+                                    <thead>
+                                        <tr>
+                                            <th>Kunde</th>
+                                            <th>Sparte</th>
+                                            <th>Status</th>
+                                            <th>Betreuung</th>
+                                            <th className="text-right">Beitrag</th>
+                                            <th className="text-right">Bewertung</th>
+                                            <th className="text-right">Lebenswerte</th>
+                                            <th className="text-right">Provision</th>
+                                            <th className="w-20"><span className="sr-only">Aktionen</span></th>
                                         </tr>
-                                    ))
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
+                                    </thead>
+                                    <tbody>
+                                        {filteredEntries.map(entry => {
+                                            const st = STATUS_META[entry.status] || STATUS_META.submitted;
+                                            const cancelled = entry.status === 'cancelled';
+                                            return (
+                                                <tr key={entry.id} className={cn('group', cancelled && 'text-gray-400 [&_td]:line-through [&_td]:decoration-gray-300')}>
+                                                    <td>
+                                                        <button type="button" onClick={() => handleEdit(entry)} className="text-left">
+                                                            <span className="block font-medium text-gray-900 hover:text-brand-700 dark:text-white dark:hover:text-brand-300">{entry.customer_name}{entry.customer_firstname ? `, ${entry.customer_firstname}` : ''}</span>
+                                                        </button>
+                                                        <span className="flex items-center gap-1.5 text-xs text-gray-500">
+                                                            <span className="font-mono">{entry.policy_number || 'ohne Nr.'}</span>
+                                                            <span>· {format(new Date(entry.submission_date), 'dd.MM.yy')}</span>
+                                                            {entry.document_url && (
+                                                                <button type="button" onClick={() => openProductionDoc(entry.document_url)} className="rounded p-0.5 text-brand-600 hover:bg-brand-50 dark:text-brand-300 dark:hover:bg-brand-900/40" title="Dokument öffnen" aria-label="Dokument öffnen">
+                                                                    <FileText className="h-3.5 w-3.5" />
+                                                                </button>
+                                                            )}
+                                                        </span>
+                                                    </td>
+                                                    <td>
+                                                        <span className="flex items-center gap-2">
+                                                            <span className="h-2 w-2 shrink-0 rounded-sm" style={{ background: CATEGORY_COLORS[entry.category] }} />
+                                                            <span className="text-gray-700 dark:text-gray-300">{entry.sub_category || categoryLabel(entry.category)}</span>
+                                                        </span>
+                                                    </td>
+                                                    <td className="!no-underline"><Badge tone={st.tone}>{st.label}</Badge></td>
+                                                    <td>
+                                                        <span className="block text-gray-700 dark:text-gray-300">{entry.manager?.full_name || '–'}</span>
+                                                        {entry.profiles?.full_name && entry.profiles.full_name !== entry.manager?.full_name && <span className="text-xs text-gray-500">von {entry.profiles.full_name}</span>}
+                                                    </td>
+                                                    <td className="tabular text-right">
+                                                        <span className="block text-gray-700 dark:text-gray-300">{formatCurrency(entry.gross_premium || 0)}</span>
+                                                        <span className="text-xs text-gray-500">{PAYMENT_LABEL[entry.payment_method] || entry.payment_method}</span>
+                                                    </td>
+                                                    <td className="tabular text-right text-gray-700 dark:text-gray-300">{formatCurrency(entry.valuation_sum || 0)}</td>
+                                                    <td className="tabular text-right font-medium text-brand-700 dark:text-brand-300">{new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 }).format(entry.life_values || 0)}</td>
+                                                    <td className="tabular text-right font-semibold text-gray-900 dark:text-white">{formatCurrency(entry.commission_amount || 0)}</td>
+                                                    <td>
+                                                        <div className="flex justify-end gap-0.5 opacity-60 transition-opacity group-hover:opacity-100 [&_*]:no-underline">
+                                                            <button type="button" onClick={() => handleEdit(entry)} className="btn-icon p-1.5" title="Bearbeiten" aria-label="Bearbeiten"><Pencil className="h-4 w-4" /></button>
+                                                            <button type="button" onClick={() => handleDelete(entry.id)} className="btn-icon p-1.5 hover:!text-red-600" title="Löschen" aria-label="Löschen"><Trash2 className="h-4 w-4" /></button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
 
-                    {/* Mobile Card View */}
-                    <div className="md:hidden space-y-4 p-4">
-                        {loading ? (
-                             <div className="text-center py-10 text-gray-500">Lade Daten...</div>
-                        ) : filteredEntries.length === 0 ? (
-                             <div className="text-center py-10 text-gray-500">Keine Verträge gefunden.</div>
-                        ) : (
-                            filteredEntries.map(entry => (
-                                <div key={entry.id} onClick={() => handleEdit(entry)} className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 active:scale-[0.98] transition-transform relative">
-                                    <div className="flex justify-between items-start mb-3">
-                                        <div className="max-w-[60%]">
-                                            <div className="flex items-center gap-2">
-                                                <h3 className="font-bold text-gray-900 dark:text-white truncate">{entry.customer_name}, {entry.customer_firstname}</h3>
-                                                {entry.document_url && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={(e) => { e.stopPropagation(); openProductionDoc(entry.document_url); }}
-                                                        className="p-1 text-indigo-500 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg shrink-0"
-                                                    >
-                                                        <FileText className="w-3 h-3" />
-                                                    </button>
-                                                )}
-                                            </div>
-                                            <p className="text-xs text-gray-500 font-mono truncate">{entry.policy_number || 'Keine Schein-Nr.'}</p>
-                                            <p className="text-xs text-indigo-500 mt-1 truncate">Betreuer: {entry.manager?.full_name || '-'}</p>
-                                        </div>
-                                        <div className="text-right">
-                                            <p className="text-lg font-black text-indigo-600 dark:text-indigo-400">{formatCurrency(entry.commission_amount || 0)}</p>
-                                            <p className="text-[10px] text-gray-400">{format(new Date(entry.submission_date), 'dd.MM.yy')}</p>
-                                        </div>
-                                    </div>
-                                    
-                                    <div className="flex flex-wrap items-center gap-2 mb-3">
-                                        <span className={cn(
-                                            "inline-flex items-center px-2 py-1 rounded-lg text-xs font-bold border",
-                                            entry.category === 'life' ? "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-800" :
-                                            entry.category === 'property' ? "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-900/20 dark:text-orange-300 dark:border-orange-800" :
-                                            entry.category === 'health' ? "bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-300 dark:border-red-800" :
-                                            "bg-gray-50 text-gray-700 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700"
-                                        )}>
-                                            {entry.category === 'life' ? 'Leben' : 
-                                            entry.category === 'property' ? 'Sach' : 
-                                            entry.category === 'health' ? 'Kranken' : entry.category}
-                                        </span>
-                                        {entry.sub_category && (
-                                            <span className="text-xs text-gray-500 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded-lg truncate max-w-[150px]">
-                                                {entry.sub_category}
-                                            </span>
-                                        )}
-                                    </div>
-
-                                    <div className="flex justify-between items-end border-t border-gray-100 dark:border-gray-700 pt-3">
-                                        <div>
-                                            <p className="text-xs text-gray-400">Bewertung</p>
-                                            <p className="text-sm font-bold text-gray-700 dark:text-gray-300">{formatCurrency(entry.valuation_sum || 0)}</p>
-                                        </div>
-                                        <button 
-                                            onClick={(e) => { e.stopPropagation(); handleDelete(entry.id); }}
-                                            className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors z-10"
-                                        >
-                                            <Trash2 className="w-5 h-5" />
-                                        </button>
-                                    </div>
-                                </div>
-                            ))
-                        )}
-                    </div>
-                </motion.div>
+                            <ul className="divide-y divide-gray-100 dark:divide-gray-700/70 md:hidden">
+                                {filteredEntries.map(entry => {
+                                    const st = STATUS_META[entry.status] || STATUS_META.submitted;
+                                    return (
+                                        <li key={entry.id}>
+                                            <button type="button" onClick={() => handleEdit(entry)} className="flex w-full items-start gap-3 px-4 py-3.5 text-left">
+                                                <span className="mt-1.5 h-2 w-2 shrink-0 rounded-sm" style={{ background: CATEGORY_COLORS[entry.category] }} />
+                                                <span className="min-w-0 flex-1">
+                                                    <span className="block truncate text-sm font-medium text-gray-900 dark:text-white">{entry.customer_name}{entry.customer_firstname ? `, ${entry.customer_firstname}` : ''}</span>
+                                                    <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-gray-500">
+                                                        <Badge tone={st.tone}>{st.label}</Badge>
+                                                        {entry.sub_category || categoryLabel(entry.category)} · {format(new Date(entry.submission_date), 'dd.MM.yy')}
+                                                    </span>
+                                                </span>
+                                                <span className="text-right">
+                                                    <span className={cn('tabular block text-sm font-semibold', entry.status === 'cancelled' ? 'text-gray-400 line-through' : 'text-gray-900 dark:text-white')}>{formatCurrency(entry.commission_amount || 0)}</span>
+                                                    <span className="tabular block text-xs text-brand-700 dark:text-brand-300">{new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 }).format(entry.life_values || 0)} LW</span>
+                                                </span>
+                                            </button>
+                                        </li>
+                                    );
+                                })}
+                            </ul>
+                        </>
+                    )}
+                </div>
             </>
         )}
 
-        {/* New Entry Modal */}
         <Modal
             isOpen={isModalOpen}
             onClose={() => setIsModalOpen(false)}
-            title={editingId ? "Vertrag bearbeiten" : "Neuen Vertrag erfassen"}
-            size="2xl"
+            title={editingId ? 'Vertrag bearbeiten' : 'Vertrag erfassen'}
+            description={editingId ? undefined : 'Tipp: Antrag als PDF hier hineinziehen, dann werden die Felder vorausgefüllt.'}
+            size="full"
+            footer={
+                <>
+                    <button type="button" onClick={() => setIsModalOpen(false)} className="btn-secondary">Abbrechen</button>
+                    <Button type="submit" form="production-form" loading={submitting}>
+                        {editingId ? 'Änderungen speichern' : 'Vertrag speichern'}
+                    </Button>
+                </>
+            }
         >
-            <div {...getRootProps()} className={cn("outline-none transition-colors rounded-xl", isDragActive ? "bg-indigo-50/50 dark:bg-indigo-900/20 ring-2 ring-indigo-500/50 ring-inset" : "")}>
+            <div {...getRootProps()} className={cn('relative rounded-xl outline-none', isDragActive && 'ring-2 ring-inset ring-brand-500/50')}>
                 <input {...getInputProps()} />
-                
-                {isDragActive && (
-                    <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-indigo-500/10 dark:bg-indigo-500/20 backdrop-blur-sm rounded-xl border-2 border-dashed border-indigo-500">
-                        <UploadCloud className="w-12 h-12 text-indigo-600 dark:text-indigo-400 mb-2 animate-bounce" />
-                        <p className="text-lg font-bold text-indigo-700 dark:text-indigo-300">PDF hier loslassen</p>
+                {(isDragActive || isAnalyzing) && (
+                    <div className="absolute inset-0 z-20 flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-brand-400 bg-white/90 dark:bg-gray-800/90">
+                        {isAnalyzing ? <Loader2 className="mb-2 h-8 w-8 animate-spin text-brand-600" /> : <UploadCloud className="mb-2 h-8 w-8 text-brand-600" />}
+                        <p className="text-sm font-medium text-brand-800 dark:text-brand-200">{isAnalyzing ? 'PDF wird ausgelesen' : 'PDF loslassen zum Auslesen'}</p>
                     </div>
                 )}
 
-                <form onSubmit={handleSubmit} className="space-y-8 relative">
-                    
-                    {/* 1. Category Selection */}
-                <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
-                    {INSURANCE_TYPES.map(c => (
-                        <button
-                            key={c.id}
-                            type="button"
-                            onClick={() => {
-                                setCategory(c.id);
-                                setSubCategory(c.subcategories[0]);
-                            }}
-                            className={cn(
-                                "flex flex-col items-center justify-center p-3 rounded-2xl border transition-all hover:scale-105 active:scale-95",
-                                category === c.id 
-                                    ? "border-indigo-500 bg-indigo-50/50 text-indigo-700 ring-2 ring-indigo-500 ring-offset-2 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-500 dark:ring-offset-gray-800" 
-                                    : "border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-700 dark:text-gray-300"
-                            )}
-                        >
-                            <span className="text-2xl mb-2">{c.icon}</span>
-                            <span className="text-xs font-semibold">{c.label}</span>
-                        </button>
-                    ))}
-                </div>
+                <form id="production-form" onSubmit={handleSubmit} className="grid grid-cols-1 gap-8 lg:grid-cols-5">
+                    {/* Linke Seite: Eingaben */}
+                    <div className="space-y-6 lg:col-span-3">
+                        <fieldset>
+                            <legend className="field-label">Sparte</legend>
+                            <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+                                {INSURANCE_TYPES.map(c => (
+                                    <button
+                                        key={c.id}
+                                        type="button"
+                                        onClick={() => { setCategory(c.id); setSubCategory(c.subcategories[0]); }}
+                                        aria-pressed={category === c.id}
+                                        className={cn(
+                                            'flex flex-col items-center gap-1 rounded-lg border px-2 py-2.5 text-xs font-medium transition-colors',
+                                            category === c.id
+                                                ? 'border-brand-500 bg-brand-50 text-brand-800 dark:border-brand-400 dark:bg-brand-900/40 dark:text-brand-100'
+                                                : 'border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700/50'
+                                        )}
+                                    >
+                                        <span className="h-1.5 w-6 rounded-full" style={{ background: CATEGORY_COLORS[c.id] }} />
+                                        {c.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </fieldset>
 
-                {/* 2. Customer & Basic Info */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-4">
-                        {/* Row 1: Names */}
                         <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Nachname</label>
-                                <input required type="text" value={customerName} onChange={e => setCustomerName(e.target.value)} className="w-full rounded-xl border-transparent bg-gray-50/50 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 px-4 py-2.5 text-sm transition-all" />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Vorname</label>
-                                <input type="text" value={customerFirstname} onChange={e => setCustomerFirstname(e.target.value)} className="w-full rounded-xl border-transparent bg-gray-50/50 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 px-4 py-2.5 text-sm transition-all" />
-                            </div>
-                        </div>
-
-                        {/* Row 2: Policy No & Status */}
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Versicherungsschein-Nr.</label>
-                                <input type="text" value={policyNumber} onChange={e => setPolicyNumber(e.target.value)} className="w-full rounded-xl border-transparent bg-gray-50/50 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 px-4 py-2.5 text-sm transition-all" />
-                            </div>
-                             <div>
-                                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Status</label>
-                                <select 
-                                    value={status} 
-                                    onChange={(e) => setStatus(e.target.value as 'submitted' | 'policed' | 'cancelled')} 
-                                    className={cn(
-                                        "w-full rounded-xl border-transparent px-3 py-2.5 text-sm shadow-sm transition-all focus:ring-2 focus:ring-indigo-500/20",
-                                        status === 'submitted' ? "bg-blue-50 text-blue-700" :
-                                        status === 'policed' ? "bg-green-50 text-green-700" :
-                                        "bg-red-50 text-red-700"
-                                    )}
-                                >
+                            <Field label="Nachname" htmlFor="pf-name"><input id="pf-name" required type="text" value={customerName} onChange={e => setCustomerName(e.target.value)} className="input" /></Field>
+                            <Field label="Vorname" htmlFor="pf-first"><input id="pf-first" type="text" value={customerFirstname} onChange={e => setCustomerFirstname(e.target.value)} className="input" /></Field>
+                            <Field label="Versicherungsschein-Nr." htmlFor="pf-policy"><input id="pf-policy" type="text" value={policyNumber} onChange={e => setPolicyNumber(e.target.value)} className="input font-mono" /></Field>
+                            <Field label="Status" htmlFor="pf-status">
+                                <select id="pf-status" value={status} onChange={(e) => setStatus(e.target.value as 'submitted' | 'policed' | 'cancelled')} className="input">
                                     <option value="submitted">Eingereicht</option>
                                     <option value="policed">Policiert</option>
                                     <option value="cancelled">Storniert</option>
                                 </select>
-                            </div>
+                            </Field>
                         </div>
 
-                        {/* Row 3: Management & Dates */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Betreuung von</label>
-                                <div className="relative">
-                                    <select 
-                                        value={managedBy} 
-                                        onChange={e => setManagedBy(e.target.value)} 
-                                        className="w-full appearance-none rounded-xl border-transparent bg-gray-50/50 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 px-4 py-2.5 text-sm transition-all pr-8"
-                                    >
-                                        <option value="">Bitte wählen...</option>
-                                        {profiles.map(p => (
-                                            <option key={p.id} value={p.id}>
-                                                {p.full_name} {p.agency_number ? `(${p.agency_number})` : ''}
-                                            </option>
-                                        ))}
-                                    </select>
-                                    <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
-                                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
-                                    </div>
-                                </div>
-                            </div>
-                            <div>
-                                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Einreichungsdatum</label>
-                                <input type="date" value={submissionDate} onChange={e => setSubmissionDate(e.target.value)} className="w-full rounded-xl border-transparent bg-gray-50/50 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 px-4 py-2.5 text-sm transition-all" />
-                            </div>
-                        </div>
-                        
-                        {/* Row 4: Extra Dates */}
-                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                             <div>
-                                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Vertragsbeginn</label>
-                                <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-full rounded-xl border-transparent bg-gray-50/50 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 px-4 py-2.5 text-sm transition-all" />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Policierungsdatum</label>
-                                <input type="date" value={policingDate} onChange={e => setPolicingDate(e.target.value)} className="w-full rounded-xl border-transparent bg-gray-50/50 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 px-4 py-2.5 text-sm transition-all" />
-                            </div>
-                        </div>
-                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                             <div>
-                                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Provisionserhalt</label>
-                                <input type="date" value={commissionReceivedDate} onChange={e => setCommissionReceivedDate(e.target.value)} className="w-full rounded-xl border-transparent bg-gray-50/50 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 px-4 py-2.5 text-sm transition-all" />
-                            </div>
-                             <div>
-                                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Abschluss von</label>
-                                <div className="relative">
-                                    <select 
-                                        value={closedBy} 
-                                        onChange={e => setClosedBy(e.target.value)} 
-                                        className="w-full appearance-none rounded-xl border-transparent bg-gray-50/50 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 px-4 py-2.5 text-sm transition-all pr-8"
-                                    >
-                                        <option value="">Bitte wählen...</option>
-                                        {profiles.map(p => (
-                                            <option key={p.id} value={p.id}>
-                                                {p.full_name} {p.agency_number ? `(${p.agency_number})` : ''}
-                                            </option>
-                                        ))}
-                                    </select>
-                                    <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
-                                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Row 5: Document Upload */}
-                        <div>
-                            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Dokument (Antrag/Protokoll)</label>
-                            <div className="flex flex-col sm:flex-row items-center gap-4">
-                                <div className="relative w-full">
-                                    <input 
-                                        type="file" 
-                                        onChange={e => setSelectedFile(e.target.files?.[0] || null)}
-                                        className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 dark:file:bg-indigo-900/30 dark:file:text-indigo-400 transition-all"
-                                    />
-                                    {selectedFile && (
-                                        <button
-                                            type="button"
-                                            onClick={handleAIAnalysis}
-                                            disabled={isAnalyzing}
-                                            className={cn(
-                                                "absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all",
-                                                isAnalyzing 
-                                                    ? "bg-gray-100 text-gray-400 cursor-not-allowed" 
-                                                    : "bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm"
-                                            )}
-                                        >
-                                            {isAnalyzing ? (
-                                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                            ) : (
-                                                <Sparkles className="w-3.5 h-3.5" />
-                                            )}
-                                            {isAnalyzing ? 'Analysiere...' : 'KI-Analyse'}
-                                        </button>
-                                    )}
-                                </div>
-                                {documentUrl && !selectedFile && (
-                                    <button
-                                        type="button"
-                                        onClick={() => openProductionDoc(documentUrl)}
-                                        className="text-indigo-600 dark:text-indigo-400 text-xs font-bold flex items-center gap-1 shrink-0"
-                                    >
-                                        <Download className="w-3 h-3" /> Vorhanden
-                                    </button>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* 3. Contract Details (Dynamic) */}
-                    <div className="bg-gray-50/50 dark:bg-gray-800/50 p-6 rounded-3xl space-y-4 border border-gray-100 dark:border-gray-700 h-fit">
-                        <h3 className="font-bold text-gray-900 dark:text-white text-sm flex items-center gap-2 mb-2">
-                            <FileText className="w-4 h-4 text-indigo-500" /> Vertragsdaten
-                        </h3>
-                        
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-xs font-medium text-gray-500 mb-1.5">Sparte / Tarif</label>
-                                <select 
-                                    value={subCategory} 
-                                    onChange={e => setSubCategory(e.target.value)} 
-                                    className="w-full rounded-xl border-transparent bg-white focus:ring-2 focus:ring-indigo-500/20 px-3 py-2.5 text-sm shadow-sm" 
-                                >
-                                    {INSURANCE_TYPES.find(c => c.id === category)?.subcategories.map(sc => (
-                                        <option key={sc} value={sc}>{sc}</option>
-                                    ))}
+                        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+                            <Field label="Tarif" htmlFor="pf-sub">
+                                <select id="pf-sub" value={subCategory} onChange={e => setSubCategory(e.target.value)} className="input">
+                                    {INSURANCE_TYPES.find(c => c.id === category)?.subcategories.map(sc => <option key={sc} value={sc}>{sc}</option>)}
                                 </select>
-                            </div>
-                            <div>
-                                <label className="block text-xs font-medium text-gray-500 mb-1.5">Zahlweise</label>
-                                <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)} className="w-full rounded-xl border-transparent bg-white focus:ring-2 focus:ring-indigo-500/20 px-3 py-2.5 text-sm shadow-sm">
+                            </Field>
+                            <Field label="Zahlweise" htmlFor="pf-pay">
+                                <select id="pf-pay" value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)} className="input">
                                     <option value="monthly">Monatlich</option>
                                     <option value="quarterly">Vierteljährlich</option>
                                     <option value="half_yearly">Halbjährlich</option>
                                     <option value="yearly">Jährlich</option>
                                     <option value="one_time">Einmalbeitrag</option>
                                 </select>
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-3 gap-4">
-                            <div>
-                                <label className="block text-xs font-medium text-gray-500 mb-1.5">Beitrag Netto</label>
+                            </Field>
+                            <Field label="Laufzeit in Jahren" htmlFor="pf-dur" hint={duration > 35 ? 'Berechnet wird mit höchstens 35 Jahren.' : undefined}>
+                                <input id="pf-dur" type="number" min={1} value={duration} onChange={e => setDuration(Number(e.target.value))} className="input tabular" />
+                            </Field>
+                            <Field label="Beitrag netto" htmlFor="pf-net">
                                 <div className="relative">
-                                    <input type="number" step="0.01" value={netPremium} onChange={e => setNetPremium(e.target.value ? Number(e.target.value) : '')} className="w-full rounded-xl border-transparent bg-white pl-8 px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500/20 shadow-sm" />
-                                    <span className="absolute left-3 top-2.5 text-gray-400 text-xs">€</span>
+                                    <input id="pf-net" type="number" step="0.01" inputMode="decimal" value={netPremium} onChange={e => setNetPremium(e.target.value ? Number(e.target.value) : '')} className="input tabular pr-8" />
+                                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">€</span>
                                 </div>
-                            </div>
-                            <div>
-                                <label className="block text-xs font-medium text-gray-500 mb-1.5">Beitrag Brutto</label>
+                            </Field>
+                            <Field label="Beitrag brutto" htmlFor="pf-gross">
                                 <div className="relative">
-                                    <input type="number" step="0.01" value={grossPremium} onChange={e => setGrossPremium(e.target.value ? Number(e.target.value) : '')} className="w-full rounded-xl border-transparent bg-white pl-8 px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500/20 shadow-sm" />
-                                    <span className="absolute left-3 top-2.5 text-gray-400 text-xs">€</span>
+                                    <input id="pf-gross" type="number" step="0.01" inputMode="decimal" value={grossPremium} onChange={e => setGrossPremium(e.target.value ? Number(e.target.value) : '')} className="input tabular pr-8" />
+                                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">€</span>
                                 </div>
+                            </Field>
+                            <Field label="Eingereicht am" htmlFor="pf-sub-date"><input id="pf-sub-date" type="date" required value={submissionDate} onChange={e => setSubmissionDate(e.target.value)} className="input" /></Field>
+                        </div>
+
+                        <details className="group rounded-lg border border-gray-200 dark:border-gray-700" open={!!(startDate || policingDate || commissionReceivedDate || notes)}>
+                            <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-200">
+                                Weitere Angaben
+                                <ChevronDown className="h-4 w-4 text-gray-400 transition-transform group-open:rotate-180" />
+                            </summary>
+                            <div className="grid grid-cols-1 gap-4 border-t border-gray-100 p-4 dark:border-gray-700 sm:grid-cols-2">
+                                <Field label="Betreuung" htmlFor="pf-managed">
+                                    <select id="pf-managed" value={managedBy} onChange={e => setManagedBy(e.target.value)} className="input">
+                                        <option value="">Ich selbst</option>
+                                        {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}{p.agency_number ? ` (${p.agency_number})` : ''}</option>)}
+                                    </select>
+                                </Field>
+                                <Field label="Abschluss von" htmlFor="pf-closed">
+                                    <select id="pf-closed" value={closedBy} onChange={e => setClosedBy(e.target.value)} className="input">
+                                        <option value="">Ich selbst</option>
+                                        {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}{p.agency_number ? ` (${p.agency_number})` : ''}</option>)}
+                                    </select>
+                                </Field>
+                                <Field label="Vertragsbeginn" htmlFor="pf-start"><input id="pf-start" type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="input" /></Field>
+                                <Field label="Policiert am" htmlFor="pf-policed"><input id="pf-policed" type="date" value={policingDate} onChange={e => setPolicingDate(e.target.value)} className="input" /></Field>
+                                <Field label="Provision erhalten am" htmlFor="pf-received"><input id="pf-received" type="date" value={commissionReceivedDate} onChange={e => setCommissionReceivedDate(e.target.value)} className="input" /></Field>
+                                <Field label="Dokument (Antrag, Protokoll)" htmlFor="pf-file">
+                                    <div className="flex items-center gap-2">
+                                        <input id="pf-file" type="file" onChange={e => setSelectedFile(e.target.files?.[0] || null)} className="block w-full text-xs text-gray-500 file:mr-3 file:rounded-md file:border-0 file:bg-gray-100 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-gray-700 hover:file:bg-gray-200 dark:file:bg-gray-700 dark:file:text-gray-200" />
+                                        {documentUrl && !selectedFile && (
+                                            <button type="button" onClick={() => openProductionDoc(documentUrl)} className="btn-ghost btn-sm shrink-0"><Download className="h-3.5 w-3.5" /> Öffnen</button>
+                                        )}
+                                    </div>
+                                    {selectedFile && (
+                                        <button type="button" onClick={handleAIAnalysis} disabled={isAnalyzing} className="btn-secondary btn-sm mt-2">
+                                            {isAnalyzing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                                            Felder aus PDF füllen
+                                        </button>
+                                    )}
+                                </Field>
+                                <Field label="Bemerkungen" htmlFor="pf-notes" className="sm:col-span-2">
+                                    <textarea id="pf-notes" value={notes} onChange={e => setNotes(e.target.value)} rows={3} className="input resize-none" />
+                                </Field>
                             </div>
+                        </details>
+                    </div>
+
+                    {/* Rechte Seite: Berechnung */}
+                    <aside className="lg:col-span-2">
+                        <div className="sticky top-0 space-y-4 rounded-xl border border-brand-100 bg-brand-50/50 p-5 dark:border-brand-900 dark:bg-brand-950/30">
+                            <h3 className="text-sm font-semibold text-brand-900 dark:text-brand-100">Berechnung</h3>
                             <div>
-                                <label className="block text-xs font-medium text-gray-500 mb-1.5">Laufzeit (J)</label>
-                                <input 
-                                    type="number" 
-                                    value={duration} 
-                                    onChange={e => setDuration(Number(e.target.value))} 
-                                    className="w-full rounded-xl border-transparent bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500/20 shadow-sm" 
-                                />
+                                <p className="text-xs text-gray-500">Provision</p>
+                                <p className="tabular font-display text-3xl font-semibold text-gray-900 dark:text-white">{formatCurrency(commissionAmount)}</p>
                             </div>
-                        </div>
-
-                         {/* Notes Area */}
-                        <div>
-                            <label className="block text-xs font-medium text-gray-500 mb-1.5">Bemerkungen</label>
-                            <textarea 
-                                value={notes} 
-                                onChange={e => setNotes(e.target.value)} 
-                                rows={3}
-                                className="w-full rounded-xl border-transparent bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500/20 shadow-sm resize-none"
-                                placeholder="Wichtige Hinweise..."
-                            />
-                        </div>
-                    </div>
-                </div>
-
-                {/* 4. Calculation Preview */}
-                    <div className="bg-gradient-to-br from-indigo-50 to-violet-50 dark:from-indigo-900/20 dark:to-violet-900/20 p-6 rounded-3xl space-y-4 border border-indigo-100 dark:border-indigo-800/30">
-                    <h3 className="font-bold text-indigo-900 dark:text-indigo-300 text-sm flex items-center gap-2">
-                        <Euro className="w-4 h-4" /> Provision & Lebenswerte
-                    </h3>
-                    
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <div className="bg-white/50 dark:bg-gray-800/50 p-3 rounded-2xl">
-                            <label className="block text-xs font-medium text-indigo-400 mb-1">
-                                {category === 'life' ? 'Promille' : (['KV Voll', 'KV Zusatz'].includes(subCategory) ? 'MB-Faktor' : 'Prozent')}
-                            </label>
-                            <input 
-                                type="number" 
-                                step="0.1" 
-                                value={commissionRate} 
-                                readOnly
-                                className="w-full bg-transparent border-none p-0 text-lg font-black text-indigo-700 dark:text-indigo-300 focus:ring-0" 
-                            />
-                        </div>
-                        <div className="bg-white/50 dark:bg-gray-800/50 p-3 rounded-2xl">
-                            <label className="block text-xs font-medium text-indigo-400 mb-1">
-                                Bewertungssumme
-                            </label>
-                            <div className="text-lg font-bold text-indigo-900 dark:text-indigo-200 truncate">
-                                {formatCurrency(valuationSum)}
+                            <dl className="grid grid-cols-2 gap-x-4 gap-y-3 border-t border-brand-100 pt-4 text-sm dark:border-brand-900">
+                                <div>
+                                    <dt className="text-xs text-gray-500">{category === 'life' ? 'Satz (Promille)' : ['KV Voll', 'KV Zusatz'].includes(subCategory) ? 'Monatsbeiträge' : 'Satz (Prozent)'}</dt>
+                                    <dd className="tabular font-medium text-gray-900 dark:text-white">{commissionRate || 0}</dd>
+                                </div>
+                                <div>
+                                    <dt className="text-xs text-gray-500">Bewertungssumme</dt>
+                                    <dd className="tabular font-medium text-gray-900 dark:text-white">{formatCurrency(valuationSum)}</dd>
+                                </div>
+                                <div>
+                                    <dt className="text-xs text-gray-500"><label htmlFor="pf-lvf">Faktor Lebenswerte</label></dt>
+                                    <dd>
+                                        <input
+                                            id="pf-lvf"
+                                            type="number"
+                                            step="0.001"
+                                            value={lifeValueFactor}
+                                            onChange={(e) => {
+                                                const f = Number(e.target.value);
+                                                setLifeValueFactor(f);
+                                                setLifeValues((subCategory === 'Leben' || subCategory === 'BU' ? valuationSum : netPremiumYearly) * f);
+                                            }}
+                                            className="input tabular mt-0.5 py-1"
+                                        />
+                                    </dd>
+                                </div>
+                                <div>
+                                    <dt className="text-xs text-gray-500">Lebenswerte</dt>
+                                    <dd className="tabular pt-1.5 font-semibold text-brand-700 dark:text-brand-300">{new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 }).format(lifeValues)}</dd>
+                                </div>
+                            </dl>
+                            <div className="flex items-center justify-between gap-3 border-t border-brand-100 pt-4 dark:border-brand-900">
+                                <label htmlFor="liabilityCheck" className="flex cursor-pointer items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                                    <input type="checkbox" id="liabilityCheck" checked={liabilityActive} onChange={e => setLiabilityActive(e.target.checked)} className="h-4 w-4 rounded" />
+                                    Stornohaftung einbehalten
+                                </label>
+                                {liabilityActive && (
+                                    <div className="flex items-center gap-1">
+                                        <input type="number" aria-label="Haftung in Prozent" value={liabilityRate} onChange={e => setLiabilityRate(Number(e.target.value))} className="input tabular w-16 py-1 text-center" />
+                                        <span className="text-sm text-gray-500">%</span>
+                                    </div>
+                                )}
                             </div>
+                            {liabilityActive && commissionAmount > 0 && (
+                                <p className="text-xs text-gray-500">Einbehalt: {formatCurrency(commissionAmount * liabilityRate / 100)}, Auszahlung: {formatCurrency(commissionAmount * (1 - liabilityRate / 100))}</p>
+                            )}
                         </div>
-                        <div className="bg-white/50 dark:bg-gray-800/50 p-3 rounded-2xl md:col-span-2">
-                            <label className="block text-xs font-bold text-indigo-600 dark:text-indigo-400 mb-1">PROVISION</label>
-                            <div className="text-2xl font-black text-green-600 dark:text-green-400 truncate">
-                                {formatCurrency(commissionAmount)}
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Life Values Section */}
-                    <div className="grid grid-cols-2 gap-4 pt-2 border-t border-indigo-200/30">
-                        <div className="bg-white/50 dark:bg-gray-800/50 p-3 rounded-2xl">
-                            <label className="block text-xs font-medium text-indigo-400 mb-1">
-                                Faktor (LW)
-                            </label>
-                            <input 
-                                type="number" 
-                                step="0.001" 
-                                value={lifeValueFactor} 
-                                onChange={(e) => {
-                                    const newFactor = Number(e.target.value);
-                                    setLifeValueFactor(newFactor);
-                                    // Recalculate Life Values immediately based on new factor
-                                    let base = 0;
-                                    if (subCategory === 'Leben' || subCategory === 'BU') {
-                                        base = valuationSum;
-                                    } else {
-                                        // For Sach/KFZ use netYearly
-                                        base = netPremiumYearly; 
-                                    }
-                                    setLifeValues(base * newFactor);
-                                }}
-                                className="w-full bg-transparent border-none p-0 text-lg font-bold text-gray-700 dark:text-gray-300 focus:ring-0" 
-                            />
-                        </div>
-                        <div className="bg-white/50 dark:bg-gray-800/50 p-3 rounded-2xl">
-                            <label className="block text-xs font-medium text-indigo-400 mb-1">
-                                Lebenswerte
-                            </label>
-                            <div className="text-xl font-black text-indigo-600 dark:text-indigo-400 truncate">
-                                {new Intl.NumberFormat('de-DE', { maximumFractionDigits: 2 }).format(lifeValues)} LW
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="flex items-center gap-4 pt-2 border-t border-indigo-200/50 dark:border-indigo-700/30">
-                         <div className="flex items-center gap-3 bg-white/50 dark:bg-gray-800/50 px-4 py-2 rounded-xl">
-                             <input 
-                                 type="checkbox" 
-                                 id="liabilityCheck"
-                                 checked={liabilityActive}
-                                 onChange={e => setLiabilityActive(e.target.checked)}
-                                 className="rounded-lg border-gray-300 text-indigo-600 focus:ring-indigo-500 w-5 h-5"
-                             />
-                             <label htmlFor="liabilityCheck" className="text-sm text-gray-700 dark:text-gray-300 font-medium cursor-pointer">Stornohaftung einbehalten</label>
-                         </div>
-                         {liabilityActive && (
-                             <div className="flex items-center gap-2 animate-in fade-in slide-in-from-left-4">
-                                 <input 
-                                     type="number" 
-                                     value={liabilityRate} 
-                                     onChange={e => setLiabilityRate(Number(e.target.value))} 
-                                     className="w-20 rounded-xl border-transparent bg-white dark:bg-gray-800 focus:ring-2 focus:ring-indigo-500/20 px-3 py-2 text-sm font-bold text-center" 
-                                 />
-                                 <span className="text-sm font-bold text-indigo-400">%</span>
-                             </div>
-                         )}
-                    </div>
-                </div>
-
-                <div className="flex justify-end gap-3 pt-4">
-                    <button type="button" onClick={() => setIsModalOpen(false)} className="px-6 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-xl transition-colors">Abbrechen</button>
-                    <button type="submit" disabled={submitting} className="px-6 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-lg shadow-indigo-500/30 transition-all hover:scale-[1.02]">
-                        {editingId ? 'Änderungen speichern' : 'Vertrag einreichen'}
-                    </button>
-                </div>
-            </form>
+                    </aside>
+                </form>
             </div>
         </Modal>
+
+        <ConfirmModal
+            isOpen={!!deleteId}
+            onClose={() => setDeleteId(null)}
+            onConfirm={confirmDelete}
+            title="Vertrag löschen?"
+            message="Der Vertrag wird endgültig entfernt und zählt nicht mehr in Provision und Lebenswerte. Das lässt sich nicht rückgängig machen."
+            confirmText="Löschen"
+            isDestructive
+        />
 
         <LiabilityTrackerModal 
             isOpen={isLiabilityModalOpen} 

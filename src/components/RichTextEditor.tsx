@@ -18,7 +18,7 @@ import {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   Link as LinkIcon
 } from 'lucide-react';
-import { cn } from '../lib/utils';
+import { cn } from '@/utils/cn';
 
 interface RichTextEditorProps {
   content: string;

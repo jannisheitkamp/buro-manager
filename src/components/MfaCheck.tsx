@@ -1,92 +1,54 @@
 import { useEffect, useState } from 'react';
-import { Navigate, useLocation, Outlet } from 'react-router-dom';
+import { Navigate, Outlet } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { useStore } from '@/store/useStore';
+import { FullScreenLoader } from './FullScreenLoader';
+
+// Nach 6 Stunden muss der 2FA-Code erneut eingegeben werden
+const REVERIFY_AFTER_MS = 6 * 60 * 60 * 1000;
+
+type MfaState = 'checking' | 'ok' | 'setup' | 'verify';
 
 export const MfaCheck = () => {
-  const { user } = useStore();
-  const location = useLocation();
-  const [checking, setChecking] = useState(true);
-  const [needsMfaSetup, setNeedsMfaSetup] = useState(false);
-  const [needsVerification, setNeedsVerification] = useState(false);
+  const userId = useStore((s) => s.user?.id);
+  const [state, setState] = useState<MfaState>('checking');
 
   useEffect(() => {
-    const checkMfaStatus = async () => {
-      if (!user) {
-        setChecking(false);
+    if (!userId) return;
+    let cancelled = false;
+
+    (async () => {
+      const { data, error } = await supabase.auth.mfa.listFactors();
+      if (cancelled) return;
+      if (error) {
+        console.error('2FA-Prüfung fehlgeschlagen:', error);
+        setState('ok');
+        return;
+      }
+      if (!data.all.some((f) => f.status === 'verified')) {
+        setState('setup');
         return;
       }
 
-      // If already on setup page, don't redirect loop
-      if (location.pathname === '/mfa-setup') {
-          setChecking(false);
-          return;
+      const { data: level } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      if (cancelled) return;
+      let last = 0;
+      try {
+        last = Number(localStorage.getItem('last_mfa_check')) || 0;
+      } catch {
+        /* ignorieren */
       }
+      const stale = Date.now() - last > REVERIFY_AFTER_MS;
+      setState(level?.currentLevel === 'aal2' && !stale ? 'ok' : 'verify');
+    })();
 
-      // Check enrolled factors
-      const { data, error } = await supabase.auth.mfa.listFactors();
-      
-      if (error) {
-          console.error('Error checking MFA:', error);
-          setChecking(false);
-          return;
-      }
-
-      const hasVerifiedFactor = data.all.some(f => f.status === 'verified');
-
-      if (!hasVerifiedFactor) {
-          setNeedsMfaSetup(true);
-          setChecking(false);
-          return;
-      }
-
-      // 2FA Re-Verification Logic
-      // Check if user has authenticated with MFA recently
-      const { data: levelData, error: levelError } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-      
-      if (!levelError && levelData) {
-         if (levelData.currentLevel === 'aal2') {
-             // Already fully authenticated with MFA
-             // Check if session is too old (optional, usually handled by token expiry, but we can enforce re-check)
-             // For now, if AAL2 is active, we are good.
-             // But user wants re-check every 6 hours.
-             // Supabase session usually lasts longer.
-             // We can check `last_sign_in_at` or store a local timestamp?
-             
-             // Simpler approach: Supabase MFA sessions are valid as long as the token is.
-             // To enforce "every 6 hours", we need to check the session `aal` timestamp or similar.
-             // Actually, Supabase doesn't expose "when was MFA done" easily in client session object.
-             
-             // Workaround: We store a timestamp in localStorage when MFA is passed.
-             const lastMfaTime = localStorage.getItem('last_mfa_check');
-             const SIX_HOURS = 6 * 60 * 60 * 1000;
-             
-             if (!lastMfaTime || (Date.now() - parseInt(lastMfaTime) > SIX_HOURS)) {
-                 // Force re-verification
-                 setNeedsVerification(true);
-             }
-
-         } else {
-             // User has MFA enabled (aal2 possible) but is currently only on aal1 (password only)
-             setNeedsVerification(true);
-         }
-      }
-      
-      setChecking(false);
+    return () => {
+      cancelled = true;
     };
+  }, [userId]);
 
-    checkMfaStatus();
-  }, [user?.id, location.pathname]);
-
-  if (checking) return null; // Loading spinner
-
-  if (needsMfaSetup && location.pathname !== '/mfa-setup') {
-    return <Navigate to="/mfa-setup" replace />;
-  }
-
-  if (needsVerification && location.pathname !== '/mfa-verify') {
-      return <Navigate to="/mfa-verify" replace />;
-  }
-
+  if (state === 'checking') return <FullScreenLoader />;
+  if (state === 'setup') return <Navigate to="/mfa-setup" replace />;
+  if (state === 'verify') return <Navigate to="/mfa-verify" replace />;
   return <Outlet />;
 };

@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react';
+import { Avatar } from '@/components/ui';
+import { PageHeader, Button } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
+import { PROFILE_PUBLIC } from '@/lib/profiles';
 import { Booking } from '@/types';
 import { useStore } from '@/store/useStore';
 import { format, parseISO, addDays, startOfDay, isBefore, setHours, setMinutes } from 'date-fns';
@@ -37,7 +40,7 @@ export const Bookings = () => {
 
       const { data, error } = await supabase
         .from('bookings')
-        .select('*, profiles(*)')
+        .select(`*, profiles(${PROFILE_PUBLIC})`)
         .gte('end_time', start)
         .lt('start_time', end)
         .order('start_time', { ascending: true });
@@ -154,56 +157,23 @@ export const Bookings = () => {
   }, {} as Record<string, Booking[]>);
 
   return (
-    <div className="max-w-5xl mx-auto space-y-8 pb-20">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <motion.div 
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-        >
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
-                <div className="p-2 bg-indigo-100 dark:bg-indigo-900/30 rounded-xl">
-                    <CalendarIcon className="w-8 h-8 text-indigo-600 dark:text-indigo-400" />
-                </div>
-                Ressourcen & Räume
-            </h1>
-            <p className="text-gray-500 dark:text-gray-400 mt-2 ml-1">Reserviere Besprechungsräume, Autos oder Equipment.</p>
-        </motion.div>
-        
-        <motion.div 
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="flex items-center gap-4 bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl p-2 rounded-2xl shadow-sm border border-white/20 dark:border-gray-700/50"
-        >
-            <button 
-                onClick={() => setSelectedDate(d => addDays(d, -1))}
-                className="p-3 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl transition-colors"
-            >
-                <ChevronLeft className="w-5 h-5 text-gray-600 dark:text-gray-300" />
-            </button>
-            <div className="flex flex-col items-center min-w-[140px] px-2">
-                <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Datum</span>
-                <span className="font-bold text-gray-900 dark:text-white text-lg">
-                    {format(selectedDate, 'EEE, d. MMM', { locale: de })}
-                </span>
+    <div className="space-y-6">
+      <PageHeader
+        title="Räume"
+        description="Besprechungsräume und Ausstattung tageweise reservieren."
+        actions={
+          <>
+            <div className="flex items-center rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+              <button type="button" onClick={() => setSelectedDate(d => addDays(d, -1))} className="btn-icon rounded-r-none" aria-label="Vorheriger Tag"><ChevronLeft className="h-4 w-4" /></button>
+              <button type="button" onClick={() => setSelectedDate(new Date())} className="min-w-[8.5rem] px-2 text-center text-sm font-medium text-gray-900 dark:text-white" title="Heute">
+                {format(selectedDate, 'EEE, d. MMM', { locale: de })}
+              </button>
+              <button type="button" onClick={() => setSelectedDate(d => addDays(d, 1))} className="btn-icon rounded-l-none" aria-label="Nächster Tag"><ChevronRight className="h-4 w-4" /></button>
             </div>
-            <button 
-                onClick={() => setSelectedDate(d => addDays(d, 1))}
-                className="p-3 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl transition-colors"
-            >
-                <ChevronRight className="w-5 h-5 text-gray-600 dark:text-gray-300" />
-            </button>
-        </motion.div>
-
-        <motion.button
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          onClick={() => setIsModalOpen(true)}
-          className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-2xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-indigo-500/30 hover:scale-105 active:scale-95"
-        >
-          <Plus className="w-5 h-5" />
-          <span className="font-semibold">Buchen</span>
-        </motion.button>
-      </div>
+            <Button icon={Plus} onClick={() => setIsModalOpen(true)}>Raum buchen</Button>
+          </>
+        }
+      />
 
       <div className="grid grid-cols-1 gap-6">
         {RESOURCES.map((resource, idx) => {
@@ -214,9 +184,9 @@ export const Bookings = () => {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: idx * 0.1 }}
-                    className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-3xl shadow-xl border border-white/20 dark:border-gray-700/50 overflow-hidden flex flex-col h-full"
+                    className="bg-white dark:bg-gray-800 rounded-3xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden flex flex-col h-full"
                 >
-                    <div className="p-5 border-b border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50 flex items-center gap-4">
+                    <div className="p-5 border-b border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800 flex items-center gap-4">
                         <div className={`w-10 h-10 rounded-xl ${resource.bg} dark:bg-opacity-20 flex items-center justify-center ${resource.color} dark:text-opacity-80 shadow-inner`}>
                             <Icon className="w-5 h-5" />
                         </div>
@@ -255,11 +225,7 @@ export const Bookings = () => {
                                                 <div className="flex-1 min-w-0">
                                                     <h3 className="font-bold text-gray-800 dark:text-gray-200 text-sm truncate">{booking.title}</h3>
                                                     <div className="flex items-center gap-2 mt-1">
-                                                        <img
-                                                            src={booking.profiles?.avatar_url || `https://ui-avatars.com/api/?name=${booking.profiles?.full_name || 'User'}&background=random`}
-                                                            alt={booking.profiles?.full_name || ''}
-                                                            className="w-4 h-4 rounded-full ring-1 ring-white dark:ring-gray-800"
-                                                        />
+                                                        <Avatar name={booking.profiles?.full_name} src={booking.profiles?.avatar_url} size="xs" className="w-4 h-4 text-[7px] rounded-full ring-1 ring-white dark:ring-gray-800" />
                                                         <span className="text-xs text-gray-500 dark:text-gray-400 truncate">
                                                             {booking.profiles?.full_name}
                                                         </span>
@@ -295,7 +261,7 @@ export const Bookings = () => {
       >
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
+            <label className="block text-xs font-bold text-gray-500 mb-2">
               Was möchtest du buchen?
             </label>
             <div className="grid grid-cols-2 gap-3">
@@ -314,7 +280,7 @@ export const Bookings = () => {
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
+            <label className="block text-xs font-bold text-gray-500 mb-2">
               Titel / Zweck
             </label>
             <input
@@ -329,7 +295,7 @@ export const Bookings = () => {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
+              <label className="block text-xs font-bold text-gray-500 mb-2">
                 Von
               </label>
               <div className="relative">
@@ -344,7 +310,7 @@ export const Bookings = () => {
               </div>
             </div>
             <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
+              <label className="block text-xs font-bold text-gray-500 mb-2">
                 Bis
               </label>
               <div className="relative">
@@ -376,7 +342,7 @@ export const Bookings = () => {
             <button
               type="submit"
               disabled={submitting}
-              className="px-6 py-2.5 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-lg shadow-indigo-500/30 transition-all hover:scale-105 active:scale-95 disabled:opacity-50 disabled:scale-100"
+              className="px-6 py-2.5 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-sm transition-all disabled:opacity-50 disabled:scale-100"
             >
               {submitting ? 'Wird gebucht...' : 'Buchen'}
             </button>

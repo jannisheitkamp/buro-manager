@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
+import { Avatar } from '@/components/ui';
+import { PageHeader } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
+import { PROFILE_COLUMNS } from '@/lib/profiles';
 import { useStore } from '@/store/useStore';
-import { motion } from 'framer-motion';
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { Shield, Users, DollarSign, Activity, CheckCircle, XCircle, Search, MoreHorizontal, Trash2, UserCheck, UserX, BadgeCheck, Clock } from 'lucide-react';
 import { format } from 'date-fns';
@@ -36,7 +38,7 @@ export const Admin = () => {
             // 1. User Stats & List
             const { data: allUsers } = await supabase
                 .from('profiles')
-                .select('*')
+                .select(PROFILE_COLUMNS)
                 .order('created_at', { ascending: false });
             
             const totalUsers = allUsers?.length || 0;
@@ -199,25 +201,8 @@ export const Admin = () => {
     }
 
     return (
-        <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-8 pb-20">
-            <motion.div 
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="flex items-center justify-between"
-            >
-                <div>
-                    <h1 className="text-3xl font-black text-gray-900 dark:text-white flex items-center gap-3">
-                        <Shield className="w-8 h-8 text-indigo-600" />
-                        Admin Dashboard
-                    </h1>
-                    <p className="text-gray-500 mt-2">Globale Übersicht und Benutzerverwaltung.</p>
-                </div>
-                <div className="flex items-center gap-2">
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold">
-                        <CheckCircle className="w-3 h-3" /> System Online
-                    </span>
-                </div>
-            </motion.div>
+        <div className="space-y-6">
+            <PageHeader title="Verwaltung" description="Konten freischalten, Rollen vergeben und das Team im Überblick." />
 
             {/* Stats Grid */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -233,7 +218,7 @@ export const Admin = () => {
                         )}
                     </div>
                     <p className="text-sm text-gray-500 font-medium">Nutzer Gesamt</p>
-                    <p className="text-3xl font-black text-gray-900 dark:text-white">{stats.totalUsers}</p>
+                    <p className="text-3xl font-semibold text-gray-900 dark:text-white">{stats.totalUsers}</p>
                 </div>
 
                 <div className="bg-white dark:bg-gray-800 p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700">
@@ -243,7 +228,7 @@ export const Admin = () => {
                         </div>
                     </div>
                     <p className="text-sm text-gray-500 font-medium">Umsatz (YTD)</p>
-                    <p className="text-3xl font-black text-gray-900 dark:text-white">
+                    <p className="text-3xl font-semibold text-gray-900 dark:text-white">
                         {new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(stats.totalRevenue)}
                     </p>
                 </div>
@@ -294,11 +279,7 @@ export const Admin = () => {
                                     <tr key={u.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
                                         <td className="px-6 py-4">
                                             <div className="flex items-center gap-3">
-                                                <img 
-                                                    src={u.avatar_url || `https://ui-avatars.com/api/?name=${u.full_name}&background=random`} 
-                                                    alt="" 
-                                                    className="w-10 h-10 rounded-full bg-gray-100 object-cover"
-                                                />
+                                                <Avatar name={u.full_name} src={u.avatar_url} size="md" className="w-10 h-10 rounded-full" />
                                                 <div>
                                                     <div className="font-bold text-gray-900 dark:text-white">{u.full_name}</div>
                                                     <div className="text-xs text-gray-500">{u.email}</div>
@@ -383,11 +364,7 @@ export const Admin = () => {
                             <div key={u.id} className="p-4 space-y-4">
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-3">
-                                        <img 
-                                            src={u.avatar_url || `https://ui-avatars.com/api/?name=${u.full_name}&background=random`} 
-                                            alt="" 
-                                            className="w-10 h-10 rounded-full bg-gray-100 object-cover"
-                                        />
+                                        <Avatar name={u.full_name} src={u.avatar_url} size="md" className="w-10 h-10 rounded-full" />
                                         <div>
                                             <div className="font-bold text-gray-900 dark:text-white">{u.full_name}</div>
                                             <div className="text-xs text-gray-500">{u.email}</div>
@@ -423,7 +400,7 @@ export const Admin = () => {
                                     <div className="flex gap-1 flex-wrap">
                                         {u.roles?.map((r: string) => (
                                             <span key={r} className={cn(
-                                                "px-2 py-0.5 rounded-md text-[10px] font-bold border uppercase tracking-wider",
+                                                "px-2 py-0.5 rounded-md text-[10px] font-bold border ",
                                                 r === 'admin' 
                                                     ? "bg-purple-50 text-purple-700 border-purple-200"
                                                     : "bg-gray-100 text-gray-600 border-gray-200"

@@ -5,6 +5,18 @@ import { VitePWA } from 'vite-plugin-pwa';
 
 // https://vite.dev/config/
 export default defineConfig({
+  build: {
+    rollupOptions: {
+      output: {
+        // Große Bibliotheken in eigene Dateien: bessere Zwischenspeicherung bei Updates
+        manualChunks: {
+          react: ['react', 'react-dom', 'react-router-dom'],
+          supabase: ['@supabase/supabase-js'],
+          charts: ['recharts'],
+        },
+      },
+    },
+  },
   plugins: [
     react({
       babel: {
@@ -23,9 +35,10 @@ export default defineConfig({
       manifest: {
         name: 'Büro Manager',
         short_name: 'Büro',
-        description: 'Office Management Dashboard',
-        theme_color: '#4f46e5', // Indigo-600 (App Brand Color)
-        background_color: '#ffffff',
+        description: 'Team, Empfang, Anrufe und Produktion an einem Ort',
+        lang: 'de',
+        theme_color: '#146A68',
+        background_color: '#F5F6F3',
         display: 'standalone', // No browser UI
         orientation: 'portrait',
         scope: '/',
@@ -35,7 +48,13 @@ export default defineConfig({
             src: 'favicon.svg',
             sizes: 'any',
             type: 'image/svg+xml',
-            purpose: 'any maskable'
+            purpose: 'any'
+          },
+          {
+            src: 'icon.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'any'
           }
         ]
       }

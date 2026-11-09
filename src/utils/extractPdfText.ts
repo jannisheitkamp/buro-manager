@@ -1,8 +1,11 @@
-import * as pdfjs from 'pdfjs-dist';
-
-pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
-
+// pdf.js wird erst geladen, wenn wirklich ein PDF gelesen wird (spart ~1 MB beim Seitenaufruf).
+// Der Worker kommt aus dem eigenen Build statt von einem fremden CDN.
 export const extractPdfText = async (file: File, maxPages: number): Promise<string> => {
+    const [pdfjs, worker] = await Promise.all([
+        import('pdfjs-dist'),
+        import('pdfjs-dist/build/pdf.worker.min.mjs?url'),
+    ]);
+    pdfjs.GlobalWorkerOptions.workerSrc = worker.default;
     const fileBuffer = await file.arrayBuffer();
     const doc = await pdfjs.getDocument({ data: fileBuffer }).promise;
     const pages = Math.min(doc.numPages || 0, maxPages);
