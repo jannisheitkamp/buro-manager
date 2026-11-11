@@ -118,7 +118,8 @@ export const Reception = () => {
     setBusy(true);
     const { error } = await supabase.from('reception_swaps').insert({ day: dayKey(selected), from_user: user.id, to_user: swapTo, note: swapNote.trim() || null });
     setBusy(false);
-    if (error) toast.error('Anfrage konnte nicht gesendet werden.');
+    // Die Datenbank prüft Zuständigkeit und Datum und liefert eine verständliche Begründung
+    if (error) toast.error(error.message || 'Anfrage konnte nicht gesendet werden.');
     else {
       toast.success(`Anfrage an ${nameOf(swapTo)} gesendet`);
       setSwapTo('');

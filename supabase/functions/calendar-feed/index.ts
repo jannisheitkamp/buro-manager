@@ -7,7 +7,16 @@ const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPAB
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-const esc = (s: string) => s.replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/,/g, '\\,').replace(/;/g, '\\;');
+// Text nach RFC 5545 maskieren: Zeilenumbrüche (auch \r) werden zu \n, übrige Steuerzeichen entfernt.
+// Sonst ließen sich über Termintitel zusätzliche Kalenderzeilen einschleusen.
+const esc = (s: string) =>
+  s
+    .replace(/\\/g, '\\\\')
+    .replace(/\r\n?|\n/g, '\\n')
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, '')
+    .replace(/,/g, '\\,')
+    .replace(/;/g, '\\;');
 const stamp = (d: Date) => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
 const dateOnly = (s: string) => s.replace(/-/g, '');
 const nextDay = (s: string) => {
@@ -40,8 +49,14 @@ Deno.serve(async (req) => {
   const token = new URL(req.url).searchParams.get('token') || '';
   if (!UUID.test(token)) return new Response('Not found', { status: 404 });
 
-  const { data: owner } = await supabase.from('calendar_tokens').select('user_id').eq('token', token).maybeSingle();
-  if (!owner) return new Response('Not found', { status: 404 });
+  const { data: owner } = await supabase
+    .from('calendar_tokens')
+    .select('user_id, profiles!inner(is_approved)')
+    .eq('token', token)
+    .maybeSingle();
+  // Gesperrte oder nicht freigeschaltete Konten bekommen nichts, auch mit gültigem Link
+  const approved = (owner?.profiles as { is_approved?: boolean | null } | null)?.is_approved;
+  if (!owner || approved !== true) return new Response('Not found', { status: 404 });
 
   const from = new Date(Date.now() - 30 * 86400000);
   const to = new Date(Date.now() + 365 * 86400000);

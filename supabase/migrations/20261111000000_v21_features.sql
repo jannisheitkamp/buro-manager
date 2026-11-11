@@ -53,7 +53,7 @@ create table if not exists public.reception_swaps (
   day date not null,
   from_user uuid not null references public.profiles(id) on delete cascade,
   to_user uuid not null references public.profiles(id) on delete cascade,
-  note text,
+  note text check (note is null or char_length(note) <= 300),
   status text not null default 'pending' check (status in ('pending', 'accepted', 'declined', 'cancelled')),
   created_at timestamptz not null default now(),
   responded_at timestamptz,
@@ -96,6 +96,62 @@ create policy "Reception swaps cancel own" on public.reception_swaps for update 
   using (from_user = auth.uid() and status = 'pending')
   with check (from_user = auth.uid() and status = 'cancelled');
 
+-- Wer ist an einem Tag eingeteilt? (Abweichung vor Wochenplan, Wechsel wöchentlich ab rotation_start)
+create or replace function public.reception_assignee(p_day date)
+returns uuid
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare
+  o public.reception_overrides;
+  r public.reception_rules;
+  weeks int;
+  person text;
+begin
+  select * into o from public.reception_overrides where day = p_day;
+  if found then
+    return coalesce(o.user_id, public.profile_by_tag(o.person));
+  end if;
+  select * into r from public.reception_rules where weekday = extract(isodow from p_day);
+  if not found then
+    return null;
+  end if;
+  weeks := floor((date_trunc('week', p_day)::date - date_trunc('week', r.rotation_start)::date) / 7.0);
+  person := r.persons[1 + ((weeks % array_length(r.persons, 1)) + array_length(r.persons, 1)) % array_length(r.persons, 1)];
+  return public.profile_by_tag(person);
+end;
+$$;
+revoke execute on function public.reception_assignee(date) from public, anon, authenticated;
+
+-- Tauschanfragen nur für eigene, künftige Tage und an freigeschaltete Personen
+create or replace function public.check_reception_swap()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if new.day < (now() at time zone 'Europe/Berlin')::date then
+    raise exception 'Vergangene Tage können nicht getauscht werden.';
+  end if;
+  if public.reception_assignee(new.day) is distinct from new.from_user then
+    raise exception 'Du bist an diesem Tag nicht am Empfang eingeteilt.';
+  end if;
+  if not exists (select 1 from public.profiles where id = new.to_user and is_approved is not false) then
+    raise exception 'Diese Person gibt es nicht oder sie ist nicht freigeschaltet.';
+  end if;
+  if exists (select 1 from public.reception_swaps where day = new.day and status = 'pending') then
+    raise exception 'Für diesen Tag läuft schon eine Anfrage.';
+  end if;
+  return new;
+end;
+$$;
+revoke execute on function public.check_reception_swap() from public, anon, authenticated;
+drop trigger if exists check_reception_swap on public.reception_swaps;
+create trigger check_reception_swap before insert on public.reception_swaps for each row execute function public.check_reception_swap();
+
 -- Tausch annehmen oder ablehnen (nur die angefragte Person)
 create or replace function public.respond_reception_swap(p_swap_id uuid, p_accept boolean)
 returns void
@@ -113,6 +169,10 @@ begin
   end if;
   if s.status <> 'pending' then
     raise exception 'Diese Anfrage wurde schon beantwortet.';
+  end if;
+  -- Nur wenn der Tag noch kommt und die anfragende Person ihn weiterhin hat
+  if p_accept and (s.day < (now() at time zone 'Europe/Berlin')::date or public.reception_assignee(s.day) is distinct from s.from_user) then
+    raise exception 'Die Anfrage ist nicht mehr gültig, der Tag ist vorbei oder wurde inzwischen anders vergeben.';
   end if;
 
   update public.reception_swaps
