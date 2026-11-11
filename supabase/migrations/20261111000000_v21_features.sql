@@ -222,10 +222,13 @@ grant update (read_at) on public.notifications to authenticated;
 
 -- Live-Aktualisierung in der App
 do $$
+declare t text;
 begin
-  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and tablename = 'notifications') then
-    alter publication supabase_realtime add table public.notifications;
-  end if;
+  foreach t in array array['notifications', 'reception_rules', 'reception_overrides', 'reception_swaps'] loop
+    if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = t) then
+      execute format('alter publication supabase_realtime add table public.%I', t);
+    end if;
+  end loop;
 end $$;
 
 -- Benachrichtigung anlegen (nur intern aus Triggern)
