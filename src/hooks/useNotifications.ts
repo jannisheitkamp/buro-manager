@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useStore } from '@/store/useStore';
+import { getPushState } from '@/lib/push';
 
 const canNotify = () => typeof window !== 'undefined' && 'Notification' in window;
 
@@ -14,7 +15,7 @@ export const requestNotificationPermission = async () => {
   }
 };
 
-const notify = (title: string, body: string, tag: string) => {
+const notifyLocal = (title: string, body: string, tag: string) => {
   if (!canNotify() || Notification.permission !== 'granted') return;
   try {
     new Notification(title, { body, tag, icon: '/icon.png' });
@@ -28,6 +29,12 @@ export const useNotifications = () => {
 
   useEffect(() => {
     if (!userId) return;
+    // Ist Push aktiv, kommen Mitteilungen über den Service Worker. Sonst doppelt.
+    let pushOn = false;
+    getPushState().then((st) => (pushOn = st === 'on')).catch(() => {});
+    const notify = (title: string, body: string, tag: string) => {
+      if (!pushOn) notifyLocal(title, body, tag);
+    };
 
     const channel = supabase
       .channel(`system-notifications-${userId}`)

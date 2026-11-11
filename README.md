@@ -76,6 +76,20 @@ Alle drei Dateien können gefahrlos mehrfach ausgeführt werden.
 
 Zusätzlich im Supabase-Dashboard unter Authentication → Passwortschutz den Abgleich mit geleakten Passwörtern einschalten.
 
+## 🔔 Version 2.1: Einrichtung
+
+Neu: Empfangsplan in der App (Tausch, Vertretung), Mitteilungen und Push aufs Handy, Erinnerung an Wiedervorlagen, Kalender-Abo, Provisionseingang, Monatsbericht, schlauerer Assistent.
+
+1.  **Datenbank:** `supabase/migrations/20261111000000_v21_features.sql` im SQL-Editor ausführen (wiederholbar). Aktiviert `pg_net` und `pg_cron`.
+2.  **Edge Functions** anlegen, beide mit „Verify JWT“ **aus**:
+    *   `send-push` aus `supabase/functions/send-push/index.ts`
+    *   `calendar-feed` aus `supabase/functions/calendar-feed/index.ts`
+3.  **Secrets** der Edge Functions: `VAPID_PUBLIC_KEY` (steht in `src/lib/push.ts`), `VAPID_PRIVATE_KEY` (nicht im Repo), `VAPID_SUBJECT` (z. B. `mailto:buero@agentur.de`).
+
+Ohne diese Schritte läuft die App weiter wie in 2.0; die neuen Bereiche zeigen dann einen Hinweis.
+
+Push auf dem iPhone funktioniert nur, wenn die App über „Teilen → Zum Home-Bildschirm“ installiert ist (iOS 16.4 oder neuer).
+
 ## 🎨 Design (Version 2.0)
 
 *   **Farben und Schrift:** in `tailwind.config.js` (Petrol als Markenfarbe, leicht grün getöntes Neutral, Bernstein für Hinweise) und `src/index.css`. Schriften: Bricolage Grotesque für Überschriften und Zahlen, Geist für Text.

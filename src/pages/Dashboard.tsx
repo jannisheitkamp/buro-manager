@@ -24,7 +24,7 @@ import { supabase } from '@/lib/supabase';
 import { useStore } from '@/store/useStore';
 import { Avatar, Badge, Button, Card, CardHeader, EmptyState, GoalRuler, PageLoading } from '@/components/ui';
 import { STATUS_CONFIG, getStatusConfig, isStatusFresh, type StatusType } from '@/lib/status';
-import { getReceptionAssignee, isOfficeClosed, matchesPerson } from '@/lib/reception';
+import { isOfficeClosed, matchesPerson, useReceptionPlan } from '@/lib/reception';
 import { cn } from '@/utils/cn';
 
 /* ------------------------------------------------------------------ */
@@ -35,6 +35,7 @@ type Colleague = {
   id: string;
   full_name: string | null;
   avatar_url: string | null;
+  roles?: string[] | null;
   status?: { status: StatusType; message: string | null; updated_at: string };
   absentToday?: string;
 };
@@ -165,6 +166,7 @@ export const Dashboard = () => {
   const profile = useStore((s) => s.profile);
   const isAdmin = !!profile?.roles?.includes('admin');
   const navigate = useNavigate();
+  const reception = useReceptionPlan();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -192,7 +194,7 @@ export const Dashboard = () => {
 
     try {
       const [profilesRes, statusRes, absencesRes, callbacksRes, parcelsRes, eventsRes, postsRes, callsRes, prodRes, followRes] = await Promise.all([
-        supabase.from('profiles').select('id, full_name, avatar_url, is_approved, monthly_goal, yearly_goal').order('full_name'),
+        supabase.from('profiles').select('id, full_name, avatar_url, roles, is_approved, monthly_goal, yearly_goal').order('full_name'),
         supabase.from('user_status').select('user_id, status, message, updated_at').gte('updated_at', dayStart.toISOString()).order('updated_at', { ascending: false }),
         supabase.from('absences').select('user_id, type, status').lte('start_date', todayStr).gte('end_date', todayStr).neq('status', 'rejected'),
         supabase
@@ -225,7 +227,7 @@ export const Dashboard = () => {
 
       const team: Colleague[] = (profilesRes.data || [])
         .filter((p) => p.is_approved !== false)
-        .map((p) => ({ id: p.id, full_name: p.full_name, avatar_url: p.avatar_url, status: latest.get(p.id), absentToday: absent.get(p.id) }))
+        .map((p) => ({ id: p.id, full_name: p.full_name, avatar_url: p.avatar_url, roles: p.roles, status: latest.get(p.id), absentToday: absent.get(p.id) }))
         .sort((a, b) => {
           const rank = (c: Colleague) => (c.status && getStatusConfig(c.status.status)?.available ? 0 : c.absentToday ? 2 : c.status ? 1 : 1.5);
           return rank(a) - rank(b) || (a.full_name || '').localeCompare(b.full_name || '');
@@ -344,10 +346,13 @@ export const Dashboard = () => {
   const yearPct = stats.yearlyGoal ? Math.round((stats.yearLv / stats.yearlyGoal) * 100) : 0;
   const onTrack = stats.monthLv >= stats.monthlyGoal * progress.ratio;
 
-  const receptionToday = getReceptionAssignee(today);
+  const todayAssignment = reception.assigneeFor(today);
+  const receptionToday = todayAssignment?.person;
   const nextWorkday = [1, 2, 3, 4, 5, 6, 7].map((n) => addDays(today, n)).find((d) => !isOfficeClosed(d))!;
-  const receptionNext = getReceptionAssignee(nextWorkday);
-  const receptionPersonToday = receptionToday ? colleagues.find((c) => matchesPerson(c.full_name, receptionToday)) : undefined;
+  const receptionNext = reception.assigneeFor(nextWorkday)?.person;
+  const receptionPersonToday = todayAssignment
+    ? colleagues.find((c) => c.id === todayAssignment.userId) || colleagues.find((c) => matchesPerson(c, todayAssignment.person))
+    : undefined;
 
   const urgent = agenda.filter((a) => a.kind !== 'event').sort((a, b) => Number(b.urgent) - Number(a.urgent) || a.time.getTime() - b.time.getTime());
   const events = agenda.filter((a) => a.kind === 'event').sort((a, b) => a.time.getTime() - b.time.getTime());

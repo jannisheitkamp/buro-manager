@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Send, X, Bot, ArrowRight } from 'lucide-react';
 import { create } from 'zustand';
+import { smartAnswer, EXAMPLE_QUESTIONS } from '@/lib/assistantBrain';
 import { cn } from '@/utils/cn';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
@@ -45,7 +46,7 @@ export const useAssistant = create<{ open: boolean; setOpen: (o: boolean) => voi
 }));
 
 export const AIAssistant = () => {
-    const { user } = useStore();
+    const { user, profile } = useStore();
     const navigate = useNavigate();
     const { open: isOpen, setOpen: setIsOpen } = useAssistant();
     const [input, setInput] = useState('');
@@ -54,7 +55,7 @@ export const AIAssistant = () => {
         {
             id: '1',
             role: 'bot',
-            content: 'Ich beantworte Fragen zu deinen Büro-Daten, zum Beispiel Umsatz, Leads, Rückrufe, Pakete oder wer heute abwesend ist.',
+            content: 'Frag mich in normalen Sätzen, zum Beispiel „Wie viele BU-Verträge hatte ich im Oktober?“, „Provision diesen Monat im Vergleich“, „Wer ist morgen am Empfang?“ oder „Wie viele Urlaubstage habe ich noch?“.',
             timestamp: new Date()
         }
     ]);
@@ -71,19 +72,32 @@ export const AIAssistant = () => {
 
         const input = normalize(userInput);
 
+        // Zuerst der schlauere Teil: Zeiträume, Sparten, Kennzahlen, Empfang, Urlaub, Ziel
+        try {
+            const smart = await smartAnswer(input, { userId: user.id, isAdmin: !!profile?.roles?.includes('admin'), firstName: profile?.full_name?.split(' ')[0] });
+            if (smart) {
+                addBotMessage({ text: smart.text, actions: smart.actions?.map(a => ({ label: a.label, action: () => navigate(a.href) })) });
+                return;
+            }
+        } catch (error) {
+            addBotMessage({ text: `Das konnte ich gerade nicht nachschlagen. (${(error as Error)?.message || 'Unbekannter Fehler'})` });
+            return;
+        }
+
         const INTENTS: IntentHandler[] = [
             {
                 id: 'help',
                 keywords: ['hilfe', 'help', 'was kannst du', 'funktionen', 'befehle'],
                 handler: async () => ({
                     text:
-                        'Ich kann dir u.a. helfen mit:\n' +
-                        '- Umsatz: "Umsatz diesen Monat" / "Umsatz letzten Monat"\n' +
-                        '- Leads: "Offene Leads"\n' +
-                        '- Rückrufe: "Offene Rückrufe"\n' +
-                        '- Pakete: "Pakete"\n' +
-                        '- Abwesenheiten: "Wer ist heute abwesend?"\n' +
-                        'Du kannst auch sagen: "Öffne Produktion/Leads/Kalender/Callbacks/Pakete".',
+                        'Frag einfach in normalen Sätzen, zum Beispiel:\n' +
+                        '- Produktion: „Wie viele BU-Verträge hatte ich im Oktober?“, „Provision letzte Woche“, „Lebenswerte Q3 im Vergleich“, „Stornos dieses Jahr“\n' +
+                        '- Ziel: „Schaffe ich mein Monatsziel?“\n' +
+                        '- Urlaub: „Wie viele Urlaubstage habe ich noch?“\n' +
+                        '- Empfang: „Wer ist morgen am Empfang?“, „Empfang am Freitag“\n' +
+                        '- Team: „Wer ist im Büro?“, „Wer ist heute abwesend?“\n' +
+                        '- Außerdem: offene Leads, Rückrufe, Pakete, Termine heute\n' +
+                        'Oder: „Öffne Produktion“, „Öffne Kalender“.',
                 }),
             },
             {
@@ -94,7 +108,7 @@ export const AIAssistant = () => {
                         { keywords: ['produktion', 'umsatz'], href: '/production', label: 'Produktion öffnen' },
                         { keywords: ['leads', 'pipeline'], href: '/leads', label: 'Leads öffnen' },
                         { keywords: ['kalender', 'termine'], href: '/general-calendar', label: 'Kalender öffnen' },
-                        { keywords: ['rueckruf', 'callbacks', 'anrufe'], href: '/callbacks', label: 'Rückrufe öffnen' },
+                        { keywords: ['rueckruf', 'callbacks', 'anrufe'], href: '/calls?tab=tasks', label: 'Rückrufe öffnen' },
                         { keywords: ['pakete', 'paket'], href: '/parcels', label: 'Pakete öffnen' },
                         { keywords: ['pinnwand', 'board'], href: '/board', label: 'Pinnwand öffnen' },
                         { keywords: ['dokumente', 'documents'], href: '/documents', label: 'Dokumente öffnen' },
@@ -456,7 +470,7 @@ export const AIAssistant = () => {
                         </div>
 
                         <div className="flex flex-wrap gap-1.5 border-t border-gray-100 px-3 pt-3 dark:border-gray-700">
-                            {['Umsatz diesen Monat', 'Offene Rückrufe', 'Wer ist abwesend?'].map((q) => (
+                            {[EXAMPLE_QUESTIONS[0], EXAMPLE_QUESTIONS[2], EXAMPLE_QUESTIONS[3], 'Offene Rückrufe'].map((q) => (
                                 <button
                                     key={q}
                                     type="button"

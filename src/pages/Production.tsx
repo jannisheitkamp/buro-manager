@@ -6,7 +6,7 @@ import { useLocation } from 'react-router-dom';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { Menu as MenuRoot, MenuButton, MenuItem, MenuItems } from '@headlessui/react';
-import { Plus, Search, FileText, Trash2, Download, Pencil, FileDown, Trophy, LayoutGrid, Sparkles, Loader2, UploadCloud, FileSpreadsheet, ChevronDown } from 'lucide-react';
+import { Plus, Search, FileText, Trash2, Download, Pencil, FileDown, Trophy, LayoutGrid, Sparkles, Loader2, UploadCloud, FileSpreadsheet, ChevronDown, CalendarRange, Hourglass } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { Modal } from '@/components/Modal';
 import { ConfirmModal } from '@/components/ConfirmModal';
@@ -51,6 +51,10 @@ export const Production = () => {
   const [submitting, setSubmitting] = useState(false);
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [onlyOpenCommission, setOnlyOpenCommission] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportMonth, setReportMonth] = useState(() => format(new Date(), 'yyyy-MM'));
+  const [reportScope, setReportScope] = useState<'me' | 'team'>('me');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'personal' | 'leaderboard'>('personal');
   const [chartMode, setChartMode] = useState<'revenue' | 'life_values'>('revenue'); // New: Toggle Charts
@@ -237,11 +241,11 @@ export const Production = () => {
   const [lifeValues, setLifeValues] = useState(0); // New: Lebenswerte
   const [lifeValueFactor, setLifeValueFactor] = useState<number>(0); // New: Factor for Lebenswerte
 
-  const [profiles, setProfiles] = useState<{id: string; full_name: string; agency_number?: string}[]>([]); // For "Managed By" dropdown
+  const [profiles, setProfiles] = useState<{id: string; full_name: string; agency_number?: string; monthly_goal?: number | null; is_approved?: boolean}[]>([]); // For "Managed By" dropdown
 
   useEffect(() => {
       const loadProfiles = async () => {
-          const { data } = await supabase.from('profiles').select('id, full_name, agency_number');
+          const { data } = await supabase.from('profiles').select('id, full_name, agency_number, monthly_goal, is_approved');
           if (data) setProfiles(data);
       };
       loadProfiles();
@@ -558,6 +562,7 @@ export const Production = () => {
   const filteredEntries = entries.filter(e => {
       if (viewMode === 'personal' && e.user_id !== user?.id) return false;
       if (filterCategory !== 'all' && e.category !== filterCategory) return false;
+      if (onlyOpenCommission && !(e.status === 'policed' && !e.commission_received_date)) return false;
       const search = searchQuery.toLowerCase();
       return (
           e.customer_name?.toLowerCase().includes(search) ||
@@ -734,6 +739,109 @@ export const Production = () => {
       link.click();
   };
 
+  // Provision noch nicht eingegangen: policierte eigene Verträge ohne Eingangsdatum
+  const openCommission = entries.filter(e => e.user_id === user?.id && e.status === 'policed' && !e.commission_received_date);
+  const openCommissionSum = openCommission.reduce((a, e) => a + Number(e.commission_amount || 0), 0);
+
+  const markCommissionReceived = async (id: string) => {
+      const { error } = await supabase.from('production_entries').update({ commission_received_date: format(new Date(), 'yyyy-MM-dd') }).eq('id', id);
+      if (error) toast.error('Konnte nicht gespeichert werden.');
+      else {
+          toast.success('Provision als erhalten markiert');
+          fetchEntries();
+      }
+  };
+
+  const handleMonthlyReport = async () => {
+      const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([import('jspdf'), import('jspdf-autotable')]);
+      const [y, m] = reportMonth.split('-').map(Number);
+      const monthDate = new Date(y, m - 1, 1);
+      const monthLabel = format(monthDate, 'MMMM yyyy', { locale: de });
+      const inMonth = entries.filter(e => String(e.submission_date || '').startsWith(reportMonth));
+      const scope = profile?.roles?.includes('admin') ? reportScope : 'me';
+      const scoped = scope === 'me' ? inMonth.filter(e => e.user_id === user?.id) : inMonth;
+      const num = (v: number) => new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 }).format(v);
+
+      const doc = new jsPDF();
+      doc.setFontSize(18);
+      doc.text(`Monatsbericht ${monthLabel}`, 14, 20);
+      doc.setFontSize(10);
+      doc.setTextColor(110);
+      doc.text(`${scope === 'me' ? (profile?.full_name || '') : 'Ganzes Team'} · erstellt am ${format(new Date(), 'dd.MM.yyyy')}`, 14, 27);
+      doc.setTextColor(0);
+
+      // Übersicht je Person
+      const people = scope === 'me' ? profiles.filter(p => p.id === user?.id) : profiles.filter(p => p.is_approved !== false);
+      const rows = people
+          .map(p => {
+              const own = scoped.filter(e => e.user_id === p.id);
+              const active = own.filter(e => e.status !== 'cancelled');
+              const lv = active.reduce((a, e) => a + Number(e.life_values || 0), 0);
+              const comm = active.reduce((a, e) => a + Number(e.commission_amount || 0), 0);
+              const goal = Number(p.monthly_goal) || 0;
+              return { name: p.full_name, count: active.length, cancelled: own.length - active.length, lv, comm, goal, pct: goal ? Math.round((lv / goal) * 100) : null };
+          })
+          .filter(r => scope === 'me' || r.count > 0 || r.cancelled > 0)
+          .sort((a, b) => b.lv - a.lv);
+
+      if (rows.length === 0) {
+          toast.error(`Keine Verträge im ${monthLabel}.`);
+          return;
+      }
+
+      autoTable(doc, {
+          startY: 34,
+          head: [['Person', 'Verträge', 'Storno', 'Lebenswerte', 'Ziel', 'Erreicht', 'Provision']],
+          body: rows.map(r => [r.name, r.count, r.cancelled || '–', num(r.lv), r.goal ? num(r.goal) : '–', r.pct !== null ? `${r.pct} %` : '–', formatCurrency(r.comm)]),
+          foot: rows.length > 1 ? [['Summe', rows.reduce((a, r) => a + r.count, 0), rows.reduce((a, r) => a + r.cancelled, 0) || '–', num(rows.reduce((a, r) => a + r.lv, 0)), '', '', formatCurrency(rows.reduce((a, r) => a + r.comm, 0))]] : undefined,
+          theme: 'grid',
+          headStyles: { fillColor: [20, 106, 104] },
+          footStyles: { fillColor: [236, 238, 234], textColor: [0, 0, 0], fontStyle: 'bold' },
+          columnStyles: { 1: { halign: 'right' }, 2: { halign: 'right' }, 3: { halign: 'right' }, 4: { halign: 'right' }, 5: { halign: 'right' }, 6: { halign: 'right' } },
+      });
+
+      // Sparten
+      const byCat: Record<string, { count: number; comm: number; lv: number }> = {};
+      scoped.filter(e => e.status !== 'cancelled').forEach(e => {
+          const k = categoryLabel(e.category);
+          byCat[k] = byCat[k] || { count: 0, comm: 0, lv: 0 };
+          byCat[k].count++;
+          byCat[k].comm += Number(e.commission_amount || 0);
+          byCat[k].lv += Number(e.life_values || 0);
+      });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let y2 = ((doc as any).lastAutoTable?.finalY || 40) + 10;
+      doc.setFontSize(12);
+      doc.text('Nach Sparte', 14, y2);
+      autoTable(doc, {
+          startY: y2 + 3,
+          head: [['Sparte', 'Verträge', 'Lebenswerte', 'Provision']],
+          body: Object.entries(byCat).sort((a, b) => b[1].comm - a[1].comm).map(([k, v]) => [k, v.count, num(v.lv), formatCurrency(v.comm)]),
+          theme: 'grid',
+          headStyles: { fillColor: [20, 106, 104] },
+          columnStyles: { 1: { halign: 'right' }, 2: { halign: 'right' }, 3: { halign: 'right' } },
+      });
+
+      // Einzelne Verträge nur im persönlichen Bericht
+      if (scope === 'me') {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          y2 = ((doc as any).lastAutoTable?.finalY || 60) + 10;
+          doc.setFontSize(12);
+          doc.text('Verträge', 14, y2);
+          autoTable(doc, {
+              startY: y2 + 3,
+              head: [['Eingereicht', 'Kunde', 'Tarif', 'Status', 'Lebenswerte', 'Provision']],
+              body: scoped.map(e => [format(new Date(e.submission_date), 'dd.MM.'), `${e.customer_name}${e.customer_firstname ? ', ' + e.customer_firstname : ''}`, e.sub_category || categoryLabel(e.category), STATUS_META[e.status]?.label || e.status, num(Number(e.life_values || 0)), formatCurrency(e.commission_amount)]),
+              theme: 'grid',
+              headStyles: { fillColor: [20, 106, 104] },
+              columnStyles: { 4: { halign: 'right' }, 5: { halign: 'right' } },
+          });
+      }
+
+      doc.save(`Monatsbericht_${reportMonth}${scope === 'me' ? '' : '_Team'}.pdf`);
+      setReportOpen(false);
+  };
+
   const handleExportPDF = async () => {
       // Filter entries for export: ALWAYS restrict to current user
       const exportEntries = entries.filter(e => {
@@ -824,7 +932,7 @@ export const Production = () => {
                         <MenuButton className="btn-secondary">
                             <FileDown className="h-4 w-4" /> Export <ChevronDown className="h-3.5 w-3.5 text-gray-400" />
                         </MenuButton>
-                        <MenuItems anchor={{ to: 'bottom end', gap: 6 }} className="z-50 w-52 animate-pop-in rounded-xl border border-gray-200 bg-white p-1.5 shadow-xl focus:outline-none dark:border-gray-700 dark:bg-gray-800">
+                        <MenuItems anchor={{ to: 'bottom end', gap: 6 }} className="z-50 w-56 animate-pop-in rounded-xl border border-gray-200 bg-white p-1.5 shadow-xl focus:outline-none dark:border-gray-700 dark:bg-gray-800">
                             <MenuItem>
                                 <button type="button" onClick={handleExportPDF} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-gray-700 data-[focus]:bg-gray-100 dark:text-gray-200 dark:data-[focus]:bg-gray-700">
                                     <FileText className="h-4 w-4" /> Nachweis als PDF
@@ -833,6 +941,11 @@ export const Production = () => {
                             <MenuItem>
                                 <button type="button" onClick={handleExport} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-gray-700 data-[focus]:bg-gray-100 dark:text-gray-200 dark:data-[focus]:bg-gray-700">
                                     <FileSpreadsheet className="h-4 w-4" /> Tabelle für Excel
+                                </button>
+                            </MenuItem>
+                            <MenuItem>
+                                <button type="button" onClick={() => setReportOpen(true)} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-gray-700 data-[focus]:bg-gray-100 dark:text-gray-200 dark:data-[focus]:bg-gray-700">
+                                    <CalendarRange className="h-4 w-4" /> Monatsbericht
                                 </button>
                             </MenuItem>
                         </MenuItems>
@@ -887,7 +1000,22 @@ export const Production = () => {
 
                 <div className="card overflow-hidden">
                     <div className="flex flex-col gap-3 border-b border-gray-100 p-4 dark:border-gray-700 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-                        <Segmented size="sm" value={filterCategory} onChange={setFilterCategory} options={filterOptions} />
+                        <div className="flex flex-wrap items-center gap-2">
+                            <Segmented size="sm" value={filterCategory} onChange={setFilterCategory} options={filterOptions} />
+                            {viewMode === 'personal' && (
+                                <button
+                                    type="button"
+                                    aria-pressed={onlyOpenCommission}
+                                    onClick={() => setOnlyOpenCommission(v => !v)}
+                                    className={cn('inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors', onlyOpenCommission ? 'border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-200' : 'border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700/50')}
+                                    title="Policierte Verträge, deren Provision noch nicht eingegangen ist"
+                                >
+                                    <Hourglass className="h-3.5 w-3.5" />
+                                    Provision offen
+                                    {openCommission.length > 0 && <span className="tabular">· {openCommission.length} · {new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(openCommissionSum)}</span>}
+                                </button>
+                            )}
+                        </div>
                         <div className="relative w-full sm:w-64">
                             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
                             <input type="search" placeholder="Kunde, Schein-Nr., Notiz" aria-label="Verträge durchsuchen" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="input pl-9" />
@@ -957,7 +1085,16 @@ export const Production = () => {
                                                     </td>
                                                     <td className="tabular text-right text-gray-700 dark:text-gray-300">{formatCurrency(entry.valuation_sum || 0)}</td>
                                                     <td className="tabular text-right font-medium text-brand-700 dark:text-brand-300">{new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 }).format(entry.life_values || 0)}</td>
-                                                    <td className="tabular text-right font-semibold text-gray-900 dark:text-white">{formatCurrency(entry.commission_amount || 0)}</td>
+                                                    <td className="tabular text-right">
+                                                        <span className="block font-semibold text-gray-900 dark:text-white">{formatCurrency(entry.commission_amount || 0)}</span>
+                                                        {entry.status === 'policed' && entry.user_id === user?.id && (entry.commission_received_date ? (
+                                                            <span className="text-2xs text-emerald-700 dark:text-emerald-400">erhalten {format(new Date(entry.commission_received_date), 'dd.MM.')}</span>
+                                                        ) : (
+                                                            <button type="button" onClick={() => markCommissionReceived(entry.id)} className="text-2xs font-medium text-amber-700 hover:underline dark:text-amber-300" title="Provision als erhalten markieren">
+                                                                offen · erhalten?
+                                                            </button>
+                                                        ))}
+                                                    </td>
                                                     <td>
                                                         <div className="flex justify-end gap-0.5 opacity-60 transition-opacity group-hover:opacity-100 [&_*]:no-underline">
                                                             <button type="button" onClick={() => handleEdit(entry)} className="btn-icon p-1.5" title="Bearbeiten" aria-label="Bearbeiten"><Pencil className="h-4 w-4" /></button>
@@ -1195,6 +1332,34 @@ export const Production = () => {
                         </div>
                     </aside>
                 </form>
+            </div>
+        </Modal>
+
+        <Modal
+            isOpen={reportOpen}
+            onClose={() => setReportOpen(false)}
+            title="Monatsbericht"
+            description="PDF mit Verträgen, Lebenswerten, Zielerreichung und Provision. Stornos zählen nicht mit."
+            size="sm"
+            footer={
+                <>
+                    <button type="button" onClick={() => setReportOpen(false)} className="btn-secondary">Abbrechen</button>
+                    <Button icon={FileDown} onClick={handleMonthlyReport}>PDF erstellen</Button>
+                </>
+            }
+        >
+            <div className="space-y-4">
+                <Field label="Monat" htmlFor="report-month">
+                    <input id="report-month" type="month" value={reportMonth} max={format(new Date(), 'yyyy-MM')} onChange={e => setReportMonth(e.target.value)} className="input" />
+                </Field>
+                {profile?.roles?.includes('admin') && (
+                    <Segmented
+                        value={reportScope}
+                        onChange={(v) => setReportScope(v as 'me' | 'team')}
+                        options={[{ value: 'me', label: 'Nur meine Verträge' }, { value: 'team', label: 'Ganzes Team' }]}
+                    />
+                )}
+                {reportScope === 'team' && <p className="text-xs text-gray-500">Übersicht je Person ohne einzelne Kundendaten.</p>}
             </div>
         </Modal>
 
