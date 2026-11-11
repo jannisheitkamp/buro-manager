@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Avatar } from '@/components/ui';
 import { PageHeader } from '@/components/ui';
+import { ConnectivitySettings } from '@/components/ConnectivitySettings';
 import { supabase } from '@/lib/supabase';
 import { getMyWebhookSecret } from '@/lib/profiles';
 import { useStore } from '@/store/useStore';
@@ -672,6 +673,8 @@ export const ProfilePage = () => {
                         ))}
                     </div>
                 </motion.div>
+
+                <ConnectivitySettings />
 
                 {/* Apple Shortcuts Card */}
                 <motion.div 

@@ -30,7 +30,11 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg'],
       workbox: {
-        maximumFileSizeToCacheInBytes: 3000000
+        maximumFileSizeToCacheInBytes: 3000000,
+        // Push-Nachrichten (siehe public/push-handler.js)
+        importScripts: ['push-handler.js'],
+        // Edge-Functions und Kalender-Abo nie aus dem Cache bedienen
+        navigateFallbackDenylist: [/^\/functions\//],
       },
       manifest: {
         name: 'Büro Manager',
