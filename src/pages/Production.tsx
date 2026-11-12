@@ -611,11 +611,9 @@ export const Production = () => {
   
   // 1. Monthly Data (Last 6 Months)
   const getMonthlyData = () => {
-      const last6Months = Array.from({ length: 6 }, (_, i) => {
-          const d = new Date();
-          d.setMonth(d.getMonth() - (5 - i));
-          return d;
-      });
+      // Immer vom 1. des Monats aus rechnen, sonst springt setMonth am 29.–31. über kurze Monate
+      const now = new Date();
+      const last6Months = Array.from({ length: 6 }, (_, i) => new Date(now.getFullYear(), now.getMonth() - (5 - i), 1));
 
       return last6Months.map(date => {
           const monthKey = format(date, 'yyyy-MM');
@@ -683,6 +681,12 @@ export const Production = () => {
           'Betreuer'
       ];
 
+      // Text für CSV: Anführungszeichen verdoppeln, Formel-Anfänge entschärfen (Excel würde sie ausführen)
+      const csvText = (val: string | null | undefined) => {
+          const v = String(val ?? '');
+          return `"${(/^[=+\-@\t\r]/.test(v) ? "'" + v : v).replace(/"/g, '""')}"`;
+      };
+
       // Helper for German number format (comma as decimal)
       const fmtNum = (val: number | null | undefined) => {
           if (val === null || val === undefined) return '';
@@ -714,11 +718,11 @@ export const Production = () => {
                   statusMap[e.status] || e.status,
                   format(new Date(e.submission_date), 'dd.MM.yyyy'),
                   e.policing_date ? format(new Date(e.policing_date), 'dd.MM.yyyy') : '',
-                  `"${e.customer_name || ''}"`,
-                  `"${e.customer_firstname || ''}"`,
-                  `"${e.policy_number || ''}"`,
+                  csvText(e.customer_name),
+                  csvText(e.customer_firstname),
+                  csvText(e.policy_number),
                   catMap[e.category] || e.category,
-                  `"${e.sub_category || ''}"`,
+                  csvText(e.sub_category),
                   payMap[e.payment_method] || e.payment_method,
                   fmtNum(e.gross_premium),
                   fmtNum(e.net_premium),
@@ -727,7 +731,7 @@ export const Production = () => {
                   fmtNum(e.life_values),
                   fmtNum(e.commission_rate),
                   fmtNum(e.commission_amount),
-                  `"${e.manager?.full_name || ''}"`
+                  csvText(e.manager?.full_name)
               ].join(';');
           })
       ].join('\n');

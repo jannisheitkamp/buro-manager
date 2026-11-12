@@ -26,6 +26,16 @@ serve(async (req) => {
       })
     }
 
+    // Größe vor dem Einlesen prüfen (10 MB Datei + etwas Platz für das Formular)
+    const MAX_BODY = 10 * 1024 * 1024 + 64 * 1024
+    const contentLength = Number(req.headers.get('content-length'))
+    if (!contentLength || contentLength > MAX_BODY) {
+      return new Response(JSON.stringify({ error: 'Nur PDF oder Bild bis 10 MB' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 413,
+      })
+    }
+
     const formData = await req.formData()
     const file = formData.get('file')
 
@@ -64,9 +74,10 @@ serve(async (req) => {
     }
     const GEMINI_MODEL = Deno.env.get('GEMINI_MODEL') || 'gemini-2.0-flash'
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`, {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      // Schlüssel im Header statt in der URL, damit er nicht in Logs oder Fehlermeldungen landet
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': GEMINI_API_KEY },
       body: JSON.stringify({
         contents: [{
           parts: [
@@ -131,8 +142,8 @@ serve(async (req) => {
     })
 
   } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error)
-    return new Response(JSON.stringify({ error: msg }), {
+    console.error('analyze-contract:', error instanceof Error ? error.message : String(error))
+    return new Response(JSON.stringify({ error: 'Interner Fehler' }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 500,
     })

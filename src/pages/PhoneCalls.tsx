@@ -118,12 +118,20 @@ export const PhoneCalls = () => {
       else if (laterDelay === '3d') nextDate = addDays(nextDate, 3);
       else if (laterDelay === 'custom' && laterCustomDate) nextDate = new Date(laterCustomDate);
 
+      if (isNaN(nextDate.getTime())) {
+          toast.error('Bitte ein gültiges Datum angeben.');
+          return;
+      }
       const leadId = leads[currentLeadIndex].id;
-      await supabase.from('leads').update({
+      const { error } = await supabase.from('leads').update({
           status: 'retry',
           next_call_at: nextDate.toISOString(),
           last_call_at: new Date().toISOString()
       }).eq('id', leadId);
+      if (error) {
+          toast.error('Wiedervorlage konnte nicht gespeichert werden.');
+          return;
+      }
 
       toast.success('Wiedervorlage gespeichert! ⏰');
       setIsLaterModalOpen(false);
@@ -155,16 +163,22 @@ export const PhoneCalls = () => {
 
       const { error: calendarError } = await supabase.from('calendar_events').insert(eventData);
 
+      // Ohne Kalendertermin den Lead nicht abschließen, sonst geht der Termin verloren
       if (calendarError) {
           toast.error(`Fehler Kalender: ${calendarError.message}`);
+          return;
       }
 
       // 2. Mark Lead as Done
-      await supabase.from('leads').update({
+      const { error: leadError } = await supabase.from('leads').update({
           status: 'done',
           notes: `Termin: ${format(start, 'dd.MM. HH:mm')} - ${appointmentNote}`,
           last_call_at: new Date().toISOString()
       }).eq('id', lead.id);
+      if (leadError) {
+          toast.error('Termin steht im Kalender, aber der Lead konnte nicht abgeschlossen werden.');
+          return;
+      }
 
       toast.success('Termin & Kalender erstellt! 🎉');
       setIsAppointmentModalOpen(false);
@@ -223,7 +237,11 @@ export const PhoneCalls = () => {
           toast('Nicht erreicht -> Später nochmal', { icon: '📞' });
       }
 
-      await supabase.from('leads').update(updateData).eq('id', leadId);
+      const { error } = await supabase.from('leads').update(updateData).eq('id', leadId);
+      if (error) {
+          toast.error('Ergebnis konnte nicht gespeichert werden.');
+          return;
+      }
       advanceLead();
   };
 
@@ -490,7 +508,8 @@ export const PhoneCalls = () => {
       setDeleteLogId(null);
       if (!id) return;
       try {
-          await supabase.from('call_logs').delete().eq('id', id);
+          const { error } = await supabase.from('call_logs').delete().eq('id', id);
+          if (error) throw error;
           toast.success('Gelöscht');
           setCallLogs(prev => prev.filter(l => l.id !== id));
       } catch (error) {

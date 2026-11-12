@@ -137,9 +137,10 @@ Wenn der Nutzer nach Dingen fragt, die nicht im Kontext stehen (z.B. spezifische
       },
     }
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`, {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      // Schlüssel im Header statt in der URL, damit er nicht in Logs oder Fehlermeldungen landet
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': GEMINI_API_KEY },
       body: JSON.stringify(requestBody)
     })
 
@@ -161,7 +162,9 @@ Wenn der Nutzer nach Dingen fragt, die nicht im Kontext stehen (z.B. spezifische
     })
 
   } catch (error) {
-    return new Response(JSON.stringify({ error: error instanceof Error ? error.message : String(error) }), {
+    // Details nur ins Server-Log, der Client bekommt eine allgemeine Meldung
+    console.error('chat-assistant:', error instanceof Error ? error.message : String(error))
+    return new Response(JSON.stringify({ error: 'Interner Fehler' }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 500,
     })
