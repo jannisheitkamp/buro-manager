@@ -21,7 +21,28 @@ const loadSignature = async (path?: string | null) => {
     });
     const img = new Image();
     await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = reject; img.src = dataUrl; });
-    return { dataUrl, ratio: img.width / img.height };
+
+    // Striche dunkel einfärben: ältere Unterschriften aus dem Dunkelmodus sind weiß (unsichtbar auf dem PDF)
+    const canvas = document.createElement('canvas');
+    canvas.width = img.width;
+    canvas.height = img.height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return { dataUrl, ratio: img.width / img.height };
+    ctx.drawImage(img, 0, 0);
+    const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const d = pixels.data;
+    let opaque = 0;
+    for (let i = 3; i < d.length; i += 4) if (d[i] > 200) opaque++;
+    // Mit hellem Hintergrund: dunkle Striche behalten, Hintergrund durchsichtig machen
+    const hasBackground = opaque > (d.length / 4) * 0.5;
+    for (let i = 0; i < d.length; i += 4) {
+      if (hasBackground) d[i + 3] = Math.round(d[i + 3] * (1 - (0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]) / 255));
+      d[i] = 30;      // #1e293b
+      d[i + 1] = 41;
+      d[i + 2] = 59;
+    }
+    ctx.putImageData(pixels, 0, 0);
+    return { dataUrl: canvas.toDataURL('image/png'), ratio: img.width / img.height };
   } catch {
     return null;
   }
