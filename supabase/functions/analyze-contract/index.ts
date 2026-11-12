@@ -1,5 +1,4 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
@@ -13,11 +12,32 @@ serve(async (req) => {
   }
 
   try {
-    const formData = await req.formData()
-    const file = formData.get('file') as File
+    // Nur angemeldete Nutzer (der Anon-Key allein reicht nicht, sonst wäre das ein offener Gemini-Zugang)
+    const authHeader = req.headers.get('Authorization')
+    const supabase = createClient(Deno.env.get('SUPABASE_URL') ?? '', Deno.env.get('SUPABASE_ANON_KEY') ?? '', {
+      global: { headers: { Authorization: authHeader ?? '' } },
+      auth: { persistSession: false },
+    })
+    const { data: authData } = authHeader ? await supabase.auth.getUser() : { data: null }
+    if (!authData?.user) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 401,
+      })
+    }
 
-    if (!file) {
+    const formData = await req.formData()
+    const file = formData.get('file')
+
+    if (!(file instanceof File)) {
       return new Response(JSON.stringify({ error: 'No file uploaded' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400,
+      })
+    }
+    const ALLOWED_TYPES = ['application/pdf', 'image/png', 'image/jpeg', 'image/webp']
+    if (!ALLOWED_TYPES.includes(file.type) || file.size > 10 * 1024 * 1024) {
+      return new Response(JSON.stringify({ error: 'Nur PDF oder Bild bis 10 MB' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 400,
       })

@@ -210,7 +210,7 @@ export const Production = () => {
   
   // Basic Info
   const [policyNumber, setPolicyNumber] = useState('');
-  const [submissionDate, setSubmissionDate] = useState(new Date().toISOString().split('T')[0]);
+  const [submissionDate, setSubmissionDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [customerName, setCustomerName] = useState('');
   const [customerFirstname, setCustomerFirstname] = useState('');
   const [managedBy, setManagedBy] = useState<string>(''); 
@@ -485,7 +485,7 @@ export const Production = () => {
       setCustomerName('');
       setCustomerFirstname('');
       setPolicyNumber('');
-      setSubmissionDate(new Date().toISOString().split('T')[0]);
+      setSubmissionDate(format(new Date(), 'yyyy-MM-dd'));
       setManagedBy(user?.id || '');
       setClosedBy(user?.id || '');
       setStatus('submitted');

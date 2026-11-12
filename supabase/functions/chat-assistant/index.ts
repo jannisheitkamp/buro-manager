@@ -14,7 +14,13 @@ serve(async (req) => {
   try {
     const { messages } = await req.json()
 
-    if (!messages || !Array.isArray(messages)) {
+    // Begrenzen, damit niemand beliebig große Anfragen auf Kosten des Gemini-Kontingents schickt
+    if (
+      !Array.isArray(messages) ||
+      messages.length === 0 ||
+      messages.length > 30 ||
+      messages.some((m) => typeof m?.content !== 'string' || m.content.length > 4000)
+    ) {
       return new Response(JSON.stringify({ error: 'Messages array is required' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 400,
@@ -155,7 +161,7 @@ Wenn der Nutzer nach Dingen fragt, die nicht im Kontext stehen (z.B. spezifische
     })
 
   } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
+    return new Response(JSON.stringify({ error: error instanceof Error ? error.message : String(error) }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 500,
     })
