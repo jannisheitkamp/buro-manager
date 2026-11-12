@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Avatar } from '@/components/ui';
 import { PageHeader } from '@/components/ui';
 import { ConnectivitySettings } from '@/components/ConnectivitySettings';
-import { supabase } from '@/lib/supabase';
+import { supabase, supabaseUrl } from '@/lib/supabase';
 import { getMyWebhookSecret } from '@/lib/profiles';
 import { useStore } from '@/store/useStore';
 import { motion } from 'framer-motion';
@@ -165,13 +165,7 @@ export const ProfilePage = () => {
     };
 
     const getWebhookUrl = (status: string) => {
-        // Assuming the edge function is deployed at this URL pattern
-        // In local dev, this might need adjustment, but for production it's standard
-        const projectUrl = import.meta.env.VITE_SUPABASE_URL;
-        // Extract project ID from URL if possible, or assume a standard structure
-        // Usually: https://<project_ref>.supabase.co
-        const functionUrl = projectUrl?.replace('.supabase.co', '.supabase.co/functions/v1/update-status');
-        return `${functionUrl}?secret=${webhookSecret}&status=${status}`;
+        return `${supabaseUrl}/functions/v1/update-status?secret=${encodeURIComponent(webhookSecret)}&status=${status}`;
     };
 
     const handleUpdateProfile = async (e: React.FormEvent) => {

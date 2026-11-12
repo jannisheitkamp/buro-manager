@@ -14,7 +14,13 @@ serve(async (req) => {
   try {
     const { messages } = await req.json()
 
-    if (!messages || !Array.isArray(messages)) {
+    // Begrenzen, damit niemand beliebig große Anfragen auf Kosten des Gemini-Kontingents schickt
+    if (
+      !Array.isArray(messages) ||
+      messages.length === 0 ||
+      messages.length > 30 ||
+      messages.some((m) => typeof m?.content !== 'string' || m.content.length > 4000)
+    ) {
       return new Response(JSON.stringify({ error: 'Messages array is required' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 400,
@@ -131,9 +137,10 @@ Wenn der Nutzer nach Dingen fragt, die nicht im Kontext stehen (z.B. spezifische
       },
     }
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`, {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      // Schlüssel im Header statt in der URL, damit er nicht in Logs oder Fehlermeldungen landet
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': GEMINI_API_KEY },
       body: JSON.stringify(requestBody)
     })
 
@@ -155,7 +162,9 @@ Wenn der Nutzer nach Dingen fragt, die nicht im Kontext stehen (z.B. spezifische
     })
 
   } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
+    // Details nur ins Server-Log, der Client bekommt eine allgemeine Meldung
+    console.error('chat-assistant:', error instanceof Error ? error.message : String(error))
+    return new Response(JSON.stringify({ error: 'Interner Fehler' }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 500,
     })

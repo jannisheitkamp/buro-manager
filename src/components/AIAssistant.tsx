@@ -6,7 +6,7 @@ import { cn } from '@/utils/cn';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { useStore } from '@/store/useStore';
-import { endOfMonth, endOfWeek, startOfMonth, startOfWeek, subMonths } from 'date-fns';
+import { endOfMonth, endOfWeek, format, startOfMonth, startOfWeek, subMonths } from 'date-fns';
 
 type Message = {
     id: string;
@@ -140,22 +140,22 @@ export const AIAssistant = () => {
 
                     if (wantsLastMonth) {
                         const lastMonth = subMonths(now, 1);
-                        start = startOfMonth(lastMonth).toISOString().split('T')[0];
-                        end = endOfMonth(lastMonth).toISOString().split('T')[0];
+                        start = format(startOfMonth(lastMonth), 'yyyy-MM-dd');
+                        end = format(endOfMonth(lastMonth), 'yyyy-MM-dd');
                         label = 'Umsatz letzten Monat';
                     } else if (wantsThisMonth) {
-                        start = startOfMonth(now).toISOString().split('T')[0];
-                        end = endOfMonth(now).toISOString().split('T')[0];
+                        start = format(startOfMonth(now), 'yyyy-MM-dd');
+                        end = format(endOfMonth(now), 'yyyy-MM-dd');
                         label = 'Umsatz diesen Monat';
                     } else if (wantsLastWeek) {
                         const lastWeek = new Date(now);
                         lastWeek.setDate(now.getDate() - 7);
-                        start = startOfWeek(lastWeek, { weekStartsOn: 1 }).toISOString().split('T')[0];
-                        end = endOfWeek(lastWeek, { weekStartsOn: 1 }).toISOString().split('T')[0];
+                        start = format(startOfWeek(lastWeek, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+                        end = format(endOfWeek(lastWeek, { weekStartsOn: 1 }), 'yyyy-MM-dd');
                         label = 'Umsatz letzte Woche';
                     } else if (wantsThisWeek) {
-                        start = startOfWeek(now, { weekStartsOn: 1 }).toISOString().split('T')[0];
-                        end = endOfWeek(now, { weekStartsOn: 1 }).toISOString().split('T')[0];
+                        start = format(startOfWeek(now, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+                        end = format(endOfWeek(now, { weekStartsOn: 1 }), 'yyyy-MM-dd');
                         label = 'Umsatz diese Woche';
                     }
 
@@ -238,7 +238,7 @@ export const AIAssistant = () => {
                 id: 'absences',
                 keywords: ['krank', 'abwesend', 'urlaub', 'wer fehlt', 'wer ist nicht da'],
                 handler: async ({ navigate }) => {
-                    const today = new Date().toISOString().split('T')[0];
+                    const today = format(new Date(), 'yyyy-MM-dd');
                     const { data, error } = await supabase
                         .from('absences')
                         .select('type, profiles(full_name)')

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { supabase } from '@/lib/supabase';
 import { PROFILE_COLUMNS } from '@/lib/profiles';
+import { disablePush } from '@/lib/push';
 import { Profile } from '@/types';
 import { User as SupabaseUser } from '@supabase/supabase-js';
 
@@ -73,6 +74,8 @@ export const useStore = create<StoreState>((set, get) => ({
     } catch {
       /* ignorieren */
     }
+    // Push für dieses Gerät abmelden, solange die Sitzung noch gilt, sonst bekommt die nächste Person am Gerät fremde Benachrichtigungen
+    await disablePush().catch(() => {});
     await supabase.auth.signOut();
     set({ user: null, profile: null });
   },

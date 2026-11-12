@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase';
 import { PROFILE_COLUMNS } from '@/lib/profiles';
 import { Absence, Profile } from '@/types';
 import { useStore } from '@/store/useStore';
-import { format, parseISO, isAfter, startOfDay } from 'date-fns';
+import { format, parseISO, isAfter, startOfDay, differenceInCalendarDays } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { Plus, Check, X, Clock, Calendar as CalendarIcon, Trash2, Download, Palmtree, ThermometerSun, HelpCircle, GraduationCap, Repeat, Briefcase, FileText, PenTool } from 'lucide-react';
 import { Modal } from '@/components/Modal';
@@ -84,6 +84,10 @@ export const Calendar = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
+    if (formData.end_date < formData.start_date) {
+      toast.error('Das Enddatum liegt vor dem Startdatum.');
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -237,8 +241,8 @@ export const Calendar = () => {
         // If today is before start date, don't show
         if (isAfter(start, today)) return false;
 
-        // Calculate if today matches the interval
-        const diffInDays = Math.floor((today.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+        // Kalendertage zählen, nicht Millisekunden (sonst fehlt nach der Zeitumstellung ein Tag)
+        const diffInDays = differenceInCalendarDays(today, start);
         
         if (a.recurrence_interval === 'weekly') {
             return diffInDays % 7 === 0;

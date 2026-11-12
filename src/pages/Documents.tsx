@@ -3,6 +3,7 @@ import { openStoredFile } from '@/lib/storage';
 import { PageHeader, Button } from '@/components/ui';
 import { useStore } from '../store/useStore';
 import { supabase } from '@/lib/supabase';
+import { sanitizeHtmlToFragment } from '@/utils/sanitizeHtml';
 import { PROFILE_COLUMNS } from '@/lib/profiles';
 import { Document, Profile } from '../types';
 import { Plus, FileText, File, Download, Trash2, Edit2, Users, Check } from 'lucide-react';
@@ -244,15 +245,16 @@ export function Documents() {
         const html2pdf = (await import('html2pdf.js')).default;
         
         // Create a temporary container for the HTML content
+        // Ohne innerHTML aufbauen: Titel als Text, Inhalt als bereinigtes DOM-Fragment
         const element = document.createElement('div');
-        element.innerHTML = `
-          <div style="padding: 40px; font-family: sans-serif; color: #000;">
-            <h1 style="margin-bottom: 20px;">${doc.title}</h1>
-            <div class="prose">
-              ${doc.content}
-            </div>
-          </div>
-        `;
+        element.style.cssText = 'padding: 40px; font-family: sans-serif; color: #000;';
+        const heading = document.createElement('h1');
+        heading.style.marginBottom = '20px';
+        heading.textContent = doc.title || '';
+        const body = document.createElement('div');
+        body.className = 'prose';
+        body.appendChild(sanitizeHtmlToFragment(doc.content));
+        element.append(heading, body);
         
         // PDF Options
         const opt = {
