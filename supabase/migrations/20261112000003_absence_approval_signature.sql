@@ -24,44 +24,45 @@ set search_path to 'public'
 as $$
 begin
   -- auth.uid() ist leer bei Service-Role
-  if auth.uid() is not null and not public.can_moderate_absence(new.user_id) then
+  if auth.uid() is null then
+    return new;
+  end if;
+
+  if not public.can_moderate_absence(new.user_id) then
+    -- Ob und wie viele Tage abgezogen werden, entscheidet nach dem Antrag nur die genehmigende Person
     if tg_op = 'INSERT' then
       new.used_days := null;
-      new.approved_by := null;
-      new.approved_at := null;
-      new.approver_signature_url := null;
     else
-      -- Ob und wie viele Tage abgezogen werden, entscheidet nach dem Antrag nur die genehmigende Person
       new.used_days := old.used_days;
       new.deduct_vacation_days := old.deduct_vacation_days;
       new.half_day := old.half_day;
-      new.approved_by := old.approved_by;
-      new.approved_at := old.approved_at;
-      new.approver_signature_url := old.approver_signature_url;
     end if;
-  elsif auth.uid() is not null
-    and new.approver_signature_url is not null
-    and (tg_op = 'INSERT' or new.approver_signature_url is distinct from old.approver_signature_url)
-    and new.approver_signature_url not like 'signatures/' || auth.uid()::text || '\_approval\_%' then
-    -- Nur die eigene Freigabe-Unterschrift, keine beliebigen Dateien (sonst ließe sich z. B. eine fremde eAU freigeben)
-    raise exception 'Ungültige Unterschrift';
   end if;
 
-  if auth.uid() is not null and tg_op = 'UPDATE' and new.status is distinct from old.status
-    and public.can_moderate_absence(new.user_id) then
-    -- Entscheidung protokollieren
-    if new.status in ('approved', 'rejected') then
-      new.approved_by := auth.uid();
-      new.approved_at := now();
-    else
-      new.approved_by := null;
-      new.approved_at := null;
-      new.approver_signature_url := null;
+  -- Wer wann entschieden hat und die Freigabe-Unterschrift setzt nur die Datenbank, für alle Rollen
+  if tg_op = 'UPDATE' and new.status is not distinct from old.status then
+    new.approved_by := old.approved_by;
+    new.approved_at := old.approved_at;
+    new.approver_signature_url := old.approver_signature_url;
+  elsif new.status = 'approved' and public.can_moderate_absence(new.user_id) then
+    new.approved_by := auth.uid();
+    new.approved_at := now();
+    -- Nur die eigene Freigabe-Unterschrift, keine beliebigen Dateien (sonst ließe sich z. B. eine fremde eAU freigeben)
+    if new.approver_signature_url is not null
+      and new.approver_signature_url not like 'signatures/' || auth.uid()::text || '\_approval\_%' then
+      raise exception 'Ungültige Unterschrift';
     end if;
-    if new.status = 'rejected' then
-      new.approver_signature_url := null;
-    end if;
+  elsif new.status = 'rejected' and public.can_moderate_absence(new.user_id) then
+    new.approved_by := auth.uid();
+    new.approved_at := now();
+    new.approver_signature_url := null;
+  else
+    -- Offen oder automatisch genehmigt (Krankmeldung, Seminar, Schule): keine Entscheidung
+    new.approved_by := null;
+    new.approved_at := null;
+    new.approver_signature_url := null;
   end if;
+
   return new;
 end $$;
 
