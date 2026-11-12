@@ -183,7 +183,7 @@ export const Vacation = () => {
                 ) : (
                     <div className="space-y-3">
                         {absences.map(a => {
-                            const calculatedDays = getVacationDaysToDeduct(parseISO(a.start_date), parseISO(a.end_date), profile ?? undefined);
+                            const calculatedDays = getVacationDaysToDeduct(parseISO(a.start_date), parseISO(a.end_date), profile ?? undefined, a.half_day);
                             const displayDays = a.used_days ?? calculatedDays;
                             const deduct = a.deduct_vacation_days ?? true;
                             const busy = savingId === a.id;

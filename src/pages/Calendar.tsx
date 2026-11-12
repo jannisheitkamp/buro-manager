@@ -33,6 +33,11 @@ export const Calendar = () => {
   const [carryover, setCarryover] = useState(0);
   const [sickNoteFile, setSickNoteFile] = useState<File | null>(null);
   const sigPad = useRef<SignatureCanvas>(null);
+  const approvalSigPad = useRef<SignatureCanvas>(null);
+  const [approving, setApproving] = useState<Absence | null>(null);
+  const [lastApprovalSig, setLastApprovalSig] = useState<string | null>(null);
+  const [useLastSig, setUseLastSig] = useState(false);
+  const [approvalBusy, setApprovalBusy] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -42,7 +47,8 @@ export const Calendar = () => {
     note: '',
     is_recurring: false,
     recurrence_interval: 'weekly',
-    deduct_vacation_days: true
+    deduct_vacation_days: true,
+    half_day: false
   });
 
   const fetchAbsences = async () => {
@@ -157,6 +163,7 @@ export const Calendar = () => {
         status: status,
         note: formData.note,
         deduct_vacation_days: formData.type === 'vacation' ? formData.deduct_vacation_days : true,
+        half_day: formData.type === 'vacation' && formData.start_date === formData.end_date && formData.half_day,
         certificate_url,
         signature_url
       };
@@ -184,7 +191,8 @@ export const Calendar = () => {
           note: '',
           is_recurring: false,
           recurrence_interval: 'weekly',
-          deduct_vacation_days: true
+          deduct_vacation_days: true,
+          half_day: false
       });
       fetchAbsences();
       toast.success('Abwesenheit erfolgreich erstellt.');
@@ -198,11 +206,11 @@ export const Calendar = () => {
     }
   };
 
-  const handleStatusUpdate = async (id: string, status: 'approved' | 'rejected') => {
+  const handleStatusUpdate = async (id: string, status: 'approved' | 'rejected', approverSignature?: string | null) => {
     try {
       const { data, error } = await supabase
         .from('absences')
-        .update({ status })
+        .update(status === 'approved' ? { status, approver_signature_url: approverSignature ?? null } : { status })
         .eq('id', id)
         .select('id');
 
@@ -217,6 +225,54 @@ export const Calendar = () => {
       console.error('Error updating status:', error);
       toast.error('Fehler beim Aktualisieren des Status.');
     }
+  };
+
+  const downloadPdf = async (absence: Absence) => {
+    try {
+      await generateVacationRequestPDF(absence, absence.profiles!);
+    } catch (error) {
+      console.error('Error creating PDF:', error);
+      toast.error('PDF konnte nicht erstellt werden.');
+    }
+  };
+
+  const openApproval = async (absence: Absence) => {
+    setApproving(absence);
+    // Letzte eigene Freigabe-Unterschrift wiederverwenden, damit nicht jedes Mal neu gezeichnet werden muss
+    const { data } = await supabase
+      .from('absences')
+      .select('approver_signature_url')
+      .eq('approved_by', user!.id)
+      .not('approver_signature_url', 'is', null)
+      .order('approved_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    setLastApprovalSig(data?.approver_signature_url ?? null);
+    setUseLastSig(!!data?.approver_signature_url);
+  };
+
+  const confirmApproval = async () => {
+    if (!approving || !user) return;
+    let path = useLastSig ? lastApprovalSig : null;
+    if (!path) {
+      if (!approvalSigPad.current || approvalSigPad.current.isEmpty()) {
+        toast.error('Bitte unterschreiben.');
+        return;
+      }
+      setApprovalBusy(true);
+      const blob = await (await fetch(approvalSigPad.current.getTrimmedCanvas().toDataURL('image/png'))).blob();
+      path = `signatures/${user.id}_approval_${Date.now()}.png`;
+      const { error } = await supabase.storage.from('absence_documents').upload(path, blob, { contentType: 'image/png' });
+      if (error) {
+        setApprovalBusy(false);
+        toast.error('Unterschrift konnte nicht gespeichert werden.');
+        return;
+      }
+    }
+    setApprovalBusy(true);
+    await handleStatusUpdate(approving.id, 'approved', path);
+    setApprovalBusy(false);
+    setApproving(null);
   };
 
   const updateUsedDays = async (id: string) => {
@@ -446,7 +502,7 @@ export const Calendar = () => {
               <AnimatePresence>
                 {approvedAbsences.map((absence, idx) => {
                     const TypeIcon = getTypeIcon(absence.type);
-                    const calculatedDays = getVacationDaysToDeduct(parseISO(absence.start_date), parseISO(absence.end_date), absence.profiles ?? undefined);
+                    const calculatedDays = getVacationDaysToDeduct(parseISO(absence.start_date), parseISO(absence.end_date), absence.profiles ?? undefined, absence.half_day);
                     const displayDays = absence.used_days ?? calculatedDays;
                     const isEditing = editingDaysId === absence.id;
                     const canEdit = checkCanModerate(absence.profiles);
@@ -537,7 +593,7 @@ export const Calendar = () => {
                             
                             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity absolute top-10 right-4 bg-white dark:bg-gray-800 p-1.5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
                                 <button
-                                    onClick={() => generateVacationRequestPDF(absence, absence.profiles!)}
+                                    onClick={() => downloadPdf(absence)}
                                     className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-gray-400 hover:text-indigo-600 transition-colors"
                                     title="PDF"
                                 >
@@ -627,6 +683,11 @@ export const Calendar = () => {
                                     Ohne Abzug vom Urlaub
                                 </span>
                             )}
+                            {absence.half_day && (
+                                <span className="text-xs font-bold px-2.5 py-1 rounded-lg inline-block mt-1 ml-2 bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">
+                                    Halber Tag
+                                </span>
+                            )}
                             <div className="flex gap-2 mt-2">
                                 {absence.certificate_url && (
                                     <a href="#" onClick={(e) => { e.preventDefault(); openStoredFile('absence_documents', absence.certificate_url!); }} className="flex items-center gap-1 text-[10px] font-bold bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400 px-2 py-1 rounded-lg hover:bg-red-100 transition-colors">
@@ -644,7 +705,7 @@ export const Calendar = () => {
                         
                         <div className="flex items-center gap-2">
                             <button
-                                onClick={() => generateVacationRequestPDF(absence, absence.profiles!)}
+                                onClick={() => downloadPdf(absence)}
                                 className="p-2 bg-white dark:bg-gray-800 rounded-xl text-gray-400 hover:text-indigo-600 shadow-sm border border-gray-100 dark:border-gray-700 transition-colors"
                                 title="PDF"
                             >
@@ -671,7 +732,7 @@ export const Calendar = () => {
                         {canModerate && (
                             <div className="flex gap-2">
                             <button
-                                onClick={() => handleStatusUpdate(absence.id, 'approved')}
+                                onClick={() => openApproval(absence)}
                                 className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:hover:bg-emerald-900/50 rounded-xl text-xs font-bold transition-colors shadow-sm"
                             >
                                 <Check className="w-3.5 h-3.5" /> Genehmigen
@@ -806,17 +867,32 @@ export const Calendar = () => {
                           className="w-5 h-5 rounded-lg border-indigo-300 text-indigo-600 focus:ring-indigo-500"
                       />
                   </div>
+                  {formData.start_date && formData.start_date === formData.end_date && (
+                      <div className="flex items-center justify-between">
+                          <label htmlFor="half_day" className="text-sm font-bold text-indigo-900 dark:text-indigo-300 flex items-center gap-2">
+                              <Clock className="w-4 h-4" /> Halber Tag
+                          </label>
+                          <input
+                              id="half_day"
+                              type="checkbox"
+                              checked={formData.half_day}
+                              onChange={e => setFormData({ ...formData, half_day: e.target.checked })}
+                              className="w-5 h-5 rounded-lg border-indigo-300 text-indigo-600 focus:ring-indigo-500"
+                          />
+                      </div>
+                  )}
                   <div className="pt-3 border-t border-indigo-200 dark:border-indigo-800">
                       <label className="text-xs font-bold text-indigo-900 dark:text-indigo-300 mb-2 flex justify-between">
                           <span>Digitale Unterschrift</span>
                           <button type="button" onClick={() => sigPad.current?.clear()} className="text-indigo-500 hover:text-indigo-700 underline">Löschen</button>
                       </label>
-                      <div className="bg-white dark:bg-gray-800 border-2 border-dashed border-indigo-200 dark:border-indigo-800 rounded-xl overflow-hidden touch-none">
+                      {/* Immer weißer Grund und dunkle Tinte, sonst ist die Unterschrift im PDF unsichtbar */}
+                      <div className="bg-white border-2 border-dashed border-indigo-200 dark:border-indigo-800 rounded-xl overflow-hidden touch-none">
                           <SignatureCanvas 
                               ref={sigPad}
                               canvasProps={{className: 'w-full h-32 cursor-crosshair'}}
                               backgroundColor="transparent"
-                              penColor={document.documentElement.classList.contains('dark') ? 'white' : 'black'}
+                              penColor="#1e293b"
                           />
                       </div>
                   </div>
@@ -907,6 +983,39 @@ export const Calendar = () => {
             </button>
           </div>
         </form>
+      </Modal>
+
+      <Modal
+        isOpen={!!approving}
+        onClose={() => setApproving(null)}
+        title="Antrag genehmigen"
+        description={approving ? `${approving.profiles?.full_name ?? ''}: ${format(parseISO(approving.start_date), 'dd.MM.yyyy')} bis ${format(parseISO(approving.end_date), 'dd.MM.yyyy')}` : undefined}
+      >
+        <div className="space-y-4">
+          {lastApprovalSig && (
+            <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+              <input type="checkbox" checked={useLastSig} onChange={e => setUseLastSig(e.target.checked)} className="w-4 h-4 rounded border-gray-300 text-indigo-600" />
+              Meine letzte Unterschrift verwenden
+            </label>
+          )}
+          {!useLastSig && (
+            <div>
+              <div className="text-xs font-bold text-gray-500 mb-2 flex justify-between">
+                <span>Unterschrift (erscheint im PDF)</span>
+                <button type="button" onClick={() => approvalSigPad.current?.clear()} className="text-indigo-500 hover:text-indigo-700 underline">Löschen</button>
+              </div>
+              <div className="bg-white border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden touch-none">
+                <SignatureCanvas ref={approvalSigPad} canvasProps={{ className: 'w-full h-32 cursor-crosshair' }} backgroundColor="transparent" penColor="#1e293b" />
+              </div>
+            </div>
+          )}
+          <div className="flex justify-end gap-3 pt-2">
+            <Button variant="ghost" onClick={() => setApproving(null)}>Abbrechen</Button>
+            <Button onClick={confirmApproval} disabled={approvalBusy}>
+              <Check className="w-4 h-4" /> {approvalBusy ? 'Wird gespeichert…' : 'Genehmigen'}
+            </Button>
+          </div>
+        </div>
       </Modal>
 
       <ConfirmModal
