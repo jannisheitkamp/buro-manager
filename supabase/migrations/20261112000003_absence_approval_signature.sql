@@ -34,6 +34,7 @@ begin
       -- Ob und wie viele Tage abgezogen werden, entscheidet nach dem Antrag nur die genehmigende Person
       new.used_days := old.used_days;
       new.deduct_vacation_days := old.deduct_vacation_days;
+      new.half_day := old.half_day;
       new.approved_by := old.approved_by;
       new.approved_at := old.approved_at;
       new.approver_signature_url := old.approver_signature_url;

@@ -683,6 +683,11 @@ export const Calendar = () => {
                                     Ohne Abzug vom Urlaub
                                 </span>
                             )}
+                            {absence.half_day && (
+                                <span className="text-xs font-bold px-2.5 py-1 rounded-lg inline-block mt-1 ml-2 bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">
+                                    Halber Tag
+                                </span>
+                            )}
                             <div className="flex gap-2 mt-2">
                                 {absence.certificate_url && (
                                     <a href="#" onClick={(e) => { e.preventDefault(); openStoredFile('absence_documents', absence.certificate_url!); }} className="flex items-center gap-1 text-[10px] font-bold bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400 px-2 py-1 rounded-lg hover:bg-red-100 transition-colors">
