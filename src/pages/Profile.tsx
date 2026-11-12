@@ -25,6 +25,7 @@ export const ProfilePage = () => {
     const [monthlyGoal, setMonthlyGoal] = useState<number>(10000); // New: Monthly Goal (Default 10k)
     const [yearlyGoal, setYearlyGoal] = useState<number>(120000); // New: Yearly Goal (Default 120k)
     const [totalVacationDays, setTotalVacationDays] = useState<number>(30); // New: Vacation Days
+    const isAdmin = !!profile?.roles?.includes('admin');
     const [avatarUrl, setAvatarUrl] = useState('');
     const [isVocationalStudent, setIsVocationalStudent] = useState(false);
     const [vocationalSchoolDays, setVocationalSchoolDays] = useState<{ dayOfWeek: number, type: 'full' | 'half' }[]>([]);
@@ -183,7 +184,8 @@ export const ProfilePage = () => {
                     address: address, // Save
                     monthly_goal: monthlyGoal, // Save
                     yearly_goal: yearlyGoal, // Save
-                    total_vacation_days: totalVacationDays, // Save
+                    // Jahresurlaub legt nur ein Admin fest (die Datenbank ignoriert es sonst ohnehin)
+                    ...(isAdmin ? { total_vacation_days: totalVacationDays } : {}),
                     is_vocational_student: isVocationalStudent, // Save
                     vocational_school_days: vocationalSchoolDays, // Save
                     avatar_url: avatarUrl 
@@ -461,6 +463,8 @@ export const ProfilePage = () => {
                                         value={totalVacationDays}
                                         onChange={e => setTotalVacationDays(Number(e.target.value))}
                                         placeholder="30"
+                                        disabled={!isAdmin}
+                                        title={isAdmin ? undefined : 'Wird von einem Admin festgelegt'}
                                         className="w-full rounded-xl bg-gray-50 dark:bg-gray-900 border-transparent focus:bg-white focus:ring-2 focus:ring-indigo-500/20 pl-10 px-4 py-2.5 text-sm transition-all"
                                     />
                                 </div>

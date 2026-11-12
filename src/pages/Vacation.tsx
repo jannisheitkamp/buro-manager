@@ -9,6 +9,7 @@ import { Check, X, RefreshCw } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { toast } from 'react-hot-toast';
 import { getVacationDaysToDeduct } from '@/utils/dateUtils';
+import { fetchCarryover, vacationDaysUsedInYear } from '@/lib/vacation';
 
 export const Vacation = () => {
     const { user, profile } = useStore();
@@ -17,6 +18,9 @@ export const Vacation = () => {
     const [savingId, setSavingId] = useState<string | null>(null);
     const [editingDaysId, setEditingDaysId] = useState<string | null>(null);
     const [editingDaysValue, setEditingDaysValue] = useState<string>('');
+    const [carryover, setCarryover] = useState(0);
+    // Abzug und Tage legt die genehmigende Person fest, hier ändern das nur Admins
+    const isAdmin = !!profile?.roles?.includes('admin');
 
     const fetchVacations = async () => {
         if (!user) return;
@@ -49,6 +53,7 @@ export const Vacation = () => {
         };
 
         fetchVacations();
+        if (user) fetchCarryover(user.id, new Date().getFullYear()).then(setCarryover);
 
         const subscription = supabase
             .channel('vacation_absences')
@@ -66,31 +71,23 @@ export const Vacation = () => {
     const totalVacationDays = profile?.total_vacation_days ?? 30;
 
     const { usedDays, remainingDays } = useMemo(() => {
-        const used = absences
-            .filter(a => a.status !== 'rejected')
-            .filter(a => a.deduct_vacation_days ?? true)
-            .reduce((sum, a) => {
-                let start = parseISO(a.start_date);
-                let end = parseISO(a.end_date);
-                if (start.getFullYear() < currentYear) start = new Date(currentYear, 0, 1);
-                if (end.getFullYear() > currentYear) end = new Date(currentYear, 11, 31);
-                if (start.getFullYear() !== currentYear && end.getFullYear() !== currentYear) return sum;
-                return sum + (a.used_days ?? getVacationDaysToDeduct(start, end, profile ?? undefined));
-            }, 0);
-        return { usedDays: used, remainingDays: Math.max(0, totalVacationDays - used) };
-    }, [absences, currentYear, totalVacationDays, profile]);
+        const used = vacationDaysUsedInYear(absences, currentYear, profile);
+        return { usedDays: used, remainingDays: Math.max(0, totalVacationDays + carryover - used) };
+    }, [absences, currentYear, totalVacationDays, carryover, profile]);
 
     const toggleDeduct = async (absence: Absence) => {
         if (!user) return;
         const next = !(absence.deduct_vacation_days ?? true);
         setSavingId(absence.id);
         try {
-            const { error } = await supabase
+            const { data, error } = await supabase
                 .from('absences')
                 .update({ deduct_vacation_days: next })
-                .eq('id', absence.id);
+                .eq('id', absence.id)
+                .select('id');
 
             if (error) throw error;
+            if (!data?.length) throw new Error('Keine Berechtigung');
 
             setAbsences(prev => prev.map(a => (a.id === absence.id ? { ...a, deduct_vacation_days: next } : a)));
             toast.success(next ? 'Urlaubstage werden abgezogen.' : 'Urlaubstage werden nicht abgezogen.');
@@ -118,12 +115,14 @@ export const Vacation = () => {
 
         setSavingId(absence.id);
         try {
-            const { error } = await supabase
+            const { data, error } = await supabase
                 .from('absences')
                 .update({ used_days: val })
-                .eq('id', absence.id);
+                .eq('id', absence.id)
+                .select('id');
 
             if (error) throw error;
+            if (!data?.length) throw new Error('Keine Berechtigung');
 
             setAbsences(prev => prev.map(a => (a.id === absence.id ? { ...a, used_days: val } : a)));
             toast.success('Urlaubstage erfolgreich aktualisiert.');
@@ -155,7 +154,8 @@ export const Vacation = () => {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
                     <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">Jahresurlaub {currentYear}</p>
-                    <p className="text-2xl font-bold text-gray-900 dark:text-white">{totalVacationDays} Tage</p>
+                    <p className="text-2xl font-bold text-gray-900 dark:text-white">{totalVacationDays + carryover} Tage</p>
+                    {carryover > 0 && <p className="text-xs text-gray-400">davon {carryover} aus {currentYear - 1}</p>}
                 </div>
                 <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
                     <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">Genutzt / Geplant</p>
@@ -231,12 +231,13 @@ export const Vacation = () => {
                                                 </div>
                                             ) : (
                                                 <span 
-                                                    className="text-xs font-bold text-gray-500 dark:text-gray-400 ml-2 cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400 border-b border-dashed border-gray-300 dark:border-gray-600"
+                                                    className={cn("text-xs font-bold text-gray-500 dark:text-gray-400 ml-2", isAdmin && "cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400 border-b border-dashed border-gray-300 dark:border-gray-600")}
                                                     onClick={() => {
+                                                        if (!isAdmin) return;
                                                         setEditingDaysId(a.id);
                                                         setEditingDaysValue(a.used_days !== null && a.used_days !== undefined ? String(a.used_days) : String(calculatedDays));
                                                     }}
-                                                    title="Klicken zum Ändern (z.B. wegen Feiertagen)"
+                                                    title={isAdmin ? "Klicken zum Ändern (z.B. wegen Feiertagen)" : undefined}
                                                 >
                                                     {displayDays} {displayDays === 1 ? 'Arbeitstag' : 'Arbeitstage'}
                                                     {a.used_days !== null && a.used_days !== undefined && ' (Manuell)'}
@@ -252,14 +253,16 @@ export const Vacation = () => {
 
                                     <button
                                         type="button"
-                                        disabled={busy}
+                                        disabled={busy || !isAdmin}
+                                        title={isAdmin ? undefined : 'Legt die genehmigende Person fest'}
                                         onClick={() => toggleDeduct(a)}
                                         className={cn(
                                             'shrink-0 flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold border transition-colors',
                                             deduct
                                                 ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 dark:bg-emerald-900/20 dark:text-emerald-300 dark:border-emerald-900/30'
                                                 : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100 dark:bg-gray-700/40 dark:text-gray-200 dark:border-gray-700',
-                                            busy ? 'opacity-70 cursor-not-allowed' : ''
+                                            busy ? 'opacity-70 cursor-not-allowed' : '',
+                                            !isAdmin && 'cursor-default'
                                         )}
                                     >
                                         {deduct ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}

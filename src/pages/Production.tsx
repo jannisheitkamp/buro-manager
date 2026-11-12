@@ -6,7 +6,7 @@ import { useLocation } from 'react-router-dom';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { Menu as MenuRoot, MenuButton, MenuItem, MenuItems } from '@headlessui/react';
-import { Plus, Search, FileText, Trash2, Download, Pencil, FileDown, Trophy, LayoutGrid, Sparkles, Loader2, UploadCloud, FileSpreadsheet, ChevronDown, CalendarRange, Hourglass } from 'lucide-react';
+import { Plus, Search, FileText, Trash2, Download, Pencil, FileDown, Trophy, LayoutGrid, Sparkles, Loader2, UploadCloud, FileSpreadsheet, ChevronDown, CalendarRange, Hourglass, ListChecks } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { Modal } from '@/components/Modal';
 import { ConfirmModal } from '@/components/ConfirmModal';
@@ -20,6 +20,7 @@ import { extractPdfText } from '@/utils/extractPdfText';
 import { parseContractFromText } from '@/utils/pdfParser';
 import { INSURANCE_TYPES } from '@/utils/constants';
 import { CATEGORY_COLORS } from '@/lib/chartTheme';
+import { correctedMonthlyLv, computedMonthlyLv, fetchLvSnapshots, sumUntil, type LvSnapshot } from '@/lib/lifeValues';
 
 const formatCurrency = (amount: number | null | undefined) => {
   if (amount === null || amount === undefined || isNaN(amount)) return '0,00 €';
@@ -57,6 +58,17 @@ export const Production = () => {
   const [reportScope, setReportScope] = useState<'me' | 'team'>('me');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'personal' | 'leaderboard'>('personal');
+  const [boardPeriod, setBoardPeriod] = useState<'month' | 'year' | 'all'>('month');
+  const thisYear = new Date().getFullYear();
+  // Angezeigtes Jahr (auch Vorjahre); 'all' = alle Jahre
+  const [selectedYear, setSelectedYear] = useState<number | 'all'>(thisYear);
+  // Lebenswerte-Stand laut Monatsliste (für angezeigtes und aktuelles Jahr)
+  const [lvSnapshots, setLvSnapshots] = useState<LvSnapshot[]>([]);
+  const [lvModalOpen, setLvModalOpen] = useState(false);
+  const [lvMonth, setLvMonth] = useState(() => format(new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1), 'yyyy-MM'));
+  const [lvValue, setLvValue] = useState('');
+  const [lvUserId, setLvUserId] = useState<string>('');
+  const [lvSaving, setLvSaving] = useState(false);
   const [chartMode, setChartMode] = useState<'revenue' | 'life_values'>('revenue'); // New: Toggle Charts
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [documentUrl, setDocumentUrl] = useState<string | null>(null);
@@ -235,17 +247,18 @@ export const Production = () => {
   const [liabilityRate, setLiabilityRate] = useState<number>(10);
   
   // Calculated Fields (derived)
-  const [netPremiumYearly, setNetPremiumYearly] = useState(0);
   const [valuationSum, setValuationSum] = useState(0); // AP-Summe
   const [commissionAmount, setCommissionAmount] = useState(0);
   const [lifeValues, setLifeValues] = useState(0); // New: Lebenswerte
   const [lifeValueFactor, setLifeValueFactor] = useState<number>(0); // New: Factor for Lebenswerte
+  // Von Hand gesetzter Faktor (null = automatisch nach Sparte). Bleibt beim Bearbeiten erhalten.
+  const [manualLvFactor, setManualLvFactor] = useState<number | null>(null);
 
-  const [profiles, setProfiles] = useState<{id: string; full_name: string; agency_number?: string; monthly_goal?: number | null; is_approved?: boolean}[]>([]); // For "Managed By" dropdown
+  const [profiles, setProfiles] = useState<{id: string; full_name: string; agency_number?: string; monthly_goal?: number | null; yearly_goal?: number | null; is_approved?: boolean}[]>([]); // For "Managed By" dropdown
 
   useEffect(() => {
       const loadProfiles = async () => {
-          const { data } = await supabase.from('profiles').select('id, full_name, agency_number, monthly_goal, is_approved');
+          const { data } = await supabase.from('profiles').select('id, full_name, agency_number, monthly_goal, yearly_goal, is_approved');
           if (data) setProfiles(data);
       };
       loadProfiles();
@@ -266,7 +279,6 @@ export const Production = () => {
     const netYearly = netP * factor;
     const grossYearly = grossP * factor;
 
-    setNetPremiumYearly(netYearly);
 
     // 2. Determine Rate and Calculate Commission
     let valSum = 0;
@@ -304,39 +316,24 @@ export const Production = () => {
     // Logic for Lebenswerte Factor
     if (subCategory === 'Leben' || subCategory === 'BU') {
         lvFactor = 1.147;
-        lv = valSum * lvFactor;
     } else if (category === 'car') {
         lvFactor = 1;
-        lv = netP * lvFactor; // Use Net Premium (Monthly/Selected) as base? Or Yearly? User said "Netto Beitrag". Assuming Yearly Net usually for comparisons but user said "Netto Beitrag mal einen Faktor". Usually production is annualized. Let's use Net Yearly for consistency or Net Monthly? 
-        // User said: "bei Sach Verträgen wird der Netto Beitrag mal einen Faktor gerechnet".
-        // In the commission calculation for Sach, we used `netYearly`. 
-        // Let's assume `netYearly` for Life Values too, as it's a production value.
-        // Wait, for Car (KFZ) factor is 1. If premium is 50€/mo, yearly is 600€. 600 * 1 = 600.
-        // For other Sach, factor is 20. 50€/mo -> 600€/yr. 600 * 20 = 12000? That seems high.
-        // OR maybe "Netto Beitrag" refers to the Monthly premium?
-        // Let's stick to Net Yearly for now as it's standard "Production". 
-        // actually for Sach usually it is based on "Jahresnetto".
-        lv = netYearly * lvFactor;
     } else if (category === 'property' || category === 'legal' || category === 'other') {
         // "bei den anderen Sach geschichten bei 20"
         lvFactor = 20;
-        lv = netYearly * lvFactor; // Again assuming yearly net.
     }
-    
-    // Allow manual override if user edits it? 
-    // We will set it here, but if we want manual override, we need to handle it.
-    // For now, let's just set it based on logic. If user changes the input manually, we shouldn't overwrite it immediately unless dependencies change.
-    // But since this effect runs on dependencies, it will overwrite.
-    // To support manual override, we'd need a separate flag or check if it was manually touched.
-    // For this iteration, I'll implement auto-calc. If manual edit is needed, we can add a lock or just let them edit and don't re-trigger unless inputs change.
-    
+    // Ein von Hand eingetragener Faktor geht vor (sonst würde er bei jeder Änderung überschrieben)
+    if (manualLvFactor !== null) lvFactor = manualLvFactor;
+    // Basis: Leben/BU die Bewertungssumme, sonst der Jahres-Nettobeitrag
+    lv = (subCategory === 'Leben' || subCategory === 'BU' ? valSum : netYearly) * lvFactor;
+
     setCommissionRate(rate);
     setValuationSum(valSum);
     setCommissionAmount(comm);
     setLifeValueFactor(lvFactor);
     setLifeValues(lv);
 
-  }, [netPremium, grossPremium, duration, paymentMethod, subCategory, userRates, category]); 
+  }, [netPremium, grossPremium, duration, paymentMethod, subCategory, userRates, category, manualLvFactor]); 
   
   // Update Category when SubCategory changes (reverse lookup if needed, or just handle in UI)
   useEffect(() => {
@@ -371,6 +368,17 @@ export const Production = () => {
   useEffect(() => {
     fetchEntries();
   }, []);
+
+  const loadLvSnapshots = async () => {
+    const years = Array.from(new Set([thisYear, typeof selectedYear === 'number' ? selectedYear : thisYear, Number(lvMonth.slice(0, 4))]));
+    const lists = await Promise.all(years.map((y) => fetchLvSnapshots(y)));
+    setLvSnapshots(lists.flat());
+  };
+
+  useEffect(() => {
+    loadLvSnapshots();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedYear, lvMonth]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -501,6 +509,7 @@ export const Production = () => {
       setNotes('');
       setLifeValues(0);
       setLifeValueFactor(0);
+      setManualLvFactor(null);
       setSelectedFile(null);
       setDocumentUrl(null);
       // Reset category to defaults if needed
@@ -528,6 +537,8 @@ export const Production = () => {
       setNotes(entry.notes || '');
       setLifeValues(entry.life_values || 0);
       setLifeValueFactor(entry.life_value_factor || 0);
+      // Gespeicherten Faktor übernehmen, damit eine frühere Handeingabe nicht verloren geht
+      setManualLvFactor(entry.life_value_factor ?? null);
       setDocumentUrl(entry.document_url || null);
       setSelectedFile(null);
       
@@ -549,9 +560,11 @@ export const Production = () => {
 
   const confirmDelete = async () => {
       if (!deleteId) return;
+      const doc = entries.find((e) => e.id === deleteId)?.document_url;
       const { error } = await supabase.from('production_entries').delete().eq('id', deleteId);
       if (error) toast.error('Vertrag konnte nicht gelöscht werden.');
       else {
+          if (doc && !doc.startsWith('http')) await supabase.storage.from('production_docs').remove([doc]);
           toast.success('Vertrag gelöscht');
           fetchEntries();
       }
@@ -561,6 +574,7 @@ export const Production = () => {
   // Filter entries based on viewMode
   const filteredEntries = entries.filter(e => {
       if (viewMode === 'personal' && e.user_id !== user?.id) return false;
+      if (selectedYear !== 'all' && !String(e.submission_date || '').startsWith(`${selectedYear}-`)) return false;
       if (filterCategory !== 'all' && e.category !== filterCategory) return false;
       if (onlyOpenCommission && !(e.status === 'policed' && !e.commission_received_date)) return false;
       const search = searchQuery.toLowerCase();
@@ -582,26 +596,48 @@ export const Production = () => {
   const totalLifeValues = activeEntries.reduce((acc, curr) => acc + Number(curr.life_values || 0), 0);
   const totalLiability = activeEntries.reduce((acc, curr) => acc + (Number(curr.commission_amount || 0) * Number(curr.liability_rate || 0) / 100), 0);
 
+  // Lebenswerte mit Monatslisten-Korrektur: nur sinnvoll für die eigene Gesamtsumme eines Jahres (ohne Filter)
+  const canCorrectLv = viewMode === 'personal' && selectedYear !== 'all' && filterCategory === 'all' && !searchQuery && !onlyOpenCommission && !!user;
+  const myCorrectedLv = canCorrectLv ? correctedMonthlyLv(entries, lvSnapshots, user!.id, selectedYear as number) : null;
+  const myComputedLv = canCorrectLv ? computedMonthlyLv(entries, user!.id, selectedYear as number) : null;
+  const shownLifeValues = myCorrectedLv ? sumUntil(myCorrectedLv) : totalLifeValues;
+  const lvCorrection = myCorrectedLv && myComputedLv ? sumUntil(myCorrectedLv) - sumUntil(myComputedLv) : 0;
+  const yearOptions = Array.from(new Set([thisYear, ...entries.map(e => Number(String(e.submission_date || '').slice(0, 4))).filter(Boolean)])).sort((a, b) => b - a);
+
   // --- LEADERBOARD CALCULATION ---
+  // Zeitraum wählbar; Zielerreichung nach Lebenswerten gegen das eigene Monats- bzw. Jahresziel
   const getLeaderboardData = () => {
-      const userTotals: Record<string, { name: string; avatar: string; amount: number; count: number }> = {};
-      
-      entries.filter(e => e.status !== 'cancelled').forEach(e => {
+      const prefix = boardPeriod === 'month' ? format(new Date(), 'yyyy-MM') : boardPeriod === 'year' ? format(new Date(), 'yyyy') : '';
+      const userTotals: Record<string, { name: string; avatar: string; amount: number; lv: number; count: number }> = {};
+
+      entries.filter(e => e.status !== 'cancelled' && String(e.submission_date || '').startsWith(prefix)).forEach(e => {
           const userId = e.user_id;
           if (!userTotals[userId]) {
               userTotals[userId] = {
                   name: e.profiles?.full_name || 'Unbekannt',
                   avatar: e.profiles?.avatar_url,
                   amount: 0,
+                  lv: 0,
                   count: 0
               };
           }
-          userTotals[userId].amount += (e.commission_amount || 0);
+          userTotals[userId].amount += Number(e.commission_amount || 0);
+          userTotals[userId].lv += Number(e.life_values || 0);
           userTotals[userId].count += 1;
       });
 
       return Object.entries(userTotals)
-        .map(([id, data]) => ({ id, ...data }))
+        .map(([id, data]) => {
+            const p = profiles.find(pr => pr.id === id);
+            const monthly = Number(p?.monthly_goal) || 0;
+            // Lebenswerte nach Monatsliste korrigiert (Monat bzw. Jahr bis heute)
+            if (boardPeriod !== 'all') {
+                const corrected = correctedMonthlyLv(entries, lvSnapshots, id, thisYear);
+                data.lv = boardPeriod === 'month' ? corrected[new Date().getMonth()] : sumUntil(corrected);
+            }
+            const goal = boardPeriod === 'month' ? monthly : boardPeriod === 'year' ? Number(p?.yearly_goal) || monthly * 12 : 0;
+            return { id, ...data, goal, goalPct: goal ? Math.round((data.lv / goal) * 100) : null };
+        })
         .sort((a, b) => b.amount - a.amount);
   };
 
@@ -613,15 +649,18 @@ export const Production = () => {
   const getMonthlyData = () => {
       // Immer vom 1. des Monats aus rechnen, sonst springt setMonth am 29.–31. über kurze Monate
       const now = new Date();
-      const last6Months = Array.from({ length: 6 }, (_, i) => new Date(now.getFullYear(), now.getMonth() - (5 - i), 1));
+      const months = selectedYear !== 'all' && selectedYear !== thisYear
+          ? Array.from({ length: 12 }, (_, i) => new Date(selectedYear, i, 1))
+          : Array.from({ length: 6 }, (_, i) => new Date(now.getFullYear(), now.getMonth() - (5 - i), 1));
 
-      return last6Months.map(date => {
+      return months.map(date => {
           const monthKey = format(date, 'yyyy-MM');
           const monthLabel = format(date, 'MMM', { locale: de });
           
           const rows = activeEntries.filter(e => String(e.submission_date || '').startsWith(monthKey));
           const total = rows.reduce((acc, curr) => acc + Number(curr.commission_amount || 0), 0);
-          const totalLifeValues = rows.reduce((acc, curr) => acc + Number(curr.life_values || 0), 0);
+          let totalLifeValues = rows.reduce((acc, curr) => acc + Number(curr.life_values || 0), 0);
+          if (myCorrectedLv && date.getFullYear() === selectedYear) totalLifeValues = myCorrectedLv[date.getMonth()];
 
           return { name: monthLabel, value: total, lifeValues: totalLifeValues };
       });
@@ -756,9 +795,47 @@ export const Production = () => {
       }
   };
 
+  // --- Lebenswerte-Stand laut Monatsliste ---
+  const lvTargetUser = lvUserId || user?.id || '';
+  const lvYear = Number(lvMonth.slice(0, 4));
+  const lvMonthIdx = Number(lvMonth.slice(5, 7)) - 1;
+  const lvAppValue = lvTargetUser ? sumUntil(correctedMonthlyLv(entries, lvSnapshots.filter(sn => sn.month !== `${lvMonth}-01`), lvTargetUser, lvYear), lvMonthIdx) : 0;
+  const lvExisting = lvSnapshots.filter(sn => sn.user_id === lvTargetUser && sn.month.startsWith(`${lvYear}-`)).sort((a, b) => a.month.localeCompare(b.month));
+
+  const saveLvSnapshot = async () => {
+      const value = Number(lvValue.replace(/\./g, '').replace(',', '.'));
+      if (!lvTargetUser || !lvMonth || !Number.isFinite(value) || value < 0) {
+          toast.error('Bitte Monat und einen gültigen Stand eingeben.');
+          return;
+      }
+      setLvSaving(true);
+      const { error } = await supabase.from('production_lv_snapshots').upsert({
+          user_id: lvTargetUser,
+          month: `${lvMonth}-01`,
+          ytd_lv: value,
+          updated_by: user?.id,
+          updated_at: new Date().toISOString(),
+      });
+      setLvSaving(false);
+      if (error) {
+          toast.error('Stand konnte nicht gespeichert werden.');
+          return;
+      }
+      toast.success('Lebenswerte-Stand gespeichert');
+      setLvValue('');
+      loadLvSnapshots();
+  };
+
+  const deleteLvSnapshot = async (snap: LvSnapshot) => {
+      const { error } = await supabase.from('production_lv_snapshots').delete().eq('user_id', snap.user_id).eq('month', snap.month);
+      if (error) toast.error('Stand konnte nicht gelöscht werden.');
+      else loadLvSnapshots();
+  };
+
   const handleMonthlyReport = async () => {
       const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([import('jspdf'), import('jspdf-autotable')]);
       const [y, m] = reportMonth.split('-').map(Number);
+      const snaps = await fetchLvSnapshots(y);
       const monthDate = new Date(y, m - 1, 1);
       const monthLabel = format(monthDate, 'MMMM yyyy', { locale: de });
       const inMonth = entries.filter(e => String(e.submission_date || '').startsWith(reportMonth));
@@ -780,7 +857,7 @@ export const Production = () => {
           .map(p => {
               const own = scoped.filter(e => e.user_id === p.id);
               const active = own.filter(e => e.status !== 'cancelled');
-              const lv = active.reduce((a, e) => a + Number(e.life_values || 0), 0);
+              const lv = correctedMonthlyLv(entries, snaps, p.id, y)[m - 1];
               const comm = active.reduce((a, e) => a + Number(e.commission_amount || 0), 0);
               const goal = Number(p.monthly_goal) || 0;
               return { name: p.full_name, count: active.length, cancelled: own.length - active.length, lv, comm, goal, pct: goal ? Math.round((lv / goal) * 100) : null };
@@ -932,6 +1009,18 @@ export const Production = () => {
                             { value: 'leaderboard', label: 'Rangliste', icon: Trophy },
                         ]}
                     />
+                    <select
+                        aria-label="Jahr"
+                        value={String(selectedYear)}
+                        onChange={(e) => setSelectedYear(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+                        className="input w-auto py-2"
+                    >
+                        {yearOptions.map(y => <option key={y} value={y}>{y}</option>)}
+                        <option value="all">Alle Jahre</option>
+                    </select>
+                    <button type="button" className="btn-secondary" onClick={() => { setLvUserId(user?.id || ''); setLvModalOpen(true); }}>
+                        <ListChecks className="h-4 w-4" /> LW-Stand
+                    </button>
                     <MenuRoot as="div" className="relative">
                         <MenuButton className="btn-secondary">
                             <FileDown className="h-4 w-4" /> Export <ChevronDown className="h-3.5 w-3.5 text-gray-400" />
@@ -963,9 +1052,24 @@ export const Production = () => {
 
         {viewMode === 'leaderboard' ? (
             <div className="card overflow-hidden">
-                <div className="border-b border-gray-100 px-5 py-4 dark:border-gray-700 sm:px-6">
-                    <h2 className="text-base font-semibold text-gray-900 dark:text-white">Rangliste nach Provision</h2>
-                    <p className="text-sm text-gray-500">Alle eingereichten und policierten Verträge, ohne Stornos.</p>
+                <div className="flex flex-col gap-3 border-b border-gray-100 px-5 py-4 dark:border-gray-700 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+                    <div>
+                        <h2 className="text-base font-semibold text-gray-900 dark:text-white">Rangliste nach Provision</h2>
+                        <p className="text-sm text-gray-500">Eingereichte und policierte Verträge, ohne Stornos. Balken = Lebenswerte im Verhältnis zum eigenen Ziel.</p>
+                    </div>
+                    <div className="flex shrink-0 gap-1 rounded-xl bg-gray-100 p-1 dark:bg-gray-800" role="group" aria-label="Zeitraum">
+                        {([['month', 'Monat'], ['year', 'Jahr'], ['all', 'Gesamt']] as const).map(([v, label]) => (
+                            <button
+                                key={v}
+                                type="button"
+                                onClick={() => setBoardPeriod(v)}
+                                aria-pressed={boardPeriod === v}
+                                className={cn('rounded-lg px-3 py-1 text-xs font-medium', boardPeriod === v ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-white' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white')}
+                            >
+                                {label}
+                            </button>
+                        ))}
+                    </div>
                 </div>
                 {leaderboardData.length === 0 ? (
                     <EmptyState icon={Trophy} title="Noch keine Verträge erfasst" />
@@ -977,11 +1081,18 @@ export const Production = () => {
                                 <Avatar name={data.name} src={data.avatar} size="md" />
                                 <div className="min-w-0 flex-1">
                                     <p className="truncate text-sm font-medium text-gray-900 dark:text-white">{data.name}{data.id === user?.id && <span className="font-normal text-gray-400"> (du)</span>}</p>
-                                    <p className="text-xs text-gray-500">{data.count} {data.count === 1 ? 'Vertrag' : 'Verträge'}</p>
+                                    <p className="text-xs text-gray-500">
+                                        {data.count} {data.count === 1 ? 'Vertrag' : 'Verträge'} · {new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 }).format(data.lv)} LW
+                                        {data.goalPct !== null && <> · <span className={cn(data.goalPct >= 100 && 'font-semibold text-emerald-700 dark:text-emerald-400')}>{data.goalPct} % vom Ziel</span></>}
+                                    </p>
                                 </div>
+                                <span className="tabular hidden text-sm font-semibold text-gray-900 dark:text-white sm:block">{formatCurrency(data.amount)}</span>
                                 <div className="hidden w-40 sm:block">
                                     <div className="h-1.5 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-700">
-                                        <div className="h-full rounded-full bg-brand-600 dark:bg-brand-400" style={{ width: `${leaderboardData[0].amount ? (data.amount / leaderboardData[0].amount) * 100 : 0}%` }} />
+                                        <div
+                                            className={cn('h-full rounded-full', data.goalPct !== null && data.goalPct >= 100 ? 'bg-emerald-500' : 'bg-brand-600 dark:bg-brand-400')}
+                                            style={{ width: `${data.goalPct !== null ? Math.min(data.goalPct, 100) : leaderboardData[0].amount ? (data.amount / leaderboardData[0].amount) * 100 : 0}%` }}
+                                        />
                                     </div>
                                 </div>
                             </li>
@@ -993,14 +1104,15 @@ export const Production = () => {
             <>
                 <ProductionStats
                     totalCommission={totalCommission}
-                    totalLifeValues={totalLifeValues}
+                    totalLifeValues={shownLifeValues}
+                    lifeValuesNote={lvCorrection ? `inkl. Korrektur ${lvCorrection > 0 ? '+' : ''}${new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 }).format(lvCorrection)} laut Liste` : undefined}
                     totalLiability={totalLiability}
                     contractCount={activeEntries.length}
                     cancelledCount={cancelledCount}
                     onOpenLiabilityModal={() => setIsLiabilityModalOpen(true)}
                 />
 
-                <ProductionCharts chartMode={chartMode} setChartMode={setChartMode} monthlyData={monthlyData} categoryData={categoryData} />
+                <ProductionCharts chartMode={chartMode} setChartMode={setChartMode} monthlyData={monthlyData} categoryData={categoryData} title={selectedYear !== 'all' && selectedYear !== thisYear ? `Monate ${selectedYear}` : undefined} />
 
                 <div className="card overflow-hidden">
                     <div className="flex flex-col gap-3 border-b border-gray-100 p-4 dark:border-gray-700 sm:flex-row sm:items-center sm:justify-between sm:px-6">
@@ -1305,9 +1417,7 @@ export const Production = () => {
                                             step="0.001"
                                             value={lifeValueFactor}
                                             onChange={(e) => {
-                                                const f = Number(e.target.value);
-                                                setLifeValueFactor(f);
-                                                setLifeValues((subCategory === 'Leben' || subCategory === 'BU' ? valuationSum : netPremiumYearly) * f);
+                                                setManualLvFactor(Number(e.target.value));
                                             }}
                                             className="input tabular mt-0.5 py-1"
                                         />
@@ -1364,6 +1474,58 @@ export const Production = () => {
                     />
                 )}
                 {reportScope === 'team' && <p className="text-xs text-gray-500">Übersicht je Person ohne einzelne Kundendaten.</p>}
+            </div>
+        </Modal>
+
+        <Modal
+            isOpen={lvModalOpen}
+            onClose={() => setLvModalOpen(false)}
+            title="Lebenswerte-Stand laut Liste"
+            description="Trag am Monatsende den Jahresstand aus der offiziellen Liste ein (Januar bis Ende des Monats). Die App rechnet ab dann mit diesem Wert, damit Ziele und Rangliste stimmen."
+            size="sm"
+            footer={
+                <>
+                    <button type="button" onClick={() => setLvModalOpen(false)} className="btn-secondary">Schließen</button>
+                    <Button icon={ListChecks} loading={lvSaving} onClick={saveLvSnapshot}>Speichern</Button>
+                </>
+            }
+        >
+            <div className="space-y-4">
+                {profile?.roles?.includes('admin') && (
+                    <Field label="Person" htmlFor="lv-user">
+                        <select id="lv-user" value={lvTargetUser} onChange={e => setLvUserId(e.target.value)} className="input">
+                            {profiles.filter(p => p.is_approved !== false).map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+                        </select>
+                    </Field>
+                )}
+                <Field label="Stand Ende" htmlFor="lv-month">
+                    <input id="lv-month" type="month" value={lvMonth} max={format(new Date(), 'yyyy-MM')} onChange={e => setLvMonth(e.target.value)} className="input" />
+                </Field>
+                <Field label="Lebenswerte laut Liste (Jahressumme)" htmlFor="lv-value">
+                    <input id="lv-value" inputMode="decimal" value={lvValue} onChange={e => setLvValue(e.target.value)} placeholder="z. B. 150000" className="input tabular" />
+                </Field>
+                <p className="text-xs text-gray-500">
+                    In der App bis Ende {lvMonth ? format(new Date(lvYear, lvMonthIdx, 1), 'MMMM yyyy', { locale: de }) : ''}: <span className="tabular font-medium text-gray-700 dark:text-gray-300">{new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 }).format(lvAppValue)} LW</span>
+                    {lvValue && Number.isFinite(Number(lvValue.replace(/\./g, '').replace(',', '.'))) && (
+                        <> · Korrektur <span className="tabular font-medium">{(() => { const d = Number(lvValue.replace(/\./g, '').replace(',', '.')) - lvAppValue; return `${d > 0 ? '+' : ''}${new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 }).format(d)}`; })()}</span></>
+                    )}
+                </p>
+                {lvExisting.length > 0 && (
+                    <div>
+                        <p className="mb-1.5 text-xs font-medium text-gray-500">Eingetragen {lvYear}</p>
+                        <ul className="divide-y divide-gray-100 rounded-xl border border-gray-100 text-sm dark:divide-gray-700 dark:border-gray-700">
+                            {lvExisting.map(sn => (
+                                <li key={sn.month} className="flex items-center justify-between px-3 py-2">
+                                    <span>Ende {format(new Date(Number(sn.month.slice(0, 4)), Number(sn.month.slice(5, 7)) - 1, 1), 'MMMM', { locale: de })}</span>
+                                    <span className="flex items-center gap-2">
+                                        <span className="tabular font-medium">{new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 }).format(sn.ytd_lv)} LW</span>
+                                        <button type="button" onClick={() => deleteLvSnapshot(sn)} className="btn-icon p-1 hover:!text-red-600" aria-label="Stand löschen" title="Löschen"><Trash2 className="h-3.5 w-3.5" /></button>
+                                    </span>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                )}
             </div>
         </Modal>
 

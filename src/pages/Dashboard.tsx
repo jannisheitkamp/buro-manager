@@ -22,6 +22,7 @@ import {
 import { toast } from 'react-hot-toast';
 import { supabase } from '@/lib/supabase';
 import { useStore } from '@/store/useStore';
+import { correctedMonthlyLv, fetchLvSnapshots, sumUntil } from '@/lib/lifeValues';
 import { Avatar, Badge, Button, Card, CardHeader, EmptyState, GoalRuler, PageLoading } from '@/components/ui';
 import { STATUS_CONFIG, getStatusConfig, isStatusFresh, type StatusType } from '@/lib/status';
 import { isOfficeClosed, matchesPerson, useReceptionPlan } from '@/lib/reception';
@@ -196,7 +197,7 @@ export const Dashboard = () => {
       const [profilesRes, statusRes, absencesRes, callbacksRes, parcelsRes, eventsRes, postsRes, callsRes, prodRes, followRes] = await Promise.all([
         supabase.from('profiles').select('id, full_name, avatar_url, roles, is_approved, monthly_goal, yearly_goal').order('full_name'),
         supabase.from('user_status').select('user_id, status, message, updated_at').gte('updated_at', dayStart.toISOString()).order('updated_at', { ascending: false }),
-        supabase.from('absences').select('user_id, type, status').lte('start_date', todayStr).gte('end_date', todayStr).neq('status', 'rejected'),
+        supabase.rpc('team_absences').select('user_id, type, status').lte('start_date', todayStr).gte('end_date', todayStr).neq('status', 'rejected'),
         supabase
           .from('callbacks')
           .select('id, customer_name, phone, topic, priority, created_at, assigned_to')
@@ -223,7 +224,7 @@ export const Dashboard = () => {
         if (!latest.has(s.user_id)) latest.set(s.user_id, s as Colleague['status']);
       });
       const absent = new Map<string, string>();
-      (absencesRes.data || []).forEach((a) => absent.set(a.user_id, ABSENCE_LABEL[a.type] || 'Abwesend'));
+      ((absencesRes.data || []) as { user_id: string; type: string }[]).forEach((a) => absent.set(a.user_id, ABSENCE_LABEL[a.type] || 'Abwesend'));
 
       const team: Colleague[] = (profilesRes.data || [])
         .filter((p) => p.is_approved !== false)
@@ -283,10 +284,18 @@ export const Dashboard = () => {
       const monthRows = prod.filter((e) => String(e.submission_date).startsWith(monthKey));
       const me = profilesRes.data?.find((p) => p.id === user.id);
       const monthlyGoal = Number(me?.monthly_goal) || 10000;
+      // Lebenswerte mit Korrektur aus den Monatslisten (falls eingetragen)
+      const snaps = await fetchLvSnapshots(new Date().getFullYear(), user.id);
+      const lvByMonth = correctedMonthlyLv(
+        prod.map((e) => ({ ...e, user_id: user.id })),
+        snaps,
+        user.id,
+        new Date().getFullYear(),
+      );
       setStats({
-        monthLv: sum(monthRows, 'life_values'),
+        monthLv: lvByMonth[new Date().getMonth()],
         monthCommission: sum(monthRows, 'commission_amount'),
-        yearLv: sum(prod, 'life_values'),
+        yearLv: sumUntil(lvByMonth),
         yearCommission: sum(prod, 'commission_amount'),
         monthlyGoal,
         yearlyGoal: Number(me?.yearly_goal) || monthlyGoal * 12,
@@ -345,6 +354,10 @@ export const Dashboard = () => {
   const monthPct = stats.monthlyGoal ? Math.round((stats.monthLv / stats.monthlyGoal) * 100) : 0;
   const yearPct = stats.yearlyGoal ? Math.round((stats.yearLv / stats.yearlyGoal) * 100) : 0;
   const onTrack = stats.monthLv >= stats.monthlyGoal * progress.ratio;
+  // Was pro verbleibendem Arbeitstag (inkl. heute) noch fürs Monatsziel fehlt
+  const workdaysLeft = progress.total - progress.passed + (isOfficeClosed(today) ? 0 : 1);
+  const missingLv = Math.max(0, stats.monthlyGoal - stats.monthLv);
+  const perDayLv = workdaysLeft > 0 ? Math.ceil(missingLv / workdaysLeft) : 0;
 
   const todayAssignment = reception.assigneeFor(today);
   const receptionToday = todayAssignment?.person;
@@ -394,7 +407,11 @@ export const Dashboard = () => {
 
               <GoalRuler value={stats.monthLv} goal={stats.monthlyGoal} expected={progress.ratio} className="mt-6" />
               <div className="mt-2 flex items-center justify-between text-xs text-gray-500">
-                <span className="tabular">{monthPct} % erreicht</span>
+                <span className="tabular">
+                  {monthPct} % erreicht
+                  {missingLv > 0 && workdaysLeft > 0 && ` · noch ${num.format(missingLv)}, also ${num.format(perDayLv)} pro Arbeitstag`}
+                  {missingLv === 0 && ' · Ziel geschafft 🎉'}
+                </span>
                 <span className="flex items-center gap-1.5">
                   <span className="h-2.5 w-0.5 rounded bg-amber-400" />
                   Soll heute: Tag {progress.passed} von {progress.total}

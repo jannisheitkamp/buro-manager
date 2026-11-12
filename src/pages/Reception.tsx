@@ -49,7 +49,7 @@ export const Reception = () => {
   useEffect(() => {
     let cancelled = false;
     supabase
-      .from('absences')
+      .rpc('team_absences')
       .select('start_date, end_date, user_id')
       .in('status', ['pending', 'approved'])
       .gte('end_date', format(gridStart, 'yyyy-MM-dd'))

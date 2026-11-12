@@ -82,10 +82,11 @@ export const GeneralCalendar = () => {
 
     // 2. Absences
     const { data: absenceData } = await supabase
-        .from('absences')
+        .rpc('team_absences')
         .select('*, profiles(full_name, avatar_url)')
         .eq('status', 'approved')
-        .or(`start_date.lte.${end},end_date.gte.${start}`);
+        .lte('start_date', end.slice(0, 10))
+        .gte('end_date', start.slice(0, 10));
 
     // 3. Bookings (Filtered to exclude duplicates if any, though ID check handles it)
     const { data: bookingData } = await supabase

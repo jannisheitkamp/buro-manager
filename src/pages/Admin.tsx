@@ -9,6 +9,8 @@ import { Shield, Users, DollarSign, Activity, CheckCircle, XCircle, Search, More
 import { format } from 'date-fns';
 import { toast } from 'react-hot-toast';
 import { cn } from '@/utils/cn';
+import { VacationAccounts } from '@/components/admin/VacationAccounts';
+import { AuditLog } from '@/components/admin/AuditLog';
 
 export const Admin = () => {
     const { profile } = useStore();
@@ -418,6 +420,10 @@ export const Admin = () => {
                     </div>
                 </div>
             </div>
+
+            <VacationAccounts users={users} onChanged={fetchAdminData} />
+
+            <AuditLog users={users} />
 
             {/* Recent Activity Table */}
             <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">

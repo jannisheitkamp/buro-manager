@@ -88,19 +88,22 @@ export function Documents() {
     }
 
     setUploading(true);
+    let uploadedPath: string | null = null;
     try {
       let filePath = editingDoc?.file_path || null;
 
       // Handle File Upload
       if (type === 'file' && file) {
         const fileExt = file.name.split('.').pop();
-        const fileName = `${Math.random()}.${fileExt}`;
+        // Eigener Ordner pro Person (Speicherregel erlaubt nur dort das Hochladen)
+        const fileName = `${user.id}/${crypto.randomUUID()}.${fileExt}`;
         const { error: uploadError, data } = await supabase.storage
           .from('documents')
           .upload(fileName, file);
 
         if (uploadError) throw uploadError;
         filePath = data.path;
+        uploadedPath = data.path;
       }
 
       let docId = editingDoc?.id;
@@ -119,6 +122,10 @@ export function Documents() {
           .eq('id', editingDoc.id);
 
         if (updateError) throw updateError;
+        // Ersetzte oder entfernte Datei nicht im Speicher liegen lassen
+        if (editingDoc.file_path && editingDoc.file_path !== filePath) {
+          await supabase.storage.from('documents').remove([editingDoc.file_path]);
+        }
       } else {
         // Create new document
         const { data: newDoc, error: createError } = await supabase
@@ -167,6 +174,7 @@ export function Documents() {
       fetchDocuments();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
+      if (uploadedPath) await supabase.storage.from('documents').remove([uploadedPath]);
       console.error('Error saving document:', error);
       toast.error(`Fehler: ${error.message || 'Speichern fehlgeschlagen'}`);
     } finally {
