@@ -169,3 +169,30 @@ create policy "Users can delete own documents" on storage.objects
     bucket_id = 'documents'
     and ((storage.foldername(name))[1] = auth.uid()::text or ((storage.foldername(name))[1] = 'office' and public.is_admin()))
   );
+
+-- Dateipfad eines Dokuments muss im eigenen Ordner liegen (bzw. "office" für Admins).
+-- Sonst könnte jemand ein Dokument mit dem Pfad einer fremden Datei anlegen und diese so lesen.
+create or replace function public.check_document_file_path()
+returns trigger
+language plpgsql
+security definer
+set search_path to 'public'
+as $$
+begin
+  if auth.uid() is null or new.file_path is null then
+    return new;
+  end if;
+  if tg_op = 'UPDATE' and new.file_path is not distinct from old.file_path then
+    return new;
+  end if;
+  if split_part(new.file_path, '/', 1) = auth.uid()::text
+     or (split_part(new.file_path, '/', 1) = 'office' and public.is_admin()) then
+    return new;
+  end if;
+  raise exception 'Ungültiger Dateipfad';
+end $$;
+
+drop trigger if exists check_document_file_path on public.documents;
+create trigger check_document_file_path
+  before insert or update of file_path on public.documents
+  for each row execute function public.check_document_file_path();
