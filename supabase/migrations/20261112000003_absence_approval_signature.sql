@@ -7,11 +7,12 @@
 -- Wiederholbar.
 
 alter table public.absences
-  add column if not exists approved_by uuid references public.profiles(id) on delete set null,
+  add column if not exists approved_by uuid, -- bewusst ohne Fremdschlüssel: ein zweiter Verweis auf profiles macht profiles(...) in der API mehrdeutig (HTTP 300)
   add column if not exists approved_at timestamptz,
   add column if not exists approver_signature_url text,
   add column if not exists half_day boolean not null default false;
 
+alter table public.absences drop constraint if exists absences_approved_by_fkey;
 alter table public.absences drop constraint if exists absences_half_day_single_day;
 alter table public.absences add constraint absences_half_day_single_day
   check (not half_day or start_date = end_date);
