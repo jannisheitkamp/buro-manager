@@ -160,49 +160,56 @@ export function isNRWSchoolHoliday(date: Date): boolean {
     return holidays.some(h => d >= startOfDay(h.start).getTime() && d <= startOfDay(h.end).getTime());
 }
 
-export function getVacationDaysToDeduct(
-    startDate: Date, 
-    endDate: Date, 
-    profile?: { is_vocational_student?: boolean, vocational_school_days?: { dayOfWeek: number, type: 'full' | 'half' }[] }
-): number {
-    let count = 0;
-    const start = startOfDay(startDate);
+type SchoolProfile = { is_vocational_student?: boolean, vocational_school_days?: { dayOfWeek: number, type: 'full' | 'half' }[] };
+
+export type VacationDayBreakdown = {
+    /** Abzuziehende Urlaubstage (halbe Tage als 0,5) */
+    days: number;
+    /** Feiertage im Zeitraum, die auf einen Werktag fallen */
+    holidays: { date: Date, name: string }[];
+    /** Ganze Berufsschultage (kein Abzug) */
+    schoolFull: number;
+    /** Halbe Berufsschultage (halber Abzug) */
+    schoolHalf: number;
+};
+
+/** Urlaubstage mit Aufschlüsselung: Wochenenden, NRW-Feiertage und Berufsschultage werden berücksichtigt. */
+export function getVacationDayBreakdown(startDate: Date, endDate: Date, profile?: SchoolProfile): VacationDayBreakdown {
+    const result: VacationDayBreakdown = { days: 0, holidays: [], schoolFull: 0, schoolHalf: 0 };
     const end = startOfDay(endDate);
 
-    for (let d = start; d.getTime() <= end.getTime(); d.setDate(d.getDate() + 1)) {
+    for (let d = startOfDay(startDate); d.getTime() <= end.getTime(); d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)) {
         if (isWeekend(d)) continue;
-        
-        const year = d.getFullYear();
-        const holidays = getHolidays(year);
-        const isHoliday = holidays.some(h => h.getTime() === d.getTime());
-        
-        if (isHoliday) continue;
 
-        // Check for vocational school
-        let dayDeduction = 1;
+        if (isHoliday(d)) {
+            result.holidays.push({ date: d, name: getHolidayName(d) || 'Feiertag' });
+            continue;
+        }
 
-        if (profile?.is_vocational_student && profile.vocational_school_days) {
-            const isSchoolHoliday = isNRWSchoolHoliday(d);
-            
-            if (!isSchoolHoliday) {
-                // Not in school holidays, so we check if there's school today
-                const dayOfWeek = d.getDay(); // 0 = Sunday, 1 = Monday, ..., 5 = Friday
-                const schoolDay = profile.vocational_school_days.find(s => s.dayOfWeek === dayOfWeek);
-
-                if (schoolDay) {
-                    if (schoolDay.type === 'full') {
-                        dayDeduction = 0; // Can't take vacation on full school days
-                    } else if (schoolDay.type === 'half') {
-                        dayDeduction = 0.5; // Only half vacation day deducted
-                    }
-                }
+        // Berufsschule (außerhalb der Schulferien): ganzer Tag = kein Abzug, halber Tag = halber Abzug
+        if (profile?.is_vocational_student && profile.vocational_school_days && !isNRWSchoolHoliday(d)) {
+            const schoolDay = profile.vocational_school_days.find(s => s.dayOfWeek === d.getDay());
+            if (schoolDay?.type === 'full') {
+                result.schoolFull++;
+                continue;
+            }
+            if (schoolDay?.type === 'half') {
+                result.schoolHalf++;
+                result.days += 0.5;
+                continue;
             }
         }
 
-        count += dayDeduction;
+        result.days += 1;
     }
 
-    return count;
+    return result;
+}
+
+export function getVacationDaysToDeduct(startDate: Date, endDate: Date, profile?: SchoolProfile, halfDay?: boolean | null): number {
+    const days = getVacationDayBreakdown(startDate, endDate, profile).days;
+    // Halber Urlaubstag: höchstens 0,5 (an Feiertagen, Wochenenden oder ganzen Schultagen 0)
+    return halfDay ? Math.min(days, 0.5) : days;
 }
 
 export function getWorkingDays(startDate: Date | string, endDate: Date | string): number {

@@ -89,6 +89,10 @@ export type Absence = {
   used_days?: number | null; // New: Manual override for used vacation days
   certificate_url?: string;
   signature_url?: string;
+  approved_by?: string | null;
+  approved_at?: string | null;
+  approver_signature_url?: string | null;
+  half_day?: boolean | null;
 };
 
 export type Post = {

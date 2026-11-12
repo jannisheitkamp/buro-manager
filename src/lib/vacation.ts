@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { getVacationDaysToDeduct } from '@/utils/dateUtils';
 import type { Absence, Profile } from '@/types';
 
-type VacationRow = Pick<Absence, 'type' | 'status' | 'start_date' | 'end_date' | 'deduct_vacation_days' | 'used_days'>;
+type VacationRow = Pick<Absence, 'type' | 'status' | 'start_date' | 'end_date' | 'deduct_vacation_days' | 'used_days' | 'half_day'>;
 
 /**
  * Urlaubstage, die im Jahr `year` abgezogen werden (genehmigt + offen).
@@ -19,7 +19,7 @@ export const vacationDaysUsedInYear = (absences: VacationRow[], year: number, pr
       if (end.getFullYear() < year || start.getFullYear() > year) return sum;
       if (start.getFullYear() < year) start = new Date(year, 0, 1);
       if (end.getFullYear() > year) end = new Date(year, 11, 31);
-      const days = a.used_days ?? getVacationDaysToDeduct(start, end, profile ?? undefined);
+      const days = a.used_days ?? getVacationDaysToDeduct(start, end, profile ?? undefined, a.half_day);
       return sum + Number(days);
     }, 0);
 

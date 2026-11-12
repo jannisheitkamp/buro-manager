@@ -27,7 +27,7 @@ export const VacationAccounts = ({ users, onChanged }: { users: Profile[]; onCha
     const [abs, c, pc] = await Promise.all([
       supabase
         .from('absences')
-        .select('user_id, type, status, start_date, end_date, deduct_vacation_days, used_days')
+        .select('user_id, type, status, start_date, end_date, deduct_vacation_days, used_days, half_day')
         .eq('type', 'vacation')
         .gte('end_date', `${year - 1}-01-01`)
         .lte('start_date', `${year}-12-31`),
