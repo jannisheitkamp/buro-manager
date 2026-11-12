@@ -8,12 +8,13 @@ const compact = new Intl.NumberFormat('de-DE', { notation: 'compact', maximumFra
 
 type Props = {
   chartMode: 'revenue' | 'life_values';
+  title?: string;
   setChartMode: (mode: 'revenue' | 'life_values') => void;
   monthlyData: { name: string; value: number; lifeValues: number }[];
   categoryData: { id: string; name: string; value: number }[];
 };
 
-export const ProductionCharts = ({ chartMode, setChartMode, monthlyData, categoryData }: Props) => {
+export const ProductionCharts = ({ chartMode, setChartMode, monthlyData, categoryData, title = 'Letzte 6 Monate' }: Props) => {
   const key = chartMode === 'revenue' ? 'value' : 'lifeValues';
   const fmt = chartMode === 'revenue' ? (v: number) => eur.format(v) : (v: number) => `${num.format(v)} LW`;
   const total = categoryData.reduce((a, c) => a + c.value, 0);
@@ -22,7 +23,7 @@ export const ProductionCharts = ({ chartMode, setChartMode, monthlyData, categor
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
       <div className="card card-pad lg:col-span-2">
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-base font-semibold text-gray-900 dark:text-white">Letzte 6 Monate</h2>
+          <h2 className="text-base font-semibold text-gray-900 dark:text-white">{title}</h2>
           <Segmented
             size="sm"
             value={chartMode}
@@ -39,7 +40,7 @@ export const ProductionCharts = ({ chartMode, setChartMode, monthlyData, categor
               <CartesianGrid stroke={CHART.grid} vertical={false} />
               <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: CHART.tick, fontSize: 12 }} dy={8} />
               <YAxis axisLine={false} tickLine={false} tick={{ fill: CHART.tick, fontSize: 12 }} tickFormatter={(v) => compact.format(v)} width={48} />
-              <Tooltip cursor={{ fill: 'rgba(20, 106, 104, 0.06)' }} contentStyle={tooltipStyle} formatter={(v: number) => [fmt(v), chartMode === 'revenue' ? 'Provision' : 'Lebenswerte']} />
+              <Tooltip cursor={{ fill: 'rgba(20, 106, 104, 0.06)' }} contentStyle={tooltipStyle} formatter={(v?: number) => [fmt(v ?? 0), chartMode === 'revenue' ? 'Provision' : 'Lebenswerte']} />
               <Bar dataKey={key} fill={CHART.primary} radius={[4, 4, 0, 0]} maxBarSize={40} />
             </BarChart>
           </ResponsiveContainer>

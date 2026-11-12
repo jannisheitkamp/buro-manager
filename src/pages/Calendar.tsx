@@ -16,6 +16,7 @@ import { toast } from 'react-hot-toast';
 import { generateVacationRequestPDF } from '@/utils/pdfGenerator';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getVacationDaysToDeduct } from '@/utils/dateUtils';
+import { fetchCarryover, vacationDaysUsedInYear } from '@/lib/vacation';
 import SignatureCanvas from 'react-signature-canvas';
 import { useRef } from 'react';
 
@@ -29,6 +30,7 @@ export const Calendar = () => {
   const [editingDaysId, setEditingDaysId] = useState<string | null>(null);
   const [editingDaysValue, setEditingDaysValue] = useState<string>('');
   
+  const [carryover, setCarryover] = useState(0);
   const [sickNoteFile, setSickNoteFile] = useState<File | null>(null);
   const sigPad = useRef<SignatureCanvas>(null);
 
@@ -46,7 +48,7 @@ export const Calendar = () => {
   const fetchAbsences = async () => {
     try {
       const { data, error } = await supabase
-        .from('absences')
+        .rpc('team_absences')
         .select(`*, profiles(${PROFILE_COLUMNS})`)
         .order('start_date', { ascending: true });
 
@@ -81,6 +83,10 @@ export const Calendar = () => {
     };
   }, []);
 
+  useEffect(() => {
+    if (user) fetchCarryover(user.id, new Date().getFullYear()).then(setCarryover);
+  }, [user]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
@@ -90,6 +96,7 @@ export const Calendar = () => {
     }
 
     setSubmitting(true);
+    const uploaded: string[] = [];
     try {
       let certificate_url: string | undefined;
       let signature_url: string | undefined;
@@ -105,7 +112,8 @@ export const Calendar = () => {
           .upload(filePath, sickNoteFile);
 
         if (uploadError) throw uploadError;
-        
+        uploaded.push(filePath);
+
         // Nur den Pfad speichern; angezeigt wird über einen kurz gültigen Link
         certificate_url = filePath;
       }
@@ -125,6 +133,7 @@ export const Calendar = () => {
           .upload(filePath, blob, { contentType: 'image/png' });
 
         if (uploadError) throw uploadError;
+        uploaded.push(filePath);
 
         signature_url = filePath;
       }
@@ -180,6 +189,8 @@ export const Calendar = () => {
       fetchAbsences();
       toast.success('Abwesenheit erfolgreich erstellt.');
     } catch (error) {
+      // Schon hochgeladene Dateien wieder entfernen, sonst bleiben sie ohne Antrag im Speicher liegen
+      if (uploaded.length) await supabase.storage.from('absence_documents').remove(uploaded);
       console.error('Error creating absence:', error);
       toast.error('Fehler beim Erstellen der Anfrage.');
     } finally {
@@ -189,12 +200,17 @@ export const Calendar = () => {
 
   const handleStatusUpdate = async (id: string, status: 'approved' | 'rejected') => {
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('absences')
         .update({ status })
-        .eq('id', id);
+        .eq('id', id)
+        .select('id');
 
       if (error) throw error;
+      if (!data?.length) {
+        toast.error('Keine Berechtigung für diesen Antrag.');
+        return;
+      }
       fetchAbsences();
       toast.success(status === 'approved' ? 'Antrag genehmigt.' : 'Antrag abgelehnt.');
     } catch (error) {
@@ -211,12 +227,17 @@ export const Calendar = () => {
     }
     
     try {
-        const { error } = await supabase
+        const { data, error } = await supabase
             .from('absences')
             .update({ used_days: val })
-            .eq('id', id);
+            .eq('id', id)
+            .select('id');
 
         if (error) throw error;
+        if (!data?.length) {
+            toast.error('Nur Admins und Vorgesetzte können die Tage ändern.');
+            return;
+        }
         
         setAbsences(prev => prev.map(a => (a.id === id ? { ...a, used_days: val } : a)));
         toast.success('Urlaubstage erfolgreich aktualisiert.');
@@ -238,8 +259,9 @@ export const Calendar = () => {
         const today = startOfDay(new Date());
         const start = parseISO(a.start_date);
         
-        // If today is before start date, don't show
+        // Vor dem Start und nach dem Ende der Serie nicht anzeigen
         if (isAfter(start, today)) return false;
+        if (a.end_date && isAfter(today, parseISO(a.end_date))) return false;
 
         // Kalendertage zählen, nicht Millisekunden (sonst fehlt nach der Zeitumstellung ein Tag)
         const diffInDays = differenceInCalendarDays(today, start);
@@ -261,28 +283,8 @@ export const Calendar = () => {
 
   // --- Vacation Stats Logic ---
   const currentYear = new Date().getFullYear();
-  const totalVacationDays = profile?.total_vacation_days ?? 30;
-
-  // Calculate used days based on approved/pending vacations for the current year
-  const usedVacationDays = absences
-    .filter(a => a.user_id === user?.id && a.type === 'vacation' && a.status !== 'rejected' && (a.deduct_vacation_days ?? true))
-    .filter(a => {
-        // Only count if it touches the current year
-        const start = parseISO(a.start_date);
-        const end = parseISO(a.end_date);
-        return start.getFullYear() === currentYear || end.getFullYear() === currentYear;
-    })
-    .reduce((total, a) => {
-        // Only calculate working days that fall in the current year
-        let start = parseISO(a.start_date);
-        let end = parseISO(a.end_date);
-        
-        if (start.getFullYear() < currentYear) start = new Date(currentYear, 0, 1);
-        if (end.getFullYear() > currentYear) end = new Date(currentYear, 11, 31);
-
-        return total + (a.used_days ?? getVacationDaysToDeduct(start, end, profile ?? undefined));
-    }, 0);
-
+  const totalVacationDays = (profile?.total_vacation_days ?? 30) + carryover;
+  const usedVacationDays = vacationDaysUsedInYear(absences.filter(a => a.user_id === user?.id), currentYear, profile);
   const remainingVacationDays = Math.max(0, totalVacationDays - usedVacationDays);
   // --- End Vacation Stats Logic ---
 
@@ -307,12 +309,15 @@ export const Calendar = () => {
     if (!deleteId) return;
 
     try {
+      const absence = absences.find((a) => a.id === deleteId);
       const { error } = await supabase
         .from('absences')
         .delete()
         .eq('id', deleteId);
 
       if (error) throw error;
+      const files = [absence?.certificate_url, absence?.signature_url].filter((f): f is string => !!f && !f.startsWith('http'));
+      if (files.length) await supabase.storage.from('absence_documents').remove(files);
       fetchAbsences();
       toast.success('Antrag gelöscht.');
     } catch (error) {
@@ -381,6 +386,7 @@ export const Calendar = () => {
               <div>
                   <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">Jahresurlaub {currentYear}</p>
                   <p className="text-2xl font-bold text-gray-900 dark:text-white">{totalVacationDays} Tage</p>
+                  {carryover > 0 && <p className="text-xs text-gray-400">davon {carryover} aus {currentYear - 1}</p>}
               </div>
           </div>
           
@@ -443,7 +449,7 @@ export const Calendar = () => {
                     const calculatedDays = getVacationDaysToDeduct(parseISO(absence.start_date), parseISO(absence.end_date), absence.profiles ?? undefined);
                     const displayDays = absence.used_days ?? calculatedDays;
                     const isEditing = editingDaysId === absence.id;
-                    const canEdit = isAdmin || absence.user_id === user?.id;
+                    const canEdit = checkCanModerate(absence.profiles);
 
                     return (
                         <motion.div 
@@ -616,6 +622,11 @@ export const Calendar = () => {
                             <span className={cn("text-xs font-medium px-2.5 py-1 rounded-lg inline-block mt-1", getTypeColor(absence.type))}>
                                 {getTypeLabel(absence.type)}
                             </span>
+                            {absence.type === 'vacation' && absence.deduct_vacation_days === false && (
+                                <span className="text-xs font-bold px-2.5 py-1 rounded-lg inline-block mt-1 ml-2 bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+                                    Ohne Abzug vom Urlaub
+                                </span>
+                            )}
                             <div className="flex gap-2 mt-2">
                                 {absence.certificate_url && (
                                     <a href="#" onClick={(e) => { e.preventDefault(); openStoredFile('absence_documents', absence.certificate_url!); }} className="flex items-center gap-1 text-[10px] font-bold bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400 px-2 py-1 rounded-lg hover:bg-red-100 transition-colors">

@@ -3,7 +3,7 @@ import { BellRing, CalendarPlus, Copy, RefreshCw, Smartphone } from 'lucide-reac
 import { toast } from 'react-hot-toast';
 import { supabase } from '@/lib/supabase';
 import { useStore } from '@/store/useStore';
-import { disablePush, enablePush, getPushState, type PushState } from '@/lib/push';
+import { usePush } from '@/hooks/usePush';
 import { Badge, Button, Card, CardHeader } from '@/components/ui';
 
 const FEED_BASE = 'https://snvdxjpoqfniyhtfqkza.supabase.co/functions/v1/calendar-feed';
@@ -11,15 +11,10 @@ const FEED_BASE = 'https://snvdxjpoqfniyhtfqkza.supabase.co/functions/v1/calenda
 /** Profil: Push aufs Handy und persönliches Kalender-Abo */
 export const ConnectivitySettings = () => {
   const userId = useStore((s) => s.user?.id);
-  const [push, setPush] = useState<PushState>('unsupported');
-  const [pushBusy, setPushBusy] = useState(false);
+  const { state: push, busy: pushBusy, toggle: togglePush } = usePush();
   const [token, setToken] = useState<string | null>(null);
   const [calendarAvailable, setCalendarAvailable] = useState(true);
   const [calBusy, setCalBusy] = useState(false);
-
-  useEffect(() => {
-    getPushState().then(setPush).catch(() => setPush('unsupported'));
-  }, []);
 
   useEffect(() => {
     if (!userId) return;
@@ -47,20 +42,6 @@ export const ConnectivitySettings = () => {
     else {
       setToken(data.token);
       toast.success(renew ? 'Neuer Link erstellt. Der alte funktioniert nicht mehr.' : 'Persönlicher Kalender-Link erstellt');
-    }
-  };
-
-  const togglePush = async () => {
-    if (!userId) return;
-    setPushBusy(true);
-    try {
-      const next = push === 'on' ? await disablePush() : await enablePush(userId);
-      setPush(next);
-      if (next === 'on') toast.success('Push ist auf diesem Gerät aktiv');
-    } catch {
-      toast.error('Push konnte nicht eingeschaltet werden.');
-    } finally {
-      setPushBusy(false);
     }
   };
 

@@ -4,19 +4,17 @@ import { Bell, Package, Phone, PhoneMissed, BellRing, BellOff, CheckCheck, Smart
 import { formatDistanceToNow } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { useNavigate } from 'react-router-dom';
-import { toast } from 'react-hot-toast';
 import { supabase } from '@/lib/supabase';
 import { useStore } from '@/store/useStore';
 import { cn } from '@/utils/cn';
-import { disablePush, enablePush, getPushState, type PushState } from '@/lib/push';
+import { usePush } from '@/hooks/usePush';
 import type { LucideIcon } from 'lucide-react';
 
 type Message = { id: string; title: string; body: string | null; link: string | null; created_at: string; read_at: string | null };
 type OpenItem = { id: string; title: string; subtitle?: string | null; date: string; link: string; icon: LucideIcon; tone: string };
 
-const PushToggle = ({ state, onChange }: { state: PushState; onChange: (s: PushState) => void }) => {
-  const userId = useStore((s) => s.user?.id);
-  const [busy, setBusy] = useState(false);
+const PushToggle = () => {
+  const { state, busy, toggle, ready } = usePush();
 
   if (state === 'unsupported') return null;
   if (state === 'ios-needs-install')
@@ -29,24 +27,7 @@ const PushToggle = ({ state, onChange }: { state: PushState; onChange: (s: PushS
   if (state === 'denied') return <p className="p-2 text-xs text-gray-500">Benachrichtigungen sind im Browser blockiert. Erlaube sie in den Einstellungen der Website.</p>;
 
   return (
-    <button
-      type="button"
-      disabled={busy || !userId}
-      onClick={async () => {
-        if (!userId) return;
-        setBusy(true);
-        try {
-          const next = state === 'on' ? await disablePush() : await enablePush(userId);
-          onChange(next);
-          if (next === 'on') toast.success('Push ist aktiv. Mitteilungen kommen jetzt auch bei geschlossener App.');
-        } catch {
-          toast.error('Push konnte nicht eingeschaltet werden.');
-        } finally {
-          setBusy(false);
-        }
-      }}
-      className="btn-ghost w-full justify-start text-xs"
-    >
+    <button type="button" disabled={busy || !ready} onClick={toggle} className="btn-ghost w-full justify-start text-xs">
       {state === 'on' ? <BellOff className="h-3.5 w-3.5" /> : <BellRing className="h-3.5 w-3.5" />}
       {state === 'on' ? 'Push auf diesem Gerät ausschalten' : 'Push auf diesem Gerät einschalten'}
     </button>
@@ -60,12 +41,7 @@ export const NotificationCenter = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [openItems, setOpenItems] = useState<OpenItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [pushState, setPushState] = useState<PushState>('unsupported');
   const timer = useRef<ReturnType<typeof setTimeout>>();
-
-  useEffect(() => {
-    getPushState().then(setPushState).catch(() => setPushState('unsupported'));
-  }, []);
 
   const fetchAll = useCallback(async () => {
     if (!userId) return;
@@ -211,7 +187,7 @@ export const NotificationCenter = () => {
             </div>
 
             <div className="border-t border-gray-100 p-1.5 dark:border-gray-700">
-              <PushToggle state={pushState} onChange={setPushState} />
+              <PushToggle />
             </div>
           </PopoverPanel>
         </>

@@ -18,7 +18,8 @@ serve(async (req) => {
     const secret = url.searchParams.get('secret')
     const status = url.searchParams.get('status')
 
-    if (!secret || !status) {
+    // Secrets sind UUIDs (crypto.randomUUID); alles andere gar nicht erst nachschlagen
+    if (!secret || !status || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(secret)) {
       return new Response(
         JSON.stringify({ error: 'Missing secret or status' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
@@ -35,11 +36,12 @@ serve(async (req) => {
     // 1. Verify Secret and get User
     const { data: profiles, error: profileError } = await supabaseClient
       .from('profiles')
-      .select('id, full_name')
+      .select('id, full_name, is_approved')
       .eq('webhook_secret', secret)
       .limit(1)
 
-    if (profileError || !profiles || profiles.length === 0) {
+    // Gesperrte oder nicht freigeschaltete Konten dürfen ihren Status nicht mehr setzen
+    if (profileError || !profiles || profiles.length === 0 || profiles[0].is_approved !== true) {
       return new Response(
         JSON.stringify({ error: 'Invalid secret' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
@@ -68,7 +70,7 @@ serve(async (req) => {
         .from('user_status')
         .select('id')
         .eq('user_id', user.id)
-        .single()
+        .maybeSingle()
 
     let error;
     if (existingStatus) {
@@ -104,9 +106,11 @@ serve(async (req) => {
     )
 
   } catch (error) {
+    // Details nur ins Server-Log
+    console.error('update-status:', error instanceof Error ? error.message : String(error))
     return new Response(
-      JSON.stringify({ error: error.message }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      JSON.stringify({ error: 'Interner Fehler' }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
     )
   }
 })

@@ -139,7 +139,7 @@ export const LiabilityTrackerModal: React.FC<LiabilityTrackerModalProps> = ({ is
                                             <Tooltip 
                                                 cursor={{ fill: '#FFF7ED', opacity: 0.5 }}
                                                 contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
-                                                formatter={(value: number) => [formatCurrency(value), 'Wird frei']}
+                                                formatter={(value?: number) => [formatCurrency(value ?? 0), 'Wird frei']}
                                             />
                                             <Bar 
                                                 dataKey="value" 

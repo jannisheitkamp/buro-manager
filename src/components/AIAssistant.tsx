@@ -240,7 +240,7 @@ export const AIAssistant = () => {
                 handler: async ({ navigate }) => {
                     const today = format(new Date(), 'yyyy-MM-dd');
                     const { data, error } = await supabase
-                        .from('absences')
+                        .rpc('team_absences')
                         .select('type, profiles(full_name)')
                         .eq('status', 'approved')
                         .lte('start_date', today)
@@ -248,12 +248,12 @@ export const AIAssistant = () => {
 
                     if (error) return { text: `Ich konnte die Abwesenheiten gerade nicht laden. (${error.message})` };
 
-                    if (!data || data.length === 0) {
+                    const rows = (data || []) as { type: string; profiles?: { full_name?: string } | null }[];
+                    if (rows.length === 0) {
                         return { text: 'Heute ist niemand als abwesend eingetragen.', actions: [{ label: 'Kalender öffnen', action: () => navigate('/general-calendar') }] };
                     }
 
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    const names = data.map((a: any) => `${a.profiles?.full_name || '-'} (${a.type})`).join(', ');
+                    const names = rows.map((a) => `${a.profiles?.full_name || '-'} (${a.type})`).join(', ');
 
                     return {
                         text: `Heute abwesend: **${names}**`,

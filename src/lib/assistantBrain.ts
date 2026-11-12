@@ -19,7 +19,7 @@ import { de } from 'date-fns/locale';
 import { supabase } from '@/lib/supabase';
 import { DEFAULT_RULES, isOfficeClosed, planAssignee, type ReceptionRule } from '@/lib/reception';
 import { getStatusConfig, isStatusFresh } from '@/lib/status';
-import { getWorkingDays } from '@/utils/dateUtils';
+import { fetchCarryover, vacationDaysUsedInYear } from '@/lib/vacation';
 
 export type BrainAnswer = { text: string; actions?: { label: string; href: string }[] };
 export type BrainContext = { userId: string; isAdmin: boolean; firstName?: string };
@@ -238,26 +238,23 @@ const goalAnswer = async (ctx: BrainContext): Promise<BrainAnswer> => {
 
 const vacationAnswer = async (ctx: BrainContext): Promise<BrainAnswer> => {
   const year = new Date().getFullYear();
-  const [{ data: me }, { data: abs }] = await Promise.all([
-    supabase.from('profiles').select('total_vacation_days').eq('id', ctx.userId).maybeSingle(),
+  const [{ data: me }, { data: abs }, carry] = await Promise.all([
+    supabase.from('profiles').select('total_vacation_days, is_vocational_student, vocational_school_days').eq('id', ctx.userId).maybeSingle(),
     supabase
       .from('absences')
-      .select('start_date, end_date, status, deduct_vacation_days, used_days')
+      .select('type, start_date, end_date, status, deduct_vacation_days, used_days')
       .eq('user_id', ctx.userId)
       .eq('type', 'vacation')
       .in('status', ['approved', 'pending'])
       .gte('end_date', `${year}-01-01`)
       .lte('start_date', `${year}-12-31`),
+    fetchCarryover(ctx.userId, year),
   ]);
-  const total = Number(me?.total_vacation_days) || 30;
-  let approved = 0;
-  let pending = 0;
-  (abs || []).forEach((a) => {
-    if (a.deduct_vacation_days === false) return;
-    const d = a.used_days != null ? Number(a.used_days) : getWorkingDays(a.start_date, a.end_date);
-    if (a.status === 'approved') approved += d;
-    else pending += d;
-  });
+  // Gleiche Rechnung wie im Urlaubskonto (Jahreswechsel, Feiertage, Berufsschule)
+  const total = (Number(me?.total_vacation_days) || 30) + carry;
+  const rows = (abs || []) as Parameters<typeof vacationDaysUsedInYear>[0];
+  const approved = vacationDaysUsedInYear(rows.filter((a) => a.status === 'approved'), year, me);
+  const pending = vacationDaysUsedInYear(rows.filter((a) => a.status === 'pending'), year, me);
   const left = total - approved - pending;
   let text = `Du hast ${year} **${num(left)}** von ${total} Urlaubstagen übrig.`;
   if (pending > 0) text += ` Davon sind ${num(pending)} Tage beantragt, aber noch nicht genehmigt.`;

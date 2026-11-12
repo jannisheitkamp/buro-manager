@@ -31,6 +31,16 @@ export default defineConfig({
       includeAssets: ['favicon.svg'],
       workbox: {
         maximumFileSizeToCacheInBytes: 3000000,
+        // Große PDF-Bibliotheken nicht beim ersten Start vorladen (rund 3 MB),
+        // sondern erst bei Bedarf laden und dann zwischenspeichern
+        globIgnores: ['**/pdf.worker*', '**/pdf-*.js', '**/html2pdf*', '**/html2canvas*', '**/jspdf*'],
+        runtimeCaching: [
+          {
+            urlPattern: ({ url }) => /\/assets\/(pdf\.worker|pdf-|html2pdf|html2canvas|jspdf)/.test(url.pathname),
+            handler: 'CacheFirst',
+            options: { cacheName: 'pdf-libs', expiration: { maxEntries: 20, maxAgeSeconds: 60 * 60 * 24 * 60 } },
+          },
+        ],
         // Push-Nachrichten (siehe public/push-handler.js)
         importScripts: ['push-handler.js'],
         // Edge-Functions und Kalender-Abo nie aus dem Cache bedienen
