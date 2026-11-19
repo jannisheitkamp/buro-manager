@@ -27,6 +27,20 @@ const formatCurrency = (amount: number | null | undefined) => {
   return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(amount);
 };
 
+// Sparten mit laufender Courtage je Zahlweise (keine Stornohaftung)
+const COURTAGE_SUBCATEGORIES = ['PHV', 'HR', 'UNF', 'Sach', 'KFZ', 'Rechtsschutz', 'Sonstige'];
+const MONTHS_PER_RATE: Record<string, number> = { monthly: 1, quarterly: 3, half_yearly: 6, yearly: 12 };
+
+// Anzahl der Raten vom Vertragsbeginn bis einschließlich Dezember desselben Jahres.
+// Ohne Vertragsbeginn zählt das ganze Jahr.
+function courtageInstallments(startDate: string, paymentMethod: string): number {
+  if (paymentMethod === 'one_time') return 1;
+  const step = MONTHS_PER_RATE[paymentMethod] ?? 1;
+  const month = startDate ? Number(startDate.slice(5, 7)) - 1 : 0; // 0 = Januar
+  if (Number.isNaN(month) || month < 0 || month > 11) return 12 / step;
+  return Math.floor((11 - month) / step) + 1;
+}
+
 const PAYMENT_LABEL: Record<string, string> = {
   monthly: 'monatlich',
   quarterly: 'vierteljährlich',
@@ -303,10 +317,11 @@ export const Production = () => {
         valSum = grossYearly;
         comm = grossYearly * (rate / 100);
     }
-    else if (['PHV', 'HR', 'UNF', 'Sach', 'KFZ', 'Rechtsschutz', 'Sonstige'].includes(subCategory)) {
+    else if (COURTAGE_SUBCATEGORIES.includes(subCategory)) {
         valSum = netYearly;
-        // Bei Sach-Verträgen (laufende Courtage) wird die Provision auf den Zahlweise-Beitrag (netP) gerechnet
-        comm = netP * (rate / 100);
+        // Sach-Courtage kommt je Rate und wird zum 31.12. ausgezahlt:
+        // Provision = Courtage je Rate × Raten ab Vertragsbeginn bis Jahresende
+        comm = netP * (rate / 100) * courtageInstallments(startDate, paymentMethod);
     }
     
     // 3. Calculate Life Values (Lebenswerte)
@@ -333,8 +348,11 @@ export const Production = () => {
     setLifeValueFactor(lvFactor);
     setLifeValues(lv);
 
-  }, [netPremium, grossPremium, duration, paymentMethod, subCategory, userRates, category, manualLvFactor]); 
+  }, [netPremium, grossPremium, duration, paymentMethod, subCategory, userRates, category, manualLvFactor, startDate]); 
   
+  const isCourtage = COURTAGE_SUBCATEGORIES.includes(subCategory);
+  const courtageRates = courtageInstallments(startDate, paymentMethod);
+
   // Update Category when SubCategory changes (reverse lookup if needed, or just handle in UI)
   useEffect(() => {
       const parent = INSURANCE_TYPES.find(t => t.subcategories.includes(subCategory));
@@ -428,7 +446,7 @@ export const Production = () => {
             commission_rate: Number(commissionRate),
             valuation_sum: valuationSum,
             commission_amount: commissionAmount,
-            liability_rate: liabilityActive ? Number(liabilityRate) : 0,
+            liability_rate: liabilityActive && !COURTAGE_SUBCATEGORIES.includes(subCategory) ? Number(liabilityRate) : 0,
             status,
             notes,
             life_values: lifeValues,
@@ -1398,6 +1416,12 @@ export const Production = () => {
                             <div>
                                 <p className="text-xs text-gray-500">Provision</p>
                                 <p className="tabular font-display text-3xl font-semibold text-gray-900 dark:text-white">{formatCurrency(commissionAmount)}</p>
+                                {isCourtage && (
+                                    <p className="mt-1 text-xs text-gray-500">
+                                        {courtageRates} {courtageRates === 1 ? 'Rate' : 'Raten'} à {formatCurrency((Number(netPremium) || 0) * (Number(commissionRate) || 0) / 100)}, Auszahlung zum 31.12.
+                                        {!startDate && paymentMethod !== 'one_time' && ' Ohne Vertragsbeginn wird das ganze Jahr gerechnet.'}
+                                    </p>
+                                )}
                             </div>
                             <dl className="grid grid-cols-2 gap-x-4 gap-y-3 border-t border-brand-100 pt-4 text-sm dark:border-brand-900">
                                 <div>
@@ -1428,6 +1452,7 @@ export const Production = () => {
                                     <dd className="tabular pt-1.5 font-semibold text-brand-700 dark:text-brand-300">{new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 }).format(lifeValues)}</dd>
                                 </div>
                             </dl>
+                            {!isCourtage && (<>
                             <div className="flex items-center justify-between gap-3 border-t border-brand-100 pt-4 dark:border-brand-900">
                                 <label htmlFor="liabilityCheck" className="flex cursor-pointer items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
                                     <input type="checkbox" id="liabilityCheck" checked={liabilityActive} onChange={e => setLiabilityActive(e.target.checked)} className="h-4 w-4 rounded" />
@@ -1443,6 +1468,7 @@ export const Production = () => {
                             {liabilityActive && commissionAmount > 0 && (
                                 <p className="text-xs text-gray-500">Einbehalt: {formatCurrency(commissionAmount * liabilityRate / 100)}, Auszahlung: {formatCurrency(commissionAmount * (1 - liabilityRate / 100))}</p>
                             )}
+                            </>)}
                         </div>
                     </aside>
                 </form>
