@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { Phone, PhoneMissed, PhoneIncoming, Clock, CheckCircle, XCircle, Search, ClipboardList, Plus, AlertCircle, Trash2, ArrowRight, PenTool, Check, MessageSquare, PhoneOutgoing, Calendar, UserPlus, BookOpen } from 'lucide-react';
-import { format, addDays } from 'date-fns';
+import { format, addDays, isSameDay, subDays } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { cn } from '@/utils/cn';
 import toast from 'react-hot-toast';
@@ -12,7 +12,8 @@ import { ConfirmModal } from '@/components/ConfirmModal';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Callback, Profile } from '@/types';
 import { useSearchParams } from 'react-router-dom';
-import { Avatar, Badge, Button, EmptyState, PageHeader, Segmented } from '@/components/ui';
+import { Avatar, Button, EmptyState, PageHeader, Segmented } from '@/components/ui';
+import { HeroBars, HeroDivider, HeroNumber, HeroPanel, HeroStat, StatusPill } from '@/components/ui/hero';
 
 export const PhoneCalls = () => {
   const { user, profile } = useStore();
@@ -573,6 +574,16 @@ export const PhoneCalls = () => {
 
   const missedOpen = uniqueCalls.filter(c => c.status === 'missed' && !isDone(c)).length;
   const openTasks = callbacks.filter(c => c.status !== 'done').length;
+  const myOpenTasks = callbacks.filter(c => c.status !== 'done' && c.assigned_to === user?.id).length;
+  const urgentTasks = callbacks.filter(c => c.status !== 'done' && c.priority === 'high').length;
+  const now = new Date();
+  const callsToday = uniqueCalls.filter(c => isSameDay(new Date(c.created_at), now)).length;
+  const logsToday = callLogs.filter(l => isSameDay(new Date(l.created_at), now)).length;
+  const callBars = Array.from({ length: 14 }, (_, i) => {
+      const day = subDays(now, 13 - i);
+      const n = uniqueCalls.filter(c => isSameDay(new Date(c.created_at), day)).length;
+      return { key: format(day, 'yyyy-MM-dd'), label: format(day, 'EEEEEE', { locale: de }), value: n, display: `${n} ${n === 1 ? 'Anruf' : 'Anrufe'}`, current: i === 13 };
+  });
 
   return (
     <div className="space-y-6">
@@ -598,6 +609,30 @@ export const PhoneCalls = () => {
         />
       </PageHeader>
 
+      <HeroPanel aria-label="Anrufe im Überblick">
+        <div className="grid gap-8 p-6 sm:p-8 lg:grid-cols-[auto_1fr] lg:items-end">
+          <div>
+            <HeroNumber value={missedOpen + openTasks} label="Wartet auf dich und das Team" unit={missedOpen + openTasks === 1 ? 'Anruf' : 'Anrufe'} />
+            <p className="mt-4 flex flex-wrap gap-2 text-sm">
+              {missedOpen > 0 && <button type="button" onClick={() => setActiveTab('live')} className="rounded-full bg-red-500/20 px-3 py-1 font-medium text-red-100 ring-1 ring-red-400/40 hover:bg-red-500/30">{missedOpen} verpasst</button>}
+              {urgentTasks > 0 && <button type="button" onClick={() => setActiveTab('tasks')} className="rounded-full bg-amber-300 px-3 py-1 font-semibold text-brand-950 hover:bg-amber-200">{urgentTasks} dringend</button>}
+              {missedOpen + openTasks === 0 && <span className="text-brand-100">Alles abgearbeitet. Stark.</span>}
+            </p>
+          </div>
+          <div>
+            <p className="mb-1 text-xs text-brand-200">Eingang der letzten 14 Tage</p>
+            <HeroBars bars={callBars} height="h-28" />
+          </div>
+        </div>
+        <HeroDivider />
+        <dl className="grid grid-cols-2 gap-x-6 gap-y-5 px-6 py-5 sm:grid-cols-4 sm:px-8">
+          <HeroStat label="Offene Rückrufe" value={openTasks} />
+          <HeroStat label="Davon für dich" value={myOpenTasks} accent={myOpenTasks > 0} />
+          <HeroStat label="Anrufe heute" value={callsToday} />
+          <HeroStat label="Gespräche protokolliert heute" value={logsToday} />
+        </dl>
+      </HeroPanel>
+
       {/* EINGANG */}
       {activeTab === 'live' && (
         <div className="card animate-fade-in overflow-hidden">
@@ -617,14 +652,14 @@ export const PhoneCalls = () => {
                 return (
                   <li key={call.id} className="group flex flex-col gap-3 px-5 py-3.5 sm:flex-row sm:items-center sm:px-6">
                     <div className="flex min-w-0 flex-1 items-center gap-3">
-                      <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-lg', open ? 'bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-300' : 'bg-gray-100 text-gray-400 dark:bg-gray-700 dark:text-gray-400')}>
+                      <span className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-xl', open ? 'bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-300' : 'bg-gray-100 text-gray-400 dark:bg-gray-700 dark:text-gray-400')}>
                         {call.status === 'missed' ? <PhoneMissed className="h-4 w-4" /> : <PhoneIncoming className="h-4 w-4" />}
                       </span>
                       <div className="min-w-0">
                         <p className="flex items-center gap-2">
-                          <a href={`tel:${(call.caller_number || '').replace(/\s/g, '')}`} className={cn('tabular font-medium hover:underline', open ? 'text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400')}>{call.caller_number || 'Unbekannt'}</a>
-                          {open && <Badge tone="danger">Verpasst</Badge>}
-                          {isDone(call) && <Badge tone="success" icon={CheckCircle}>Erledigt</Badge>}
+                          <a href={`tel:${(call.caller_number || '').replace(/\s/g, '')}`} className={cn('tabular text-[15px] font-semibold hover:underline', open ? 'text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400')}>{call.caller_number || 'Unbekannt'}</a>
+                          {open && <StatusPill tone="red" pulse>Verpasst</StatusPill>}
+                          {isDone(call) && <StatusPill tone="emerald">Erledigt</StatusPill>}
                         </p>
                         <p className="truncate text-xs text-gray-500">
                           {format(new Date(call.created_at), "EEE, dd.MM. 'um' HH:mm", { locale: de })}
@@ -688,10 +723,11 @@ export const PhoneCalls = () => {
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-1.5">
-                          {isHighPrio && !done && <Badge tone="danger" icon={AlertCircle}>Dringend</Badge>}
-                          {isForMe && !done && <Badge tone="brand">Für dich</Badge>}
+                          {isHighPrio && !done && <StatusPill tone="red" pulse>Dringend</StatusPill>}
+                          {isForMe && !done && <StatusPill tone="brand">Für dich</StatusPill>}
+                          {done && <StatusPill tone="emerald">Erledigt</StatusPill>}
                         </div>
-                        <h3 className="mt-1.5 truncate text-base font-semibold text-gray-900 dark:text-white">{cb.customer_name}</h3>
+                        <h3 className="mt-2 truncate font-display text-lg font-semibold text-gray-900 dark:text-white">{cb.customer_name}</h3>
                         {cb.phone ? (
                           <a href={`tel:${cb.phone.replace(/\s/g, '')}`} className="tabular text-sm font-medium text-brand-700 hover:underline dark:text-brand-300">{cb.phone}</a>
                         ) : (
