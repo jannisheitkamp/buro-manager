@@ -8,7 +8,8 @@ import { supabase } from '@/lib/supabase';
 import { useStore } from '@/store/useStore';
 import { Modal } from '@/components/Modal';
 import { ConfirmModal } from '@/components/ConfirmModal';
-import { Avatar, Badge, Button, EmptyState, Field, PageHeader, Segmented } from '@/components/ui';
+import { Avatar, Button, EmptyState, Field, PageHeader, Segmented } from '@/components/ui';
+import { HeroDivider, HeroNumber, HeroPanel, HeroStat, RowStripe, StatusPill } from '@/components/ui/hero';
 import { cn } from '@/utils/cn';
 
 type ParcelRow = {
@@ -166,16 +167,17 @@ export const Parcels = () => {
     const link = trackingLink(p.carrier, p.tracking_number);
     const canDelete = isAdmin || p.created_by === user?.id;
     return (
-      <li className="group flex flex-col gap-3 px-5 py-3.5 sm:flex-row sm:items-center sm:px-6">
+      <li className={cn('group relative flex flex-col gap-3 py-3.5 pl-6 pr-5 transition-colors hover:bg-brand-50/40 dark:hover:bg-white/[0.03] sm:flex-row sm:items-center sm:pr-6', p.status === 'collected' && 'opacity-60')}>
+        <RowStripe color={p.status === 'pending' ? (mine ? '#F2A541' : '#22807C') : p.status === 'expected' ? '#5B8DB8' : '#9AA39C'} />
         <div className="flex min-w-0 flex-1 items-center gap-3">
-          <Avatar name={p.recipient?.full_name} src={p.recipient?.avatar_url} size="sm" />
+          <Avatar name={p.recipient?.full_name} src={p.recipient?.avatar_url} size="md" />
           <div className="min-w-0">
             <p className="flex flex-wrap items-center gap-2 text-sm">
-              <span className="font-medium text-gray-900 dark:text-white">{p.recipient?.full_name || 'Unbekannt'}</span>
-              {mine && p.status !== 'collected' && <Badge tone="warning">Für dich</Badge>}
+              <span className="text-[15px] font-semibold text-gray-900 dark:text-white">{p.recipient?.full_name || 'Unbekannt'}</span>
+              {mine && p.status !== 'collected' && <StatusPill tone="amber" pulse={p.status === 'pending'}>Für dich</StatusPill>}
             </p>
-            <p className="flex flex-wrap items-center gap-x-2 text-xs text-gray-500">
-              <span>{p.carrier || 'Ohne Zusteller'}</span>
+            <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500">
+              <span className="rounded-md bg-gray-100 px-1.5 py-0.5 font-medium text-gray-700 dark:bg-gray-700 dark:text-gray-200">{p.carrier || 'Ohne Zusteller'}</span>
               {p.status === 'pending' && (
                 <span className="flex items-center gap-1">
                   <MapPin className="h-3 w-3" /> {p.location}
@@ -218,9 +220,9 @@ export const Parcels = () => {
   const Section = ({ title, items, empty, muted }: { title: string; items: ParcelRow[]; empty?: string; muted?: boolean }) =>
     items.length === 0 && !empty ? null : (
       <section className={cn('card overflow-hidden', muted && 'opacity-80')}>
-        <h2 className="flex items-center justify-between border-b border-gray-100 px-5 py-3 text-sm font-semibold text-gray-900 dark:border-gray-700 dark:text-white sm:px-6">
+        <h2 className="flex items-center justify-between border-b border-gray-100 px-5 py-3.5 font-display text-base font-semibold text-gray-900 dark:border-gray-700 dark:text-white sm:px-6">
           {title}
-          <span className="tabular text-xs font-normal text-gray-500">{items.length}</span>
+          <span className="tabular rounded-full bg-gray-100 px-2 py-0.5 font-sans text-xs font-semibold text-gray-600 dark:bg-gray-700 dark:text-gray-300">{items.length}</span>
         </h2>
         {items.length === 0 ? (
           <p className="px-6 py-6 text-sm text-gray-500">{empty}</p>
@@ -254,6 +256,25 @@ export const Parcels = () => {
           ]}
         />
       </PageHeader>
+
+      <HeroPanel aria-label="Pakete im Überblick">
+        <div className="flex flex-col gap-6 p-6 sm:flex-row sm:items-end sm:justify-between sm:p-8">
+          <HeroNumber value={ready.length} label="Liegt zur Abholung bereit" unit={ready.length === 1 ? 'Paket' : 'Pakete'} />
+          {mineCount > 0 ? (
+            <button type="button" onClick={() => setFilter('mine')} className="inline-flex items-center gap-2 self-start rounded-xl bg-amber-300 px-4 py-2.5 text-sm font-semibold text-brand-950 shadow-[0_0_30px_rgba(242,165,65,0.45)] hover:bg-amber-200 sm:self-auto">
+              <Package className="h-4 w-4" /> {mineCount} {mineCount === 1 ? 'Paket wartet' : 'Pakete warten'} auf dich
+            </button>
+          ) : (
+            <p className="text-sm text-brand-100">Für dich liegt gerade nichts da.</p>
+          )}
+        </div>
+        <HeroDivider />
+        <dl className="grid grid-cols-3 gap-6 px-6 py-5 sm:px-8">
+          <HeroStat label="Angekündigt" value={expected.length} />
+          <HeroStat label="Für dich bereit" value={mineCount} accent={mineCount > 0} />
+          <HeroStat label={`Abgeholt, ${COLLECTED_DAYS} Tage`} value={collected.length} />
+        </dl>
+      </HeroPanel>
 
       {loading ? (
         <p className="py-16 text-center text-sm text-gray-500">Pakete werden geladen</p>
