@@ -55,7 +55,7 @@ export const Admin = () => {
             // 3. Recent Activity (Production)
             const { data: activity } = await supabase
                 .from('production_entries')
-                .select('*, profiles(full_name)')
+                .select('*, profiles:user_id(full_name)')
                 .order('created_at', { ascending: false })
                 .limit(10);
             

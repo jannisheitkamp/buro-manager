@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Avatar } from '@/components/ui';
 import { PageHeader } from '@/components/ui';
+import { HeroDivider, HeroPanel, HeroStat } from '@/components/ui/hero';
 import { ConnectivitySettings } from '@/components/ConnectivitySettings';
 import { supabase, supabaseUrl } from '@/lib/supabase';
 import { getMyWebhookSecret } from '@/lib/profiles';
@@ -309,14 +310,36 @@ export const ProfilePage = () => {
         <div className="mx-auto max-w-4xl space-y-6">
             <PageHeader title="Mein Profil" description="Persönliche Daten, Ziele, Provisionssätze und Sicherheit." />
 
+            <HeroPanel aria-label="Dein Profil">
+                <div className="flex flex-col gap-6 p-6 sm:flex-row sm:items-center sm:p-8">
+                    <Avatar name={fullName} src={avatarUrl} size="xl" className="ring-4 ring-amber-300/80 ring-offset-4 ring-offset-brand-900 dark:ring-offset-brand-950" />
+                    <div className="min-w-0">
+                        <p className="text-sm text-brand-200">{agencyNumber ? `Agenturnummer ${agencyNumber}` : 'Dein Profil'}</p>
+                        <h2 className="mt-1 truncate font-display text-4xl font-semibold leading-tight tracking-tight">{fullName || 'Ohne Namen'}</h2>
+                        <p className="mt-2 flex flex-wrap gap-1.5">
+                            {(profile?.roles || []).map(r => (
+                                <span key={r} className="rounded-full bg-white/10 px-2.5 py-0.5 text-xs font-medium text-brand-50 ring-1 ring-white/15">{r === 'admin' ? 'Admin' : r}</span>
+                            ))}
+                            {badges.length > 0 && <span className="rounded-full bg-amber-300 px-2.5 py-0.5 text-xs font-semibold text-brand-950">{badges.length} {badges.length === 1 ? 'Auszeichnung' : 'Auszeichnungen'}</span>}
+                        </p>
+                    </div>
+                </div>
+                <HeroDivider />
+                <dl className="grid grid-cols-3 gap-6 px-6 py-5 sm:px-8">
+                    <HeroStat label="Monatsziel" value={`${new Intl.NumberFormat('de-DE').format(monthlyGoal)} LW`} />
+                    <HeroStat label="Jahresziel" value={`${new Intl.NumberFormat('de-DE').format(yearlyGoal)} LW`} accent />
+                    <HeroStat label="Urlaubstage" value={totalVacationDays} />
+                </dl>
+            </HeroPanel>
+
             {/* Badges Section */}
             {badges.length > 0 && (
                 <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 mb-8"
+                    className="card p-6 mb-8"
                 >
-                    <h2 className="font-bold text-lg mb-4 flex items-center gap-2">
+                    <h2 className="mb-4 flex items-center gap-2 font-display text-lg font-semibold text-gray-900 dark:text-white">
                         <Trophy className="w-5 h-5 text-yellow-500" />
                         Meine Auszeichnungen
                     </h2>
@@ -344,9 +367,9 @@ export const ProfilePage = () => {
                     <motion.div 
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
-                        className="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-gray-700"
+                        className="card p-6"
                     >
-                        <h2 className="font-bold text-lg mb-6 flex items-center gap-2">
+                        <h2 className="mb-6 flex items-center gap-2 font-display text-lg font-semibold text-gray-900 dark:text-white">
                             <Briefcase className="w-5 h-5 text-gray-400" />
                             Stammdaten
                         </h2>
@@ -533,7 +556,7 @@ export const ProfilePage = () => {
                             </div>
                             
                             <div className="pt-2">
-                                <button type="submit" disabled={loading} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-xl shadow-sm transition-all flex items-center justify-center gap-2">
+                                <button type="submit" disabled={loading} className="btn-primary w-full py-2.5">
                                     <Save className="w-4 h-4" /> Speichern
                                 </button>
                             </div>
@@ -545,9 +568,9 @@ export const ProfilePage = () => {
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: 0.1 }}
-                        className="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-gray-700"
+                        className="card p-6"
                     >
-                        <h2 className="font-bold text-lg mb-6 flex items-center gap-2">
+                        <h2 className="mb-6 flex items-center gap-2 font-display text-lg font-semibold text-gray-900 dark:text-white">
                             <Lock className="w-5 h-5 text-gray-400" />
                             Sicherheit
                         </h2>
@@ -620,7 +643,7 @@ export const ProfilePage = () => {
                     initial={{ opacity: 0, x: 20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.2 }}
-                    className="lg:col-span-2 bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 h-fit"
+                    className="lg:col-span-2 card p-6 h-fit"
                 >
                     <div className="flex items-center justify-between mb-6">
                         <div>
@@ -679,7 +702,7 @@ export const ProfilePage = () => {
                     initial={{ opacity: 0, x: 20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.3 }}
-                    className="lg:col-span-2 bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 h-fit"
+                    className="lg:col-span-2 card p-6 h-fit"
                 >
                     <div className="flex items-center justify-between mb-6">
                         <div>
