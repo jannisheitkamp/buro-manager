@@ -2,13 +2,14 @@ import { useEffect, useState } from 'react';
 import { openStoredFile } from '@/lib/storage';
 import { Avatar } from '@/components/ui';
 import { PageHeader, Button } from '@/components/ui';
+import { CountUp, HeroDivider, HeroPanel, HeroStat } from '@/components/ui/hero';
 import { supabase } from '@/lib/supabase';
 import { PROFILE_COLUMNS } from '@/lib/profiles';
 import { Absence, Profile } from '@/types';
 import { useStore } from '@/store/useStore';
 import { format, parseISO, isAfter, startOfDay, differenceInCalendarDays } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { Plus, Check, X, Clock, Calendar as CalendarIcon, Trash2, Download, Palmtree, ThermometerSun, HelpCircle, GraduationCap, Repeat, Briefcase, FileText, PenTool } from 'lucide-react';
+import { Plus, Check, X, Clock, Calendar as CalendarIcon, Trash2, Download, Palmtree, ThermometerSun, HelpCircle, GraduationCap, Repeat, FileText, PenTool } from 'lucide-react';
 import { Modal } from '@/components/Modal';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { cn } from '@/utils/cn';
@@ -429,45 +430,44 @@ export const Calendar = () => {
         actions={<Button icon={Plus} onClick={() => setIsModalOpen(true)}>Abwesenheit eintragen</Button>}
       />
 
-      {/* Vacation Overview Cards */}
-      <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="grid grid-cols-1 md:grid-cols-3 gap-4"
-      >
-          <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 flex items-center gap-4">
-              <div className="p-4 bg-indigo-50 dark:bg-indigo-900/30 rounded-2xl text-indigo-600 dark:text-indigo-400">
-                  <Briefcase className="w-6 h-6" />
-              </div>
+      {(() => {
+        const todayKey = format(new Date(), 'yyyy-MM-dd');
+        const awayToday = approvedAbsences.filter((x) => x.start_date <= todayKey && (!x.end_date || x.end_date >= todayKey) || (x.type === 'school' && x.is_recurring));
+        const typeLabel: Record<string, string> = { vacation: 'Urlaub', sick_leave: 'Krank', seminar: 'Seminar', school: 'Berufsschule' };
+        return (
+          <HeroPanel aria-label="Abwesenheiten heute">
+            <div className="grid gap-8 p-6 sm:p-8 lg:grid-cols-[auto_1fr] lg:items-center">
               <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">Jahresurlaub {currentYear}</p>
-                  <p className="text-2xl font-bold text-gray-900 dark:text-white">{totalVacationDays} Tage</p>
-                  {carryover > 0 && <p className="text-xs text-gray-400">davon {carryover} aus {currentYear - 1}</p>}
+                <p className="text-sm text-brand-200">Heute nicht im Büro</p>
+                <p className="mt-1.5 font-display font-semibold leading-[0.9] tracking-tight">
+                  <CountUp value={awayToday.length} className="text-7xl sm:text-8xl" />
+                  <span className="ml-2 text-3xl text-brand-200 sm:text-4xl">{awayToday.length === 1 ? 'Person' : 'Personen'}</span>
+                </p>
+                {awayToday.length === 0 && <p className="mt-4 text-sm text-brand-100">Alle an Deck.</p>}
               </div>
-          </div>
-          
-          <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 flex items-center gap-4">
-              <div className="p-4 bg-emerald-50 dark:bg-emerald-900/30 rounded-2xl text-emerald-600 dark:text-emerald-400">
-                  <Check className="w-6 h-6" />
-              </div>
-              <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">Genutzt / Geplant</p>
-                  <p className="text-2xl font-bold text-gray-900 dark:text-white">{usedVacationDays} Tage</p>
-              </div>
-          </div>
-
-          <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 flex items-center gap-4">
-              <div className={cn("p-4 rounded-2xl", remainingVacationDays > 0 ? "bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400" : "bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400")}>
-                  <Palmtree className="w-6 h-6" />
-              </div>
-              <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">Verbleibend</p>
-                  <p className={cn("text-2xl font-bold", remainingVacationDays > 0 ? "text-gray-900 dark:text-white" : "text-red-600 dark:text-red-400")}>
-                      {remainingVacationDays} Tage
-                  </p>
-              </div>
-          </div>
-      </motion.div>
+              {awayToday.length > 0 && (
+                <ul className="flex flex-wrap gap-3 lg:justify-end">
+                  {awayToday.map((x) => (
+                    <li key={x.id} className="flex items-center gap-3 rounded-2xl bg-white/5 py-2 pl-2 pr-4 ring-1 ring-white/10">
+                      <Avatar name={x.profiles?.full_name} src={x.profiles?.avatar_url} size="md" />
+                      <span>
+                        <span className="block text-sm font-semibold">{x.profiles?.full_name?.split(' ')[0]}</span>
+                        <span className="block text-xs text-brand-200">{typeLabel[x.type] || 'Abwesend'}{x.end_date && x.end_date !== todayKey && !x.is_recurring ? ` bis ${format(parseISO(x.end_date), 'd. MMM', { locale: de })}` : ''}</span>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <HeroDivider />
+            <dl className="grid grid-cols-3 gap-6 px-6 py-5 sm:px-8">
+              <HeroStat label="Wartet auf Entscheidung" value={pendingAbsences.length} accent={pendingAbsences.length > 0} />
+              <HeroStat label="Geplant ab heute" value={approvedAbsences.length} />
+              <HeroStat label={`Dein Resturlaub ${currentYear}`} value={`${remainingVacationDays} Tage`} hint={`${usedVacationDays} von ${totalVacationDays} genutzt oder geplant`} />
+            </dl>
+          </HeroPanel>
+        );
+      })()}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Upcoming Approved Absences */}
@@ -475,9 +475,9 @@ export const Calendar = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="bg-white dark:bg-gray-800 rounded-3xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 sm:p-8"
+            className="card card-pad"
         >
-          <h2 className="text-xl font-bold mb-6 text-gray-900 dark:text-white flex items-center gap-3">
+          <h2 className="mb-5 flex items-center gap-3 font-display text-lg font-semibold text-gray-900 dark:text-white">
               <div className="p-2 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg">
                 <CalendarIcon className="w-5 h-5 text-indigo-500" />
               </div>
@@ -629,9 +629,9 @@ export const Calendar = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="bg-white dark:bg-gray-800 rounded-3xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 sm:p-8"
+            className="card card-pad"
         >
-          <h2 className="text-xl font-bold mb-6 text-gray-900 dark:text-white flex items-center gap-3">
+          <h2 className="mb-5 flex items-center gap-3 font-display text-lg font-semibold text-gray-900 dark:text-white">
               <div className="p-2 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
                 <Clock className="w-5 h-5 text-amber-500" />
               </div>
