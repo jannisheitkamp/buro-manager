@@ -15,6 +15,7 @@ import {
   Palmtree,
   Headset,
   UserCircle,
+  Contact,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -43,7 +44,8 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: 'Kunden & Umsatz',
     items: [
-      { name: 'Leads', href: '/leads', icon: Kanban, keywords: 'kunden pipeline' },
+      { name: 'Leads', href: '/leads', icon: Kanban, keywords: 'pipeline interessenten' },
+      { name: 'Kunden', href: '/customers', icon: Contact, keywords: 'kundenakte fristen wiedervorlage kündigung wechselstichtag lücken' },
       { name: 'Produktion', href: '/production', icon: TrendingUp, keywords: 'umsatz provision verträge lebenswerte' },
     ],
   },

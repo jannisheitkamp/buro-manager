@@ -173,6 +173,9 @@ export type ProductionEntry = {
   status: 'submitted' | 'policed' | 'cancelled';
   policing_date: string | null;
   commission_received_date: string | null;
+  cancelled_at?: string | null;
+  cancel_reason?: string | null;
+  cancel_note?: string | null;
   notes: string | null;
   created_at: string;
   profiles?: Profile; // The closer (user_id)
