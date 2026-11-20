@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { PageHeader, Segmented, Button, IconButton } from '@/components/ui';
+import { HeroPanel } from '@/components/ui/hero';
 import { supabase } from '@/lib/supabase';
 import { useStore } from '@/store/useStore';
 import { format, startOfWeek, addDays, startOfMonth, endOfMonth, endOfWeek, isSameMonth, isSameDay, addMonths, subMonths, isToday } from 'date-fns';
@@ -392,10 +393,44 @@ export const GeneralCalendar = () => {
             </>
           }
         />
+        {(() => {
+          const now = new Date();
+          const today = events.filter(e => isSameDay(new Date(e.start_time), now)).sort((a, b) => a.start_time.localeCompare(b.start_time));
+          const timed = today.filter(e => !e.type || e.type === 'event' || e.type === 'booking');
+          const next = timed.find(e => new Date(e.start_time) >= now);
+          const away = today.filter(e => e.type === 'absence');
+          const holiday = getHolidayName(now);
+          return (
+            <HeroPanel aria-label="Heute">
+              <div className="flex flex-col gap-6 p-6 sm:flex-row sm:items-center sm:p-8">
+                <button type="button" onClick={() => { setCurrentDate(now); setSelectedDate(now); }} className="flex items-center gap-5 text-left focus-visible:outline-none">
+                  <span className="flex h-24 w-24 shrink-0 flex-col items-center justify-center rounded-2xl bg-amber-300 text-brand-950 shadow-[0_0_40px_rgba(242,165,65,0.45)]">
+                    <span className="text-xs font-semibold uppercase tracking-wide">{format(now, 'MMM', { locale: de }).replace('.', '')}</span>
+                    <span className="font-display text-5xl font-semibold leading-none">{format(now, 'd')}</span>
+                  </span>
+                  <span>
+                    <span className="block text-sm text-brand-200">{format(now, 'EEEE', { locale: de })}{holiday ? `, ${holiday}` : ''}</span>
+                    <span className="mt-1 block font-display text-4xl font-semibold leading-tight">
+                      {timed.length === 0 ? 'Keine Termine' : `${timed.length} ${timed.length === 1 ? 'Termin' : 'Termine'} heute`}
+                    </span>
+                    {away.length > 0 && <span className="mt-1 block text-sm text-brand-100">{away.length} {away.length === 1 ? 'Person' : 'Personen'} abwesend</span>}
+                  </span>
+                </button>
+                {next && (
+                  <button type="button" onClick={() => (next.type === "booking" ? undefined : openEditModal(next))} className="rounded-2xl bg-white/5 px-5 py-4 text-left ring-1 ring-white/10 transition-colors hover:bg-white/10 sm:ml-auto sm:max-w-sm">
+                    <span className="block text-xs text-brand-200">Als Nächstes um {format(new Date(next.start_time), 'HH:mm')}</span>
+                    <span className="mt-1 block truncate font-display text-xl font-semibold">{next.title}</span>
+                    {next.location && <span className="mt-0.5 flex items-center gap-1 truncate text-xs text-brand-100"><MapPin className="h-3 w-3" /> {next.location}</span>}
+                  </button>
+                )}
+              </div>
+            </HeroPanel>
+          );
+        })()}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-1">
             <IconButton icon={ChevronLeft} label={viewMode === 'month' ? 'Vorheriger Monat' : 'Vorherige Woche'} onClick={prev} />
-            <h2 className="min-w-[10rem] text-center text-lg font-semibold capitalize text-gray-900 dark:text-white">
+            <h2 className="min-w-[11rem] text-center font-display text-xl font-semibold capitalize text-gray-900 dark:text-white">
               {viewMode === 'month' ? format(currentDate, 'MMMM yyyy', { locale: de }) : `Kalenderwoche ${format(currentDate, 'w', { locale: de })}`}
             </h2>
             <IconButton icon={ChevronRight} label={viewMode === 'month' ? 'Nächster Monat' : 'Nächste Woche'} onClick={next} />
