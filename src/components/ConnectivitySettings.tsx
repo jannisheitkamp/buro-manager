@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import { BellRing, CalendarPlus, Copy, RefreshCw, Smartphone } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { supabase } from '@/lib/supabase';
+import { supabase, supabaseUrl } from '@/lib/supabase';
 import { useStore } from '@/store/useStore';
 import { usePush } from '@/hooks/usePush';
 import { Badge, Button, Card, CardHeader } from '@/components/ui';
 
-const FEED_BASE = 'https://snvdxjpoqfniyhtfqkza.supabase.co/functions/v1/calendar-feed';
+const FEED_BASE = `${supabaseUrl}/functions/v1/calendar-feed`;
 
 /** Profil: Push aufs Handy und persönliches Kalender-Abo */
 export const ConnectivitySettings = () => {

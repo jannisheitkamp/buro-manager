@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Avatar, PageHeader, IconButton, Segmented, EmptyState } from '@/components/ui';
 import { CountUp, HeroPanel } from '@/components/ui/hero';
 import { useSearchParams } from 'react-router-dom';
-import { supabase } from '@/lib/supabase';
+import { IS_DEMO, supabase } from '@/lib/supabase';
 import { PROFILE_COLUMNS } from '@/lib/profiles';
 import { Profile, UserStatus } from '@/types';
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -15,20 +15,22 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
 
 // Roles configuration
-const ROLES = [
-  'admin',
-  'employee',
-  'gruppe_vaupel',
-  'gruppe_kalies',
-  'selbststaendig',
-  'tim',
-  'morris',
-  'vaupel',
-  'jannis',
-  'flori',
-  'marcio',
-  'lucas',
-];
+const ROLES = IS_DEMO
+  ? ['admin', 'employee', 'selbststaendig']
+  : [
+      'admin',
+      'employee',
+      'gruppe_vaupel',
+      'gruppe_kalies',
+      'selbststaendig',
+      'tim',
+      'morris',
+      'vaupel',
+      'jannis',
+      'flori',
+      'marcio',
+      'lucas',
+    ];
 
 const STATUS_ICONS = {
     'office': Briefcase,

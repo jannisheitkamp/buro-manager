@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
-import { supabase } from '@/lib/supabase';
+import { IS_DEMO, supabase } from '@/lib/supabase';
 import { useStore } from '@/store/useStore';
 import { FullScreenLoader } from './FullScreenLoader';
 
@@ -15,6 +15,10 @@ export const MfaCheck = () => {
 
   useEffect(() => {
     if (!userId) return;
+    if (IS_DEMO) {
+      setState('ok');
+      return;
+    }
     let cancelled = false;
 
     (async () => {

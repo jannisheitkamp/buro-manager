@@ -4,7 +4,7 @@ import { Menu as MenuRoot, MenuButton, MenuItem, MenuItems } from '@headlessui/r
 import { Bot, LogOut, Menu, Moon, Search, Sun, X, UserCircle, Grid2x2 } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import { useTheme } from '@/hooks/useTheme';
-import { supabase } from '@/lib/supabase';
+import { IS_DEMO, supabase } from '@/lib/supabase';
 import { ADMIN_ITEM, MOBILE_TABS, NAV_GROUPS, PROFILE_ITEM, findNavItem, type NavItem } from '@/lib/navigation';
 import { useNotifications } from '@/hooks/useNotifications';
 import { cn } from '@/utils/cn';
@@ -305,6 +305,11 @@ export const Layout = () => {
         </div>
       )}
 
+      {IS_DEMO && (
+        <div className="bg-amber-300 px-4 py-1.5 text-center text-xs font-medium text-brand-950">
+          Demo mit erfundenen Daten. Klick dich frei durch, nach dem Neuladen ist alles wieder wie am Anfang.
+        </div>
+      )}
       <Topbar onOpenMenu={() => setMenuOpen(true)} />
 
       <main className="mx-auto w-full max-w-[1440px] px-4 pb-28 pt-6 sm:px-6 sm:pt-8 lg:px-8 lg:pb-16">
