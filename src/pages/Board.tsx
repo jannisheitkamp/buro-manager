@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Avatar } from '@/components/ui';
-import { PageHeader, Button } from '@/components/ui';
+import { PageHeader, Button, EmptyState } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
 import { PROFILE_PUBLIC } from '@/lib/profiles';
 import { Post } from '@/types';
@@ -13,6 +13,7 @@ import { ConfirmModal } from '@/components/ConfirmModal';
 import { cn } from '@/utils/cn';
 import { toast } from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
+import { HeroPanel, StatusPill } from '@/components/ui/hero';
 
 export const Board = () => {
   const { user, profile } = useStore();
@@ -110,13 +111,6 @@ export const Board = () => {
     }
   };
 
-  const getTypeIcon = (type: string) => {
-    switch (type) {
-      case 'task': return <CheckSquare className="w-5 h-5 text-green-500" />;
-      case 'announcement': default: return <Pin className="w-5 h-5 text-indigo-500" />;
-    }
-  };
-
   const getTypeLabel = (type: string) => {
     switch (type) {
       case 'task': return 'Aufgabe';
@@ -132,19 +126,34 @@ export const Board = () => {
         actions={<Button icon={Plus} onClick={() => setIsModalOpen(true)}>Beitrag schreiben</Button>}
       />
 
+      {posts[0] && (
+        <HeroPanel aria-label="Neuester Beitrag">
+          <div className="grid gap-6 p-6 sm:p-8 lg:grid-cols-[1fr_auto] lg:items-end">
+            <div className="min-w-0">
+              <p className="flex items-center gap-2 text-sm text-brand-200">
+                {posts[0].type === 'task' ? <CheckSquare className="h-4 w-4 text-amber-300" /> : <Pin className="h-4 w-4 text-amber-300" />}
+                Neueste {posts[0].type === 'task' ? 'Aufgabe' : 'Ankündigung'}, {format(parseISO(posts[0].created_at), "d. MMMM 'um' HH:mm", { locale: de })}
+              </p>
+              <h2 className="mt-3 font-display text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">{posts[0].title}</h2>
+              <p className="mt-3 line-clamp-3 max-w-3xl whitespace-pre-wrap text-[15px] leading-relaxed text-brand-50/90">{posts[0].content}</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <Avatar name={posts[0].profiles?.full_name} src={posts[0].profiles?.avatar_url} size="lg" className="ring-2 ring-amber-300/80" />
+              <span>
+                <span className="block text-sm font-semibold">{posts[0].profiles?.full_name}</span>
+                <span className="block text-xs text-brand-200">{posts.length} {posts.length === 1 ? 'Beitrag' : 'Beiträge'} am Brett</span>
+              </span>
+            </div>
+          </div>
+        </HeroPanel>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <AnimatePresence>
             {posts.length === 0 ? (
-            <motion.div 
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="col-span-full text-center py-20"
-            >
-                <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gray-100 dark:bg-gray-800 mb-4">
-                    <MessageSquare className="w-10 h-10 text-gray-400" />
-                </div>
-                <p className="text-xl text-gray-500 font-medium">Noch keine Einträge auf dem schwarzen Brett.</p>
-            </motion.div>
+            <div className="card col-span-full">
+                <EmptyState icon={MessageSquare} title="Noch nichts am Brett" description="Schreib eine Ankündigung oder Aufgabe, dann sieht sie das ganze Team." action={<Button icon={Plus} onClick={() => setIsModalOpen(true)}>Beitrag schreiben</Button>} />
+            </div>
             ) : (
             posts.map((post, index) => {
                 const isOwn = post.user_id === user?.id;
@@ -157,27 +166,15 @@ export const Board = () => {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: index * 0.05 }}
                     layout
-                    className="bg-white dark:bg-gray-800 rounded-3xl p-6 border border-gray-200 shadow-sm flex flex-col h-full relative group hover:border-gray-300 dark:hover:border-gray-600 hover: transition-all"
+                    className="card group relative flex h-full flex-col overflow-hidden p-6 transition-all hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-md dark:hover:border-gray-600"
                 >
+                    <span aria-hidden className="absolute inset-x-0 top-0 h-1" style={{ background: post.type === 'task' ? '#10B981' : '#F2A541' }} />
                     <div className="flex items-start justify-between mb-4">
-                        <div className="flex items-center gap-3">
-                            <div className={cn(
-                                "p-3 rounded-2xl shadow-inner",
-                                post.type === 'task' ? "bg-green-100 dark:bg-green-900/30" : "bg-indigo-100 dark:bg-indigo-900/30"
-                            )}>
-                                {getTypeIcon(post.type)}
-                            </div>
-                            <div>
-                                <span className={cn(
-                                    "text-xs font-bold ",
-                                    post.type === 'task' ? "text-green-600 dark:text-green-400" : "text-indigo-600 dark:text-indigo-400"
-                                )}>
-                                    {getTypeLabel(post.type)}
-                                </span>
-                                <span className="text-xs text-gray-400 block font-medium">
-                                    {format(parseISO(post.created_at), 'dd. MMM, HH:mm', { locale: de })}
-                                </span>
-                            </div>
+                        <div className="flex items-center gap-2">
+                            <StatusPill tone={post.type === 'task' ? 'emerald' : 'amber'}>{getTypeLabel(post.type)}</StatusPill>
+                            <span className="text-xs text-gray-500">
+                                {format(parseISO(post.created_at), 'dd. MMM, HH:mm', { locale: de })}
+                            </span>
                         </div>
                         {(isOwn || isAdmin) && (
                             <button
@@ -190,7 +187,7 @@ export const Board = () => {
                         )}
                     </div>
 
-                    <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-3 line-clamp-2 leading-tight">
+                    <h3 className="mb-3 line-clamp-2 font-display text-xl font-semibold leading-tight text-gray-900 dark:text-white">
                     {post.title}
                     </h3>
                     
