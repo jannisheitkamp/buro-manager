@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { PageHeader, Button } from '@/components/ui';
+import { PageHeader, Button, EmptyState } from '@/components/ui';
+import { CountUp, GoalGauge, HeroDivider, HeroPanel, HeroStat, StatusPill } from '@/components/ui/hero';
 import { supabase } from '@/lib/supabase';
 import { useStore } from '@/store/useStore';
 import { Absence } from '@/types';
 import { format, parseISO } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { Check, X, RefreshCw } from 'lucide-react';
+import { Check, X, RefreshCw, Palmtree } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { toast } from 'react-hot-toast';
 import { getVacationDaysToDeduct } from '@/utils/dateUtils';
@@ -137,12 +138,6 @@ export const Vacation = () => {
         }
     };
 
-    const statusBadge = (status: Absence['status']) => {
-        if (status === 'approved') return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300';
-        if (status === 'pending') return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300';
-        return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300';
-    };
-
     return (
         <div className="space-y-6">
             <PageHeader
@@ -151,37 +146,53 @@ export const Vacation = () => {
                 actions={<Button variant="secondary" icon={RefreshCw} loading={loading} onClick={fetchVacations}>Aktualisieren</Button>}
             />
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
-                    <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">Jahresurlaub {currentYear}</p>
-                    <p className="text-2xl font-bold text-gray-900 dark:text-white">{totalVacationDays + carryover} Tage</p>
-                    {carryover > 0 && <p className="text-xs text-gray-400">davon {carryover} aus {currentYear - 1}</p>}
-                </div>
-                <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
-                    <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">Genutzt / Geplant</p>
-                    <p className="text-2xl font-bold text-gray-900 dark:text-white">{usedDays} Tage</p>
-                </div>
-                <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
-                    <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">Verbleibend</p>
-                    <p className={cn('text-2xl font-bold', remainingDays > 0 ? 'text-gray-900 dark:text-white' : 'text-red-600 dark:text-red-400')}>
-                        {remainingDays} Tage
-                    </p>
-                </div>
-            </div>
+            {(() => {
+                const total = totalVacationDays + carryover;
+                const usedPct = total ? Math.round((usedDays / total) * 100) : 0;
+                const yearPassed = (Date.now() - new Date(currentYear, 0, 1).getTime()) / (new Date(currentYear + 1, 0, 1).getTime() - new Date(currentYear, 0, 1).getTime());
+                const nextTrip = absences
+                    .filter(a => a.status !== 'rejected' && parseISO(a.end_date) >= new Date())
+                    .sort((x, y) => x.start_date.localeCompare(y.start_date))[0];
+                return (
+                    <HeroPanel aria-label={`Urlaub ${currentYear}`}>
+                        <div className="grid items-center gap-8 p-6 sm:p-8 lg:grid-cols-[1fr_18rem]">
+                            <div>
+                                <p className="text-sm text-brand-200">Noch frei in {currentYear}</p>
+                                <p className={cn('mt-1.5 font-display font-semibold leading-[0.9] tracking-tight', remainingDays > 0 ? 'text-white' : 'text-red-300')}>
+                                    <CountUp value={remainingDays} format={Number.isInteger(remainingDays) ? 'int' : 'dec'} className="text-7xl sm:text-8xl" />
+                                    <span className="ml-2 text-3xl text-brand-200 sm:text-4xl">{remainingDays === 1 ? 'Tag' : 'Tage'}</span>
+                                </p>
+                                <p className="mt-4 text-sm text-brand-100">
+                                    {nextTrip
+                                        ? <>Nächster Urlaub: <strong className="font-semibold text-amber-300">{format(parseISO(nextTrip.start_date), 'd. MMMM', { locale: de })}</strong>{nextTrip.status === 'pending' && ' (noch offen)'}</>
+                                        : remainingDays > 0 ? 'Noch nichts geplant. Zeit für eine Pause?' : 'Alles verplant.'}
+                                </p>
+                            </div>
+                            <div className="text-center">
+                                <GoalGauge pct={usedPct} expected={yearPassed} caption="genutzt oder geplant" />
+                            </div>
+                        </div>
+                        <HeroDivider />
+                        <dl className="grid grid-cols-3 gap-6 px-6 py-5 sm:px-8">
+                            <HeroStat label={`Jahresurlaub ${currentYear}`} value={`${total} Tage`} hint={carryover > 0 ? `davon ${carryover} aus ${currentYear - 1}` : undefined} />
+                            <HeroStat label="Genutzt oder geplant" value={`${usedDays} Tage`} />
+                            <HeroStat label="Verbleibend" value={`${remainingDays} Tage`} accent={remainingDays > 0} />
+                        </dl>
+                    </HeroPanel>
+                );
+            })()}
 
-            <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 sm:p-8">
-                <h2 className="text-xl font-bold mb-6 text-gray-900 dark:text-white">Urlaubszeiträume</h2>
+            <div className="card overflow-hidden">
+                <h2 className="border-b border-gray-100 px-5 py-4 font-display text-lg font-semibold text-gray-900 dark:border-gray-700 dark:text-white sm:px-6">Urlaubszeiträume</h2>
 
                 {loading ? (
                     <div className="flex items-center justify-center py-10">
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
                     </div>
                 ) : absences.length === 0 ? (
-                    <div className="text-center py-10 text-gray-500 dark:text-gray-400">
-                        Keine Urlaube gefunden.
-                    </div>
+                    <EmptyState icon={Palmtree} title="Noch kein Urlaub eingetragen" description="Beantrage Urlaub unter Abwesenheiten, dann erscheint er hier." />
                 ) : (
-                    <div className="space-y-3">
+                    <div className="divide-y divide-gray-100 dark:divide-gray-700/70">
                         {absences.map(a => {
                             const calculatedDays = getVacationDaysToDeduct(parseISO(a.start_date), parseISO(a.end_date), profile ?? undefined, a.half_day);
                             const displayDays = a.used_days ?? calculatedDays;
@@ -192,16 +203,17 @@ export const Vacation = () => {
                             return (
                                 <div
                                     key={a.id}
-                                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800"
+                                    className={cn('group relative flex flex-col justify-between gap-4 py-4 pl-6 pr-5 transition-colors hover:bg-brand-50/40 dark:hover:bg-white/[0.03] sm:flex-row sm:items-center sm:pr-6', a.status === 'rejected' && 'opacity-60')}
                                 >
+                                    <span aria-hidden className="absolute inset-y-3 left-0 w-1 rounded-r" style={{ background: a.status === 'approved' ? '#10B981' : a.status === 'pending' ? '#F2A541' : '#EF4444' }} />
                                     <div className="min-w-0 flex-1">
                                         <div className="flex items-center gap-2 flex-wrap">
-                                            <span className="font-bold text-gray-900 dark:text-white">
+                                            <span className="text-[15px] font-semibold text-gray-900 dark:text-white">
                                                 {format(parseISO(a.start_date), 'dd.MM.yyyy', { locale: de })} – {format(parseISO(a.end_date), 'dd.MM.yyyy', { locale: de })}
                                             </span>
-                                            <span className={cn('px-2.5 py-1 rounded-full text-xs font-bold', statusBadge(a.status))}>
+                                            <StatusPill tone={a.status === 'approved' ? 'emerald' : a.status === 'pending' ? 'amber' : 'red'} pulse={a.status === 'pending'}>
                                                 {a.status === 'approved' ? 'Genehmigt' : a.status === 'pending' ? 'Offen' : 'Abgelehnt'}
-                                            </span>
+                                            </StatusPill>
                                             
                                             {isEditing ? (
                                                 <div className="flex items-center gap-1 ml-2">
