@@ -701,6 +701,11 @@ export const Production = () => {
       });
   })();
 
+  // Wo man beim Jahresziel laut Kalender heute stehen müsste
+  const goalExpected = selectedYear === thisYear
+      ? (Date.now() - new Date(thisYear, 0, 1).getTime()) / (new Date(thisYear + 1, 0, 1).getTime() - new Date(thisYear, 0, 1).getTime())
+      : selectedYear !== 'all' && selectedYear < thisYear ? 1 : null;
+
   // Jahresziel Lebenswerte (eigenes Profil), nur für ein einzelnes Jahr
   const myGoalProfile = profiles.find(p => p.id === user?.id);
   const lifeValuesGoal = viewMode === 'personal' && selectedYear !== 'all' && !searchQuery && filterCategory === 'all' && !onlyCourtage && !onlyOpenCommission
@@ -1122,6 +1127,7 @@ export const Production = () => {
                         totalCommission={totalCommission}
                         totalLifeValues={shownLifeValues}
                         lifeValuesGoal={lifeValuesGoal}
+                        goalExpected={goalExpected}
                         lifeValuesNote={lvCorrection ? `inkl. Korrektur ${lvCorrection > 0 ? '+' : ''}${new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 }).format(lvCorrection)} laut Liste` : undefined}
                         months={heroMonths}
                         contractCount={activeEntries.length}
@@ -1134,6 +1140,7 @@ export const Production = () => {
                         onToggleContracts={() => { setOnlyCourtage(v => !v); setFilterCategory('all'); setOnlyOpenCommission(false); }}
                         onMarkAllReceived={markAllCourtageReceived}
                         marking={markingCourtage}
+                        loading={loading}
                     />
                 </div>
 

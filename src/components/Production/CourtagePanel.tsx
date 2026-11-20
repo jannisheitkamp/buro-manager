@@ -2,6 +2,7 @@ import { differenceInCalendarDays } from 'date-fns';
 import { CalendarClock, CheckCheck } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import type { CourtageSummary } from '@/lib/courtage';
+import { useCountUp, useMounted } from '@/lib/useCountUp';
 
 const eur = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' });
 const MONTHS = ['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'];
@@ -14,10 +15,11 @@ type Props = {
   onToggleContracts: () => void;
   onMarkAllReceived: () => void;
   marking?: boolean;
+  loading?: boolean;
 };
 
 /** Sach-Courtage des Jahres: was offen ist, was davon schon verdient ist und wann ausgezahlt wird. */
-export const CourtagePanel = ({ year, summary, active, onToggleContracts, onMarkAllReceived, marking }: Props) => {
+export const CourtagePanel = ({ year, summary, active, onToggleContracts, onMarkAllReceived, marking, loading }: Props) => {
   const today = new Date();
   const payout = new Date(year, 11, 31);
   const daysLeft = differenceInCalendarDays(payout, today);
@@ -25,6 +27,8 @@ export const CourtagePanel = ({ year, summary, active, onToggleContracts, onMark
   const max = Math.max(...summary.byMonth, 0.01);
   const earnedPct = summary.open ? (summary.earned / summary.open) * 100 : 0;
   const nothing = summary.open === 0 && summary.received === 0;
+  const shownOpen = useCountUp(summary.open);
+  const mounted = useMounted();
 
   return (
     <section aria-labelledby="courtage-title" className="card flex flex-col p-6">
@@ -38,20 +42,25 @@ export const CourtagePanel = ({ year, summary, active, onToggleContracts, onMark
         </div>
       </div>
 
-      {nothing ? (
+      {loading ? (
+        <div className="mt-6 space-y-3" aria-hidden>
+          <div className="h-9 w-40 animate-pulse rounded-lg bg-gray-100 dark:bg-gray-700/60" />
+          <div className="h-2.5 animate-pulse rounded-full bg-gray-100 dark:bg-gray-700/60" />
+        </div>
+      ) : nothing ? (
         <p className="mt-6 text-sm text-gray-500 dark:text-gray-400">
           Noch keine Sachverträge mit Beginn in {year}. Sobald du einen erfasst, siehst du hier die gesammelte Courtage bis zum 31.12.
         </p>
       ) : (
         <>
           <p className="mt-5 text-sm text-gray-500 dark:text-gray-400">Noch offen</p>
-          <p className="tabular font-display text-4xl font-semibold leading-tight text-gray-900 dark:text-white">{eur.format(summary.open)}</p>
+          <p className="tabular font-display text-4xl font-semibold leading-tight text-gray-900 dark:text-white">{eur.format(shownOpen)}</p>
 
           {/* verdient vs. folgt noch */}
           {summary.open > 0 && (
             <div className="mt-4">
               <div className="flex h-2.5 overflow-hidden rounded-full bg-amber-100 dark:bg-amber-900/30">
-                <div className="h-full bg-amber-500" style={{ width: `${earnedPct}%` }} />
+                <div className="h-full bg-amber-500 motion-safe:transition-[width] motion-safe:duration-[1100ms] motion-safe:ease-out" style={{ width: mounted ? `${earnedPct}%` : '0%' }} />
                 <div
                   className="h-full flex-1"
                   style={{ backgroundImage: 'repeating-linear-gradient(135deg, rgba(224,138,30,0.45) 0 3px, transparent 3px 6px)' }}
@@ -71,23 +80,25 @@ export const CourtagePanel = ({ year, summary, active, onToggleContracts, onMark
           )}
 
           {/* Raten je Monat bis zur Auszahlung */}
-          <ol className="mt-5 grid h-14 grid-cols-12 items-end gap-1" aria-label="Offene Courtage je Monat">
+          <ol className="mt-5 mb-5 grid min-h-14 flex-1 grid-cols-12 items-end gap-1" aria-label="Offene Courtage je Monat">
             {summary.byMonth.map((v, i) => (
               <li key={i} className="flex h-full flex-col justify-end" title={`${MONTH_NAMES[i]}: ${eur.format(v)}`}>
+                <span className="flex flex-1 items-end">
                 <span
                   className={cn(
-                    'block w-full rounded-[2px]',
+                    'block w-full rounded-[3px] motion-safe:transition-[height] motion-safe:duration-700',
                     v === 0 ? 'bg-gray-100 dark:bg-gray-700/60' : i <= currentMonth ? 'bg-amber-500' : 'border border-amber-500/70 bg-amber-50 dark:bg-amber-900/20',
                   )}
-                  style={{ height: v > 0 ? `${Math.max((v / max) * 100, 12)}%` : '3px' }}
+                  style={{ height: mounted && v > 0 ? `${Math.max((v / max) * 100, 12)}%` : '3px', transitionDelay: `${i * 40}ms` }}
                 />
+                </span>
                 <span className={cn('mt-1 text-center text-2xs', i === 11 ? 'font-semibold text-amber-700 dark:text-amber-300' : 'text-gray-400')}>{MONTHS[i]}</span>
                 <span className="sr-only">{MONTH_NAMES[i]}: {eur.format(v)}</span>
               </li>
             ))}
           </ol>
 
-          <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 pt-4 text-sm dark:border-gray-700">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 pt-4 text-sm dark:border-gray-700">
             <span className="text-gray-500 dark:text-gray-400">
               {summary.openCount} {summary.openCount === 1 ? 'Vertrag' : 'Verträge'} offen
               {summary.received > 0 && <>, {eur.format(summary.received)} erhalten</>}
