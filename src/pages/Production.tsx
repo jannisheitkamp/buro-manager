@@ -6,11 +6,11 @@ import { useLocation } from 'react-router-dom';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { Menu as MenuRoot, MenuButton, MenuItem, MenuItems } from '@headlessui/react';
-import { Plus, Search, FileText, Trash2, Download, Pencil, FileDown, Trophy, LayoutGrid, Sparkles, Loader2, UploadCloud, FileSpreadsheet, ChevronDown, CalendarRange, Hourglass, ListChecks, X } from 'lucide-react';
+import { Plus, Search, FileText, Trash2, Download, Pencil, FileDown, Trophy, LayoutGrid, Sparkles, Loader2, UploadCloud, FileSpreadsheet, ChevronDown, CalendarRange, Hourglass, ListChecks, X, CalendarClock, Check } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { Modal } from '@/components/Modal';
 import { ConfirmModal } from '@/components/ConfirmModal';
-import { Avatar, Badge, Button, EmptyState, Field, PageHeader, Segmented } from '@/components/ui';
+import { Avatar, Button, EmptyState, Field, PageHeader, Segmented } from '@/components/ui';
 import { toast } from 'react-hot-toast';
 import { useDropzone } from 'react-dropzone';
 import { ProductionHero, type HeroMonth } from '@/components/Production/ProductionHero';
@@ -41,6 +41,14 @@ const STATUS_META: Record<string, { label: string; tone: 'info' | 'success' | 'd
   policed: { label: 'Policiert', tone: 'success' },
   cancelled: { label: 'Storniert', tone: 'danger' },
 };
+
+const STATUS_PILL: Record<string, string> = {
+  submitted: 'bg-sky-50 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300',
+  policed: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
+  cancelled: 'bg-red-50 text-red-700 dark:bg-red-900/40 dark:text-red-300',
+};
+
+const nf0 = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 });
 
 const categoryLabel = (id: string) => INSURANCE_TYPES.find((t) => t.id === id)?.label || id;
 
@@ -355,7 +363,7 @@ export const Production = () => {
         .select(`
             *,
             profiles:user_id (full_name, avatar_url, agency_number),
-            manager:managed_by (full_name, agency_number)
+            manager:managed_by (full_name, avatar_url, agency_number)
         `)
         .order('created_at', { ascending: false });
     
@@ -1146,7 +1154,7 @@ export const Production = () => {
 
                 <CategoryTiles tiles={categoryTiles} value={filterCategory} onChange={(id) => { setFilterCategory(id); setOnlyCourtage(false); }} />
 
-                <section aria-labelledby="contracts-title" className="card overflow-hidden">
+                <section aria-labelledby="contracts-title" className="card overflow-clip">
                     <div className="flex flex-col gap-3 border-b border-gray-100 px-4 py-4 dark:border-gray-700 sm:flex-row sm:items-center sm:justify-between sm:px-6">
                         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
                             <h2 id="contracts-title" className="text-base font-semibold text-gray-900 dark:text-white">
@@ -1194,12 +1202,11 @@ export const Production = () => {
                         />
                     ) : (
                         <>
-                            <div className="hidden overflow-x-auto md:block">
-                                <table className="table-base">
+                            <div className="hidden lg:block">
+                                <table className="w-full text-left text-sm">
                                     <thead>
-                                        <tr>
+                                        <tr className="text-xs text-gray-500 dark:text-gray-400 [&>th]:border-b [&>th]:border-gray-200 [&>th]:px-4 [&>th]:py-2.5 [&>th]:font-medium dark:[&>th]:border-gray-700">
                                             <th className="!pl-6">Kunde</th>
-                                            <th>Sparte</th>
                                             <th>Status</th>
                                             <th>Betreuung</th>
                                             <th className="text-right">Beitrag</th>
@@ -1210,28 +1217,34 @@ export const Production = () => {
                                     </thead>
                                     {entryGroups.map(group => (
                                         <tbody key={group.key}>
-                                            <tr className="!bg-gray-50/80 hover:!bg-gray-50/80 dark:!bg-gray-900/40">
-                                                <th colSpan={4} scope="colgroup" className="border-b border-gray-100 px-4 py-2 text-left text-sm font-semibold text-gray-900 dark:border-gray-700/60 dark:text-white sm:px-6">
-                                                    {group.label}
-                                                    <span className="tabular ml-2 text-xs font-normal text-gray-400">{group.count} {group.count === 1 ? 'Vertrag' : 'Verträge'}</span>
+                                            <tr>
+                                                <th colSpan={3} scope="colgroup" className="sticky top-14 z-10 border-b border-gray-200 bg-gray-50 px-4 py-2.5 text-left !pl-6 dark:border-gray-700 dark:bg-gray-900">
+                                                    <span className="font-display text-base font-semibold text-gray-900 dark:text-white">{group.label}</span>
+                                                    <span className="tabular ml-2 text-xs font-normal text-gray-500">{group.count} {group.count === 1 ? 'Vertrag' : 'Verträge'}</span>
                                                 </th>
-                                                <th className="border-b border-gray-100 dark:border-gray-700/60"><span className="sr-only">Beitrag</span></th>
-                                                <th className="tabular border-b border-gray-100 px-4 py-2 text-right text-xs font-medium text-brand-700 dark:border-gray-700/60 dark:text-brand-300">{new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 }).format(group.lifeValues)} LW</th>
-                                                <th className="tabular border-b border-gray-100 px-4 py-2 text-right text-sm font-semibold text-gray-900 dark:border-gray-700/60 dark:text-white">{formatCurrency(group.commission)}</th>
-                                                <th className="border-b border-gray-100 dark:border-gray-700/60"><span className="sr-only">Aktionen</span></th>
+                                                <th className="sticky top-14 z-10 border-b border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900"><span className="sr-only">Beitrag</span></th>
+                                                <th className="tabular sticky top-14 z-10 border-b border-gray-200 bg-gray-50 px-4 text-right text-xs font-medium text-brand-700 dark:border-gray-700 dark:bg-gray-900 dark:text-brand-300">{nf0.format(group.lifeValues)} LW</th>
+                                                <th className="tabular sticky top-14 z-10 border-b border-gray-200 bg-gray-50 px-4 text-right font-display text-base font-semibold text-gray-900 dark:border-gray-700 dark:bg-gray-900 dark:text-white">{formatCurrency(group.commission)}</th>
+                                                <th className="sticky top-14 z-10 border-b border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900"><span className="sr-only">Aktionen</span></th>
                                             </tr>
                                             {group.entries.map(entry => {
                                                 const st = STATUS_META[entry.status] || STATUS_META.submitted;
                                                 const cancelled = entry.status === 'cancelled';
                                                 const courtage = isCourtage(entry.sub_category);
+                                                const color = CATEGORY_COLORS[entry.category] || '#9AA39C';
+                                                const managerName = entry.manager?.full_name || entry.profiles?.full_name;
                                                 return (
-                                                    <tr key={entry.id} className={cn('group', cancelled && 'text-gray-400 [&_td]:line-through [&_td]:decoration-gray-300')}>
+                                                    <tr key={entry.id} className={cn('group transition-colors hover:bg-brand-50/40 dark:hover:bg-white/[0.03] [&>td]:border-b [&>td]:border-gray-100 [&>td]:px-4 [&>td]:py-3.5 dark:[&>td]:border-gray-700/60', cancelled && 'opacity-55')}>
                                                         <td className="relative !pl-6">
-                                                            <span aria-hidden className="absolute inset-y-2 left-0 w-1 rounded-r" style={{ background: CATEGORY_COLORS[entry.category] }} />
-                                                            <button type="button" onClick={() => handleEdit(entry)} className="text-left">
-                                                                <span className="block font-medium text-gray-900 hover:text-brand-700 dark:text-white dark:hover:text-brand-300">{entry.customer_name}{entry.customer_firstname ? `, ${entry.customer_firstname}` : ''}</span>
+                                                            <span aria-hidden className="absolute inset-y-2.5 left-0 w-1 rounded-r transition-all group-hover:inset-y-1.5 group-hover:w-1.5" style={{ background: color }} />
+                                                            <button type="button" onClick={() => handleEdit(entry)} className={cn('text-left text-[15px] font-semibold text-gray-900 hover:text-brand-700 dark:text-white dark:hover:text-brand-300', cancelled && 'line-through decoration-gray-400')}>
+                                                                {entry.customer_name}{entry.customer_firstname ? `, ${entry.customer_firstname}` : ''}
                                                             </button>
-                                                            <span className="flex items-center gap-2 text-xs text-gray-500">
+                                                            <span className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500">
+                                                                <span className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 font-medium text-gray-800 dark:text-gray-100" style={{ background: `${color}26` }}>
+                                                                    <span className="h-1.5 w-1.5 rounded-full" style={{ background: color }} />
+                                                                    {entry.sub_category || categoryLabel(entry.category)}
+                                                                </span>
                                                                 <span className="font-mono">{entry.policy_number || 'ohne Nr.'}</span>
                                                                 <span>{format(new Date(entry.submission_date), 'dd.MM.yy')}</span>
                                                                 {entry.document_url && (
@@ -1241,32 +1254,44 @@ export const Production = () => {
                                                                 )}
                                                             </span>
                                                         </td>
-                                                        <td className="text-gray-700 dark:text-gray-300">{entry.sub_category || categoryLabel(entry.category)}</td>
-                                                        <td className="!no-underline"><Badge tone={st.tone}>{st.label}</Badge></td>
                                                         <td>
-                                                            <span className="block text-gray-700 dark:text-gray-300">{entry.manager?.full_name || '–'}</span>
-                                                            {entry.profiles?.full_name && entry.profiles.full_name !== entry.manager?.full_name && <span className="text-xs text-gray-500">von {entry.profiles.full_name}</span>}
+                                                            <span className={cn('inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium', STATUS_PILL[entry.status] || STATUS_PILL.submitted)}>
+                                                                <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                                                                {st.label}
+                                                            </span>
                                                         </td>
-                                                        <td className="tabular text-right">
+                                                        <td>
+                                                            {managerName ? (
+                                                                <span className="flex items-center gap-2.5">
+                                                                    <Avatar name={managerName} src={entry.manager?.avatar_url || (!entry.manager ? entry.profiles?.avatar_url : null)} size="sm" />
+                                                                    <span className="min-w-0">
+                                                                        <span className="block truncate text-gray-800 dark:text-gray-200">{managerName}</span>
+                                                                        {entry.profiles?.full_name && entry.profiles.full_name !== managerName && <span className="block truncate text-xs text-gray-500">von {entry.profiles.full_name}</span>}
+                                                                    </span>
+                                                                </span>
+                                                            ) : <span className="text-gray-400">–</span>}
+                                                        </td>
+                                                        <td className="tabular text-right text-gray-500 dark:text-gray-400">
                                                             <span className="block text-gray-700 dark:text-gray-300">{formatCurrency(entry.gross_premium || 0)}</span>
-                                                            <span className="text-xs text-gray-500">{PAYMENT_LABEL[entry.payment_method] || entry.payment_method}</span>
+                                                            <span className="text-xs">{PAYMENT_LABEL[entry.payment_method] || entry.payment_method}</span>
                                                         </td>
-                                                        <td className="tabular text-right font-medium text-brand-700 dark:text-brand-300">{new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 }).format(entry.life_values || 0)}</td>
-                                                        <td className="tabular text-right">
-                                                            <span className="block font-semibold text-gray-900 dark:text-white">{formatCurrency(entry.commission_amount || 0)}</span>
-                                                            {courtage && !cancelled && !entry.commission_received_date && (
-                                                                <span className="block text-2xs text-gray-500">Courtage zum 31.12.</span>
-                                                            )}
-                                                            {entry.status === 'policed' && entry.user_id === user?.id && (entry.commission_received_date ? (
-                                                                <span className="text-2xs text-emerald-700 dark:text-emerald-400">erhalten {format(new Date(entry.commission_received_date), 'dd.MM.')}</span>
-                                                            ) : !courtage && (
-                                                                <button type="button" onClick={() => markCommissionReceived(entry.id)} className="text-2xs font-medium text-amber-700 hover:underline dark:text-amber-300" title="Provision als erhalten markieren">
-                                                                    offen, erhalten?
+                                                        <td className="tabular text-right font-medium text-brand-700 dark:text-brand-300">{nf0.format(entry.life_values || 0)}</td>
+                                                        <td className="text-right">
+                                                            <span className={cn('tabular block font-display text-lg font-semibold leading-tight text-gray-900 dark:text-white', cancelled && 'line-through decoration-gray-400')}>{formatCurrency(entry.commission_amount || 0)}</span>
+                                                            {courtage && !cancelled && !entry.commission_received_date ? (
+                                                                <span className="mt-1 inline-flex items-center gap-1 rounded-md bg-amber-50 px-1.5 py-0.5 text-2xs font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-200">
+                                                                    <CalendarClock className="h-3 w-3" /> Courtage zum 31.12.
+                                                                </span>
+                                                            ) : entry.status === 'policed' && entry.user_id === user?.id && (entry.commission_received_date ? (
+                                                                <span className="mt-1 inline-flex items-center gap-1 text-2xs font-medium text-emerald-700 dark:text-emerald-400"><Check className="h-3 w-3" /> erhalten {format(new Date(entry.commission_received_date), 'dd.MM.')}</span>
+                                                            ) : (
+                                                                <button type="button" onClick={() => markCommissionReceived(entry.id)} className="mt-1 inline-flex items-center gap-1 rounded-md border border-amber-300 px-1.5 py-0.5 text-2xs font-medium text-amber-800 transition-colors hover:bg-amber-50 dark:border-amber-700 dark:text-amber-200 dark:hover:bg-amber-900/30" title="Provision als erhalten markieren">
+                                                                    <Hourglass className="h-3 w-3" /> Offen, erhalten?
                                                                 </button>
                                                             ))}
                                                         </td>
                                                         <td>
-                                                            <div className="flex justify-end gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 [&_*]:no-underline">
+                                                            <div className="flex justify-end gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
                                                                 <button type="button" onClick={() => handleEdit(entry)} className="btn-icon p-1.5" title="Bearbeiten" aria-label="Bearbeiten"><Pencil className="h-4 w-4" /></button>
                                                                 <button type="button" onClick={() => handleDelete(entry.id)} className="btn-icon p-1.5 hover:!text-red-600" title="Löschen" aria-label="Löschen"><Trash2 className="h-4 w-4" /></button>
                                                             </div>
@@ -1279,30 +1304,37 @@ export const Production = () => {
                                 </table>
                             </div>
 
-                            <div className="md:hidden">
+                            <div className="lg:hidden">
                                 {entryGroups.map(group => (
                                     <div key={group.key}>
-                                        <div className="flex items-baseline justify-between bg-gray-50/80 px-4 py-2 dark:bg-gray-900/40">
-                                            <span className="text-sm font-semibold text-gray-900 dark:text-white">{group.label}</span>
-                                            <span className="tabular text-sm font-semibold text-gray-900 dark:text-white">{formatCurrency(group.commission)}</span>
+                                        <div className="sticky top-[calc(3.5rem+env(safe-area-inset-top))] z-10 flex items-baseline justify-between border-b border-gray-200 bg-gray-50 px-4 py-2.5 dark:border-gray-700 dark:bg-gray-900">
+                                            <span className="font-display text-base font-semibold text-gray-900 dark:text-white">{group.label}</span>
+                                            <span className="tabular font-display text-base font-semibold text-gray-900 dark:text-white">{formatCurrency(group.commission)}</span>
                                         </div>
                                         <ul className="divide-y divide-gray-100 dark:divide-gray-700/70">
                                             {group.entries.map(entry => {
                                                 const st = STATUS_META[entry.status] || STATUS_META.submitted;
+                                                const color = CATEGORY_COLORS[entry.category] || '#9AA39C';
+                                                const cancelled = entry.status === 'cancelled';
                                                 return (
-                                                    <li key={entry.id}>
+                                                    <li key={entry.id} className={cn(cancelled && 'opacity-55')}>
                                                         <button type="button" onClick={() => handleEdit(entry)} className="relative flex w-full items-start gap-3 py-3.5 pl-5 pr-4 text-left">
-                                                            <span aria-hidden className="absolute inset-y-3 left-0 w-1 rounded-r" style={{ background: CATEGORY_COLORS[entry.category] }} />
+                                                            <span aria-hidden className="absolute inset-y-3 left-0 w-1 rounded-r" style={{ background: color }} />
                                                             <span className="min-w-0 flex-1">
-                                                                <span className="block truncate text-sm font-medium text-gray-900 dark:text-white">{entry.customer_name}{entry.customer_firstname ? `, ${entry.customer_firstname}` : ''}</span>
-                                                                <span className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-gray-500">
-                                                                    <Badge tone={st.tone}>{st.label}</Badge>
-                                                                    {entry.sub_category || categoryLabel(entry.category)}, {format(new Date(entry.submission_date), 'dd.MM.')}
+                                                                <span className={cn('block truncate text-[15px] font-semibold text-gray-900 dark:text-white', cancelled && 'line-through')}>{entry.customer_name}{entry.customer_firstname ? `, ${entry.customer_firstname}` : ''}</span>
+                                                                <span className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-gray-500">
+                                                                    <span className={cn('inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-medium', STATUS_PILL[entry.status] || STATUS_PILL.submitted)}>
+                                                                        <span className="h-1.5 w-1.5 rounded-full bg-current" />{st.label}
+                                                                    </span>
+                                                                    <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 font-medium text-gray-800 dark:text-gray-100" style={{ background: `${color}26` }}>
+                                                                        {entry.sub_category || categoryLabel(entry.category)}
+                                                                    </span>
+                                                                    {format(new Date(entry.submission_date), 'dd.MM.')}
                                                                 </span>
                                                             </span>
                                                             <span className="text-right">
-                                                                <span className={cn('tabular block text-sm font-semibold', entry.status === 'cancelled' ? 'text-gray-400 line-through' : 'text-gray-900 dark:text-white')}>{formatCurrency(entry.commission_amount || 0)}</span>
-                                                                <span className="tabular block text-xs text-brand-700 dark:text-brand-300">{new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 }).format(entry.life_values || 0)} LW</span>
+                                                                <span className={cn('tabular block font-display text-base font-semibold text-gray-900 dark:text-white', cancelled && 'line-through')}>{formatCurrency(entry.commission_amount || 0)}</span>
+                                                                <span className="tabular block text-xs font-medium text-brand-700 dark:text-brand-300">{nf0.format(entry.life_values || 0)} LW</span>
                                                             </span>
                                                         </button>
                                                     </li>
