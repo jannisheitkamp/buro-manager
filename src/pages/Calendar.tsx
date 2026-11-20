@@ -787,7 +787,7 @@ export const Calendar = () => {
               </select>
               {forOther && (
                 <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-900/30 dark:text-amber-200">
-                  Wird direkt als genehmigt eingetragen, ohne Antrag und ohne Unterschrift. Die Person bekommt eine Benachrichtigung.
+                  Wird direkt als genehmigt eingetragen, ohne Antrag, Unterschrift und Benachrichtigung.
                 </p>
               )}
             </div>

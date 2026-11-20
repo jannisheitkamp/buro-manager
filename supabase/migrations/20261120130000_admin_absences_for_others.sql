@@ -5,7 +5,7 @@ create policy "Admins can insert absences" on public.absences
 create policy "Admins can delete absences" on public.absences
   for delete to authenticated using (public.is_admin());
 
--- Benachrichtigung: wer von jemand anderem eingetragen wird, erfährt es
+-- Keine Benachrichtigungen, wenn ein Admin für jemand anderen einträgt
 create or replace function public.trg_notify_absence()
  returns trigger
  language plpgsql
@@ -22,10 +22,8 @@ begin
                          when 'school' then 'Berufsschule' else 'Abwesenheit' end;
 
   if tg_op = 'INSERT' and auth.uid() is not null and auth.uid() <> new.user_id then
-    -- Von einer anderen Person (Admin) eingetragen
-    perform public.notify(new.user_id, 'absence_info',
-      label || ' für dich eingetragen von ' || public.first_name(auth.uid()),
-      to_char(new.start_date, 'DD.MM.') || ' bis ' || to_char(new.end_date, 'DD.MM.YYYY'), '/calendar');
+    -- Von einem Admin für die Planung eingetragen: keine Benachrichtigung
+    null;
   elsif tg_op = 'INSERT' and new.status = 'pending' then
     for approver in
       select p.id from public.profiles p
