@@ -49,12 +49,15 @@ export const CourtagePanel = ({ year, summary, active, onToggleContracts, onMark
         </div>
       ) : nothing ? (
         <p className="mt-6 text-sm text-gray-500 dark:text-gray-400">
-          Noch keine Sachverträge mit Beginn in {year}. Sobald du einen erfasst, siehst du hier die gesammelte Courtage bis zum 31.12.
+          Für {year} sind keine Sachverträge mit Courtage hinterlegt. Sobald du einen erfasst, siehst du hier die gesammelte Courtage bis zum 31.12.
         </p>
       ) : (
         <>
           <p className="mt-5 text-sm text-gray-500 dark:text-gray-400">Noch offen</p>
           <p className="tabular font-display text-4xl font-semibold leading-tight text-gray-900 dark:text-white">{eur.format(shownOpen)}</p>
+          {summary.fromRenewals > 0 && (
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">davon {eur.format(summary.fromRenewals)} aus laufenden Verträgen der Vorjahre</p>
+          )}
 
           {/* verdient vs. folgt noch */}
           {summary.open > 0 && (

@@ -16,6 +16,7 @@ const page = <T extends string>(loader: () => Promise<Record<T, React.ComponentT
 const Login = page(() => import('@/pages/Login'), 'Login');
 const Dashboard = page(() => import('@/pages/Dashboard'), 'Dashboard');
 const Leads = page(() => import('@/pages/Leads'), 'Leads');
+const Customers = page(() => import('@/pages/Customers'), 'Customers');
 const Calendar = page(() => import('@/pages/Calendar'), 'Calendar');
 const Bookings = page(() => import('@/pages/Bookings'), 'Bookings');
 const Board = page(() => import('@/pages/Board'), 'Board');
@@ -117,6 +118,7 @@ function App() {
                 <Route element={<Layout />}>
                   <Route index element={<Dashboard />} />
                   <Route path="/leads" element={<Leads />} />
+                  <Route path="/customers" element={<Customers />} />
                   <Route path="/general-calendar" element={<GeneralCalendar />} />
                   <Route path="/calendar" element={<Calendar />} />
                   <Route path="/vacation" element={<Vacation />} />

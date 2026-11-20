@@ -16,7 +16,8 @@ import { useDropzone } from 'react-dropzone';
 import { ProductionHero, type HeroMonth } from '@/components/Production/ProductionHero';
 import { CourtagePanel } from '@/components/Production/CourtagePanel';
 import { CategoryTiles } from '@/components/Production/CategoryTiles';
-import { COURTAGE_SUBCATEGORIES, courtageInstallments, courtageYear, isCourtage, summarizeCourtage } from '@/lib/courtage';
+import { CANCEL_REASONS, stornoStats } from '@/lib/storno';
+import { COURTAGE_SUBCATEGORIES, courtageInstallments, isCourtage, summarizeCourtage, type CourtagePayout } from '@/lib/courtage';
 import { extractPdfText } from '@/utils/extractPdfText';
 import { parseContractFromText } from '@/utils/pdfParser';
 import { INSURANCE_TYPES } from '@/utils/constants';
@@ -80,6 +81,7 @@ export const Production = () => {
   const [lvSaving, setLvSaving] = useState(false);
   const [onlyCourtage, setOnlyCourtage] = useState(false);
   const [markingCourtage, setMarkingCourtage] = useState(false);
+  const [courtagePayouts, setCourtagePayouts] = useState<CourtagePayout[]>([]);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [documentUrl, setDocumentUrl] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -237,6 +239,9 @@ export const Production = () => {
   const [managedBy, setManagedBy] = useState<string>(''); 
   const [closedBy, setClosedBy] = useState<string>(''); // New: Explicit closer selection
   const [status, setStatus] = useState<'submitted' | 'policed' | 'cancelled'>('submitted');
+  const [cancelledAt, setCancelledAt] = useState('');
+  const [cancelReason, setCancelReason] = useState('');
+  const [cancelNote, setCancelNote] = useState('');
   
   // Contract Data
   const [startDate, setStartDate] = useState('');
@@ -373,6 +378,8 @@ export const Production = () => {
     } else {
         setEntries(data || []);
     }
+    const { data: payouts } = await supabase.from('courtage_payouts').select('entry_id, year, received_date');
+    setCourtagePayouts(payouts || []);
     setLoading(false);
   };
 
@@ -441,6 +448,9 @@ export const Production = () => {
             commission_amount: commissionAmount,
             liability_rate: 0, // Stornohaftung wird nicht mehr einbehalten
             status,
+            cancelled_at: status === 'cancelled' ? (cancelledAt || format(new Date(), 'yyyy-MM-dd')) : null,
+            cancel_reason: status === 'cancelled' ? (cancelReason || null) : null,
+            cancel_note: status === 'cancelled' ? (cancelNote.trim() || null) : null,
             notes,
             life_values: lifeValues,
             life_value_factor: lifeValueFactor,
@@ -508,6 +518,9 @@ export const Production = () => {
       setManagedBy(user?.id || '');
       setClosedBy(user?.id || '');
       setStatus('submitted');
+      setCancelledAt('');
+      setCancelReason('');
+      setCancelNote('');
       setStartDate('');
       setPolicingDate('');
       setCommissionReceivedDate('');
@@ -516,8 +529,7 @@ export const Production = () => {
       setDuration(1);
       setPaymentMethod('monthly');
       setNotes('');
-      setLifeValues(0);
-      setLifeValueFactor(0);
+      // Lebenswerte und Faktor berechnet der Effekt neu; hier auf 0 setzen würde den Faktor bis zur nächsten Eingabe auf 0 lassen
       setManualLvFactor(null);
       setSelectedFile(null);
       setDocumentUrl(null);
@@ -534,6 +546,9 @@ export const Production = () => {
       setManagedBy(entry.managed_by || entry.user_id);
       setClosedBy(entry.user_id);
       setStatus(entry.status || 'submitted');
+      setCancelledAt(entry.cancelled_at || '');
+      setCancelReason(entry.cancel_reason || '');
+      setCancelNote(entry.cancel_note || '');
       setCategory(entry.category);
       setSubCategory(entry.sub_category);
       setStartDate(entry.start_date || '');
@@ -572,16 +587,18 @@ export const Production = () => {
       setDeleteId(null);
   };
 
-  // Sach-Courtage: eigene, nicht stornierte Verträge mit Beginn im gewählten Jahr
+  // Sach-Courtage: eigene Sachverträge, die im gewählten Jahr Raten haben (auch Folgejahre, bis zum Storno)
   const courtageYearSel = selectedYear === 'all' ? thisYear : selectedYear;
-  const courtageEntries = entries.filter(e => e.user_id === user?.id && e.status !== 'cancelled' && isCourtage(e.sub_category) && courtageYear(e) === courtageYearSel);
-  const courtageSummary = summarizeCourtage(courtageEntries, courtageYearSel);
+  const courtageEntries = entries.filter(e => e.user_id === user?.id && isCourtage(e.sub_category));
+  const courtageSummary = summarizeCourtage(courtageEntries, courtagePayouts, courtageYearSel);
+  const courtageOpenIds = new Set(courtageSummary.openIds);
+  const courtagePaidIds = new Set(courtagePayouts.filter(p => p.year === courtageYearSel).map(p => p.entry_id));
 
   const markAllCourtageReceived = async () => {
-      const ids = courtageEntries.filter(e => !e.commission_received_date).map(e => e.id);
+      const ids = courtageSummary.openIds;
       if (ids.length === 0) return;
       setMarkingCourtage(true);
-      const { error } = await supabase.from('production_entries').update({ commission_received_date: `${courtageYearSel}-12-31` }).in('id', ids);
+      const { error } = await supabase.from('courtage_payouts').insert(ids.map(id => ({ entry_id: id, year: courtageYearSel, received_date: `${courtageYearSel}-12-31` })));
       setMarkingCourtage(false);
       if (error) toast.error('Konnte nicht gespeichert werden.');
       else {
@@ -594,9 +611,9 @@ export const Production = () => {
   const baseEntries = entries.filter(e => {
       if (viewMode === 'personal' && e.user_id !== user?.id) return false;
       if (onlyCourtage) {
-          if (!(isCourtage(e.sub_category) && e.status !== 'cancelled' && !e.commission_received_date && courtageYear(e) === courtageYearSel)) return false;
+          if (!courtageOpenIds.has(e.id)) return false;
       } else if (selectedYear !== 'all' && !String(e.submission_date || '').startsWith(`${selectedYear}-`)) return false;
-      if (onlyOpenCommission && !(e.status === 'policed' && !e.commission_received_date)) return false;
+      if (onlyOpenCommission && !(e.status === 'policed' && !e.commission_received_date && !isCourtage(e.sub_category))) return false;
       const search = searchQuery.toLowerCase();
       return (
           e.customer_name?.toLowerCase().includes(search) ||
@@ -628,6 +645,12 @@ export const Production = () => {
       }
       return groups;
   }, []);
+
+  // Storno-Auswertung: eigene Verträge des gewählten Jahres (nach Einreichung)
+  const stornoInfo = stornoStats(
+      entries.filter(e => e.user_id === user?.id && (selectedYear === 'all' || String(e.submission_date || '').startsWith(`${selectedYear}-`))),
+      INSURANCE_TYPES.map(t => t.id),
+  );
 
   const categoryTiles = INSURANCE_TYPES.map(t => {
       const rows = baseEntries.filter(e => e.category === t.id && e.status !== 'cancelled');
@@ -820,7 +843,7 @@ export const Production = () => {
   };
 
   // Provision noch nicht eingegangen: policierte eigene Verträge ohne Eingangsdatum
-  const openCommission = entries.filter(e => e.user_id === user?.id && e.status === 'policed' && !e.commission_received_date);
+  const openCommission = entries.filter(e => e.user_id === user?.id && e.status === 'policed' && !e.commission_received_date && !isCourtage(e.sub_category));
 
   const markCommissionReceived = async (id: string) => {
       const { error } = await supabase.from('production_entries').update({ commission_received_date: format(new Date(), 'yyyy-MM-dd') }).eq('id', id);
@@ -1259,6 +1282,11 @@ export const Production = () => {
                                                                 <span className="h-1.5 w-1.5 rounded-full bg-current" />
                                                                 {st.label}
                                                             </span>
+                                                            {cancelled && (entry.cancelled_at || entry.cancel_reason) && (
+                                                                <span className="mt-1 block max-w-[11rem] truncate text-2xs text-gray-500" title={entry.cancel_note || undefined}>
+                                                                    {entry.cancelled_at ? `am ${format(new Date(entry.cancelled_at), 'dd.MM.yy')}` : ''}{entry.cancelled_at && entry.cancel_reason ? ', ' : ''}{entry.cancel_reason || ''}
+                                                                </span>
+                                                            )}
                                                         </td>
                                                         <td>
                                                             {managerName ? (
@@ -1278,10 +1306,14 @@ export const Production = () => {
                                                         <td className="tabular text-right font-medium text-brand-700 dark:text-brand-300">{nf0.format(entry.life_values || 0)}</td>
                                                         <td className="text-right">
                                                             <span className={cn('tabular block font-display text-lg font-semibold leading-tight text-gray-900 dark:text-white', cancelled && 'line-through decoration-gray-400')}>{formatCurrency(entry.commission_amount || 0)}</span>
-                                                            {courtage && !cancelled && !entry.commission_received_date ? (
-                                                                <span className="mt-1 inline-flex items-center gap-1 rounded-md bg-amber-50 px-1.5 py-0.5 text-2xs font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-200">
-                                                                    <CalendarClock className="h-3 w-3" /> Courtage zum 31.12.
-                                                                </span>
+                                                            {courtage ? (
+                                                                courtageOpenIds.has(entry.id) ? (
+                                                                    <span className="mt-1 inline-flex items-center gap-1 rounded-md bg-amber-50 px-1.5 py-0.5 text-2xs font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-200">
+                                                                        <CalendarClock className="h-3 w-3" /> Courtage zum 31.12.
+                                                                    </span>
+                                                                ) : courtagePaidIds.has(entry.id) ? (
+                                                                    <span className="mt-1 inline-flex items-center gap-1 text-2xs font-medium text-emerald-700 dark:text-emerald-400"><Check className="h-3 w-3" /> Courtage {courtageYearSel} erhalten</span>
+                                                                ) : null
                                                             ) : entry.status === 'policed' && entry.user_id === user?.id && (entry.commission_received_date ? (
                                                                 <span className="mt-1 inline-flex items-center gap-1 text-2xs font-medium text-emerald-700 dark:text-emerald-400"><Check className="h-3 w-3" /> erhalten {format(new Date(entry.commission_received_date), 'dd.MM.')}</span>
                                                             ) : (
@@ -1347,6 +1379,47 @@ export const Production = () => {
                         </>
                     )}
                 </section>
+
+                {stornoInfo.cancelled > 0 && (
+                    <section aria-labelledby="storno-title" className="card card-pad">
+                        <div className="flex flex-wrap items-baseline justify-between gap-3">
+                            <h2 id="storno-title" className="font-display text-lg font-semibold text-gray-900 dark:text-white">Stornos {selectedYear === 'all' ? 'gesamt' : selectedYear}</h2>
+                            <p className="text-sm text-gray-500">
+                                <span className="tabular font-display text-2xl font-semibold text-red-600 dark:text-red-400">{stornoInfo.rate.toLocaleString('de-DE', { maximumFractionDigits: 1 })} %</span>
+                                <span className="ml-2">{stornoInfo.cancelled} von {stornoInfo.total} Verträgen</span>
+                            </p>
+                        </div>
+                        <div className="mt-5 grid gap-8 md:grid-cols-2">
+                            <div>
+                                <h3 className="mb-3 text-xs font-medium text-gray-500">Quote nach Sparte</h3>
+                                <ul className="space-y-3">
+                                    {stornoInfo.byCategory.map(c => (
+                                        <li key={c.id}>
+                                            <div className="flex items-baseline justify-between text-sm">
+                                                <span className="flex items-center gap-2 text-gray-700 dark:text-gray-200"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: CATEGORY_COLORS[c.id] }} />{categoryLabel(c.id)}</span>
+                                                <span className="tabular text-gray-500"><span className="font-semibold text-gray-900 dark:text-white">{Math.round(c.rate)} %</span> · {c.cancelled}/{c.total}</span>
+                                            </div>
+                                            <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-700">
+                                                <div className="h-full rounded-full bg-red-500/80" style={{ width: `${c.rate}%` }} />
+                                            </div>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                            <div>
+                                <h3 className="mb-3 text-xs font-medium text-gray-500">Gründe</h3>
+                                <ul className="space-y-2">
+                                    {stornoInfo.byReason.map(r => (
+                                        <li key={r.reason} className="flex items-center justify-between gap-3 text-sm">
+                                            <span className="text-gray-700 dark:text-gray-200">{r.reason}</span>
+                                            <span className="tabular rounded-full bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700 dark:bg-red-900/30 dark:text-red-300">{r.count}</span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        </div>
+                    </section>
+                )}
             </>
         )}
 
@@ -1405,13 +1478,31 @@ export const Production = () => {
                             <Field label="Vorname" htmlFor="pf-first"><input id="pf-first" type="text" value={customerFirstname} onChange={e => setCustomerFirstname(e.target.value)} className="input" /></Field>
                             <Field label="Versicherungsschein-Nr." htmlFor="pf-policy"><input id="pf-policy" type="text" value={policyNumber} onChange={e => setPolicyNumber(e.target.value)} className="input font-mono" /></Field>
                             <Field label="Status" htmlFor="pf-status">
-                                <select id="pf-status" value={status} onChange={(e) => setStatus(e.target.value as 'submitted' | 'policed' | 'cancelled')} className="input">
+                                <select id="pf-status" value={status} onChange={(e) => { const v = e.target.value as 'submitted' | 'policed' | 'cancelled'; setStatus(v); if (v === 'cancelled' && !cancelledAt) setCancelledAt(format(new Date(), 'yyyy-MM-dd')); }} className="input">
                                     <option value="submitted">Eingereicht</option>
                                     <option value="policed">Policiert</option>
                                     <option value="cancelled">Storniert</option>
                                 </select>
                             </Field>
                         </div>
+
+                        {status === 'cancelled' && (
+                            <div className="grid grid-cols-1 gap-4 rounded-xl border border-red-200 bg-red-50/50 p-4 dark:border-red-900/50 dark:bg-red-950/20 sm:grid-cols-3">
+                                <Field label="Storniert am" htmlFor="pf-cancel-date">
+                                    <input id="pf-cancel-date" type="date" value={cancelledAt} onChange={e => setCancelledAt(e.target.value)} className="input" />
+                                </Field>
+                                <Field label="Grund" htmlFor="pf-cancel-reason">
+                                    <select id="pf-cancel-reason" value={cancelReason} onChange={e => setCancelReason(e.target.value)} className="input">
+                                        <option value="">Bitte wählen</option>
+                                        {CANCEL_REASONS.map(r => <option key={r} value={r}>{r}</option>)}
+                                    </select>
+                                </Field>
+                                <Field label="Notiz" htmlFor="pf-cancel-note">
+                                    <input id="pf-cancel-note" type="text" value={cancelNote} onChange={e => setCancelNote(e.target.value)} placeholder="optional" className="input" />
+                                </Field>
+                                {formIsCourtage && <p className="text-xs text-gray-500 sm:col-span-3">Ab dem Stornomonat zählt keine Courtage mehr.</p>}
+                            </div>
+                        )}
 
                         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
                             <Field label="Tarif" htmlFor="pf-sub">
