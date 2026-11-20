@@ -6,7 +6,7 @@ import { useLocation } from 'react-router-dom';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { Menu as MenuRoot, MenuButton, MenuItem, MenuItems } from '@headlessui/react';
-import { Plus, Search, FileText, Trash2, Download, Pencil, FileDown, Trophy, LayoutGrid, Sparkles, Loader2, UploadCloud, FileSpreadsheet, ChevronDown, CalendarRange, Hourglass, ListChecks } from 'lucide-react';
+import { Plus, Search, FileText, Trash2, Download, Pencil, FileDown, Trophy, LayoutGrid, Sparkles, Loader2, UploadCloud, FileSpreadsheet, ChevronDown, CalendarRange, Hourglass, ListChecks, X } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { Modal } from '@/components/Modal';
 import { ConfirmModal } from '@/components/ConfirmModal';
@@ -14,8 +14,10 @@ import { Avatar, Badge, Button, EmptyState, Field, PageHeader, Segmented } from 
 import { toast } from 'react-hot-toast';
 import { useDropzone } from 'react-dropzone';
 import { LiabilityTrackerModal } from '@/components/LiabilityTrackerModal';
-import { ProductionStats } from '@/components/Production/ProductionStats';
-import { ProductionCharts } from '@/components/Production/ProductionCharts';
+import { ProductionHero, type HeroMonth } from '@/components/Production/ProductionHero';
+import { CourtagePanel } from '@/components/Production/CourtagePanel';
+import { CategoryTiles } from '@/components/Production/CategoryTiles';
+import { COURTAGE_SUBCATEGORIES, courtageInstallments, courtageYear, isCourtage, summarizeCourtage } from '@/lib/courtage';
 import { extractPdfText } from '@/utils/extractPdfText';
 import { parseContractFromText } from '@/utils/pdfParser';
 import { INSURANCE_TYPES } from '@/utils/constants';
@@ -26,20 +28,6 @@ const formatCurrency = (amount: number | null | undefined) => {
   if (amount === null || amount === undefined || isNaN(amount)) return '0,00 €';
   return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(amount);
 };
-
-// Sparten mit laufender Courtage je Zahlweise (keine Stornohaftung)
-const COURTAGE_SUBCATEGORIES = ['PHV', 'HR', 'UNF', 'Sach', 'KFZ', 'Rechtsschutz', 'Sonstige'];
-const MONTHS_PER_RATE: Record<string, number> = { monthly: 1, quarterly: 3, half_yearly: 6, yearly: 12 };
-
-// Anzahl der Raten vom Vertragsbeginn bis einschließlich Dezember desselben Jahres.
-// Ohne Vertragsbeginn zählt das ganze Jahr.
-function courtageInstallments(startDate: string, paymentMethod: string): number {
-  if (paymentMethod === 'one_time') return 1;
-  const step = MONTHS_PER_RATE[paymentMethod] ?? 1;
-  const month = startDate ? Number(startDate.slice(5, 7)) - 1 : 0; // 0 = Januar
-  if (Number.isNaN(month) || month < 0 || month > 11) return 12 / step;
-  return Math.floor((11 - month) / step) + 1;
-}
 
 const PAYMENT_LABEL: Record<string, string> = {
   monthly: 'monatlich',
@@ -83,7 +71,8 @@ export const Production = () => {
   const [lvValue, setLvValue] = useState('');
   const [lvUserId, setLvUserId] = useState<string>('');
   const [lvSaving, setLvSaving] = useState(false);
-  const [chartMode, setChartMode] = useState<'revenue' | 'life_values'>('revenue'); // New: Toggle Charts
+  const [onlyCourtage, setOnlyCourtage] = useState(false);
+  const [markingCourtage, setMarkingCourtage] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [documentUrl, setDocumentUrl] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -350,7 +339,7 @@ export const Production = () => {
 
   }, [netPremium, grossPremium, duration, paymentMethod, subCategory, userRates, category, manualLvFactor, startDate]); 
   
-  const isCourtage = COURTAGE_SUBCATEGORIES.includes(subCategory);
+  const formIsCourtage = COURTAGE_SUBCATEGORIES.includes(subCategory);
   const courtageRates = courtageInstallments(startDate, paymentMethod);
 
   // Update Category when SubCategory changes (reverse lookup if needed, or just handle in UI)
@@ -589,11 +578,30 @@ export const Production = () => {
       setDeleteId(null);
   };
 
-  // Filter entries based on viewMode
-  const filteredEntries = entries.filter(e => {
+  // Sach-Courtage: eigene, nicht stornierte Verträge mit Beginn im gewählten Jahr
+  const courtageYearSel = selectedYear === 'all' ? thisYear : selectedYear;
+  const courtageEntries = entries.filter(e => e.user_id === user?.id && e.status !== 'cancelled' && isCourtage(e.sub_category) && courtageYear(e) === courtageYearSel);
+  const courtageSummary = summarizeCourtage(courtageEntries, courtageYearSel);
+
+  const markAllCourtageReceived = async () => {
+      const ids = courtageEntries.filter(e => !e.commission_received_date).map(e => e.id);
+      if (ids.length === 0) return;
+      setMarkingCourtage(true);
+      const { error } = await supabase.from('production_entries').update({ commission_received_date: `${courtageYearSel}-12-31` }).in('id', ids);
+      setMarkingCourtage(false);
+      if (error) toast.error('Konnte nicht gespeichert werden.');
+      else {
+          toast.success(`Courtage ${courtageYearSel} als erhalten markiert`);
+          fetchEntries();
+      }
+  };
+
+  // Alle Filter außer der Sparte (die Sparten-Kacheln zeigen diese Auswahl)
+  const baseEntries = entries.filter(e => {
       if (viewMode === 'personal' && e.user_id !== user?.id) return false;
-      if (selectedYear !== 'all' && !String(e.submission_date || '').startsWith(`${selectedYear}-`)) return false;
-      if (filterCategory !== 'all' && e.category !== filterCategory) return false;
+      if (onlyCourtage) {
+          if (!(isCourtage(e.sub_category) && e.status !== 'cancelled' && !e.commission_received_date && courtageYear(e) === courtageYearSel)) return false;
+      } else if (selectedYear !== 'all' && !String(e.submission_date || '').startsWith(`${selectedYear}-`)) return false;
       if (onlyOpenCommission && !(e.status === 'policed' && !e.commission_received_date)) return false;
       const search = searchQuery.toLowerCase();
       return (
@@ -605,6 +613,31 @@ export const Production = () => {
           e.notes?.toLowerCase().includes(search) ||
           e.manager?.full_name?.toLowerCase().includes(search)
       );
+  });
+  const filteredEntries = baseEntries
+      .filter(e => filterCategory === 'all' || e.category === filterCategory)
+      .sort((a, b) => String(b.submission_date).localeCompare(String(a.submission_date)) || String(b.created_at).localeCompare(String(a.created_at)));
+
+  // Vertragsliste nach Einreichungsmonat gruppiert
+  const entryGroups = filteredEntries.reduce<{ key: string; label: string; count: number; commission: number; lifeValues: number; entries: typeof filteredEntries }[]>((groups, e) => {
+      const key = String(e.submission_date || '').slice(0, 7);
+      let g = groups[groups.length - 1];
+      if (!g || g.key !== key) {
+          g = { key, label: key ? format(new Date(`${key}-01T00:00:00`), 'MMMM yyyy', { locale: de }) : 'Ohne Datum', count: 0, commission: 0, lifeValues: 0, entries: [] };
+          groups.push(g);
+      }
+      g.entries.push(e);
+      g.count++;
+      if (e.status !== 'cancelled') {
+          g.commission += Number(e.commission_amount || 0);
+          g.lifeValues += Number(e.life_values || 0);
+      }
+      return groups;
+  }, []);
+
+  const categoryTiles = INSURANCE_TYPES.map(t => {
+      const rows = baseEntries.filter(e => e.category === t.id && e.status !== 'cancelled');
+      return { id: t.id, label: t.label, amount: rows.reduce((a, e) => a + Number(e.commission_amount || 0), 0), count: rows.length };
   });
 
   // Stornierte Verträge zählen nicht in Summen, Diagramme und Rangliste
@@ -661,45 +694,33 @@ export const Production = () => {
 
   const leaderboardData = getLeaderboardData();
 
-  // --- CHART DATA PREPARATION ---
-  
-  // 1. Monthly Data (Last 6 Months)
-  const getMonthlyData = () => {
-      // Immer vom 1. des Monats aus rechnen, sonst springt setMonth am 29.–31. über kurze Monate
+  // Monatsverlauf für den Kopfbereich: ganzes gewähltes Jahr, bei "Alle Jahre" die letzten 12 Monate
+  const heroMonths: HeroMonth[] = (() => {
       const now = new Date();
-      const months = selectedYear !== 'all' && selectedYear !== thisYear
+      const months = selectedYear !== 'all'
           ? Array.from({ length: 12 }, (_, i) => new Date(selectedYear, i, 1))
-          : Array.from({ length: 6 }, (_, i) => new Date(now.getFullYear(), now.getMonth() - (5 - i), 1));
-
+          : Array.from({ length: 12 }, (_, i) => new Date(now.getFullYear(), now.getMonth() - (11 - i), 1));
       return months.map(date => {
-          const monthKey = format(date, 'yyyy-MM');
-          const monthLabel = format(date, 'MMM', { locale: de });
-          
-          const rows = activeEntries.filter(e => String(e.submission_date || '').startsWith(monthKey));
-          const total = rows.reduce((acc, curr) => acc + Number(curr.commission_amount || 0), 0);
-          let totalLifeValues = rows.reduce((acc, curr) => acc + Number(curr.life_values || 0), 0);
-          if (myCorrectedLv && date.getFullYear() === selectedYear) totalLifeValues = myCorrectedLv[date.getMonth()];
-
-          return { name: monthLabel, value: total, lifeValues: totalLifeValues };
+          const key = format(date, 'yyyy-MM');
+          const rows = activeEntries.filter(e => String(e.submission_date || '').startsWith(key));
+          let lifeValues = rows.reduce((acc, e) => acc + Number(e.life_values || 0), 0);
+          if (myCorrectedLv && date.getFullYear() === selectedYear) lifeValues = myCorrectedLv[date.getMonth()];
+          return {
+              key,
+              label: format(date, 'MMM', { locale: de }).replace('.', ''),
+              commission: rows.reduce((acc, e) => acc + Number(e.commission_amount || 0), 0),
+              lifeValues,
+              current: key === format(now, 'yyyy-MM'),
+              future: date > now,
+          };
       });
-  };
-  
-  const monthlyData = getMonthlyData();
+  })();
 
-  // 2. Category Distribution
-  const getCategoryData = () => {
-      const data: Record<string, number> = {};
-      activeEntries.forEach(e => {
-          data[e.category] = (data[e.category] || 0) + Number(e.commission_amount || 0);
-      });
-
-      return Object.entries(data)
-        .map(([id, value]) => ({ id, name: categoryLabel(id), value }))
-        .sort((a, b) => b.value - a.value); // Sort by highest value
-  };
-
-  const categoryData = getCategoryData();
-
+  // Jahresziel Lebenswerte (eigenes Profil), nur für ein einzelnes Jahr
+  const myGoalProfile = profiles.find(p => p.id === user?.id);
+  const lifeValuesGoal = viewMode === 'personal' && selectedYear !== 'all' && !searchQuery && filterCategory === 'all' && !onlyCourtage && !onlyOpenCommission
+      ? Number(myGoalProfile?.yearly_goal) || (Number(myGoalProfile?.monthly_goal) || 0) * 12
+      : 0;
 
   const handleExport = () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -802,7 +823,6 @@ export const Production = () => {
 
   // Provision noch nicht eingegangen: policierte eigene Verträge ohne Eingangsdatum
   const openCommission = entries.filter(e => e.user_id === user?.id && e.status === 'policed' && !e.commission_received_date);
-  const openCommissionSum = openCommission.reduce((a, e) => a + Number(e.commission_amount || 0), 0);
 
   const markCommissionReceived = async (id: string) => {
       const { error } = await supabase.from('production_entries').update({ commission_received_date: format(new Date(), 'yyyy-MM-dd') }).eq('id', id);
@@ -1007,10 +1027,6 @@ export const Production = () => {
       doc.save(`Produktion_Personal_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
   };
 
-  const filterOptions = [
-      { value: 'all', label: 'Alle' },
-      ...INSURANCE_TYPES.map(t => ({ value: t.id, label: t.label, count: (viewMode === 'personal' ? entries.filter(e => e.user_id === user?.id) : entries).filter(e => e.category === t.id).length })),
-  ];
 
   return (
     <div className="space-y-6">
@@ -1120,39 +1136,65 @@ export const Production = () => {
             </div>
         ) : (
             <>
-                <ProductionStats
-                    totalCommission={totalCommission}
-                    totalLifeValues={shownLifeValues}
-                    lifeValuesNote={lvCorrection ? `inkl. Korrektur ${lvCorrection > 0 ? '+' : ''}${new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 }).format(lvCorrection)} laut Liste` : undefined}
-                    totalLiability={totalLiability}
-                    contractCount={activeEntries.length}
-                    cancelledCount={cancelledCount}
-                    onOpenLiabilityModal={() => setIsLiabilityModalOpen(true)}
-                />
+                <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
+                    <ProductionHero
+                        periodLabel={selectedYear === 'all' ? 'gesamt' : String(selectedYear)}
+                        totalCommission={totalCommission}
+                        totalLifeValues={shownLifeValues}
+                        lifeValuesGoal={lifeValuesGoal}
+                        lifeValuesNote={lvCorrection ? `inkl. Korrektur ${lvCorrection > 0 ? '+' : ''}${new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 }).format(lvCorrection)} laut Liste` : undefined}
+                        months={heroMonths}
+                        contractCount={activeEntries.length}
+                        cancelledCount={cancelledCount}
+                        totalLiability={totalLiability}
+                        onOpenLiability={() => setIsLiabilityModalOpen(true)}
+                    />
+                    <CourtagePanel
+                        year={courtageYearSel}
+                        summary={courtageSummary}
+                        active={onlyCourtage}
+                        onToggleContracts={() => { setOnlyCourtage(v => !v); setFilterCategory('all'); setOnlyOpenCommission(false); }}
+                        onMarkAllReceived={markAllCourtageReceived}
+                        marking={markingCourtage}
+                    />
+                </div>
 
-                <ProductionCharts chartMode={chartMode} setChartMode={setChartMode} monthlyData={monthlyData} categoryData={categoryData} title={selectedYear !== 'all' && selectedYear !== thisYear ? `Monate ${selectedYear}` : undefined} />
+                <CategoryTiles tiles={categoryTiles} value={filterCategory} onChange={(id) => { setFilterCategory(id); setOnlyCourtage(false); }} />
 
-                <div className="card overflow-hidden">
-                    <div className="flex flex-col gap-3 border-b border-gray-100 p-4 dark:border-gray-700 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-                        <div className="flex flex-wrap items-center gap-2">
-                            <Segmented size="sm" value={filterCategory} onChange={setFilterCategory} options={filterOptions} />
-                            {viewMode === 'personal' && (
-                                <button
-                                    type="button"
-                                    aria-pressed={onlyOpenCommission}
-                                    onClick={() => setOnlyOpenCommission(v => !v)}
-                                    className={cn('inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors', onlyOpenCommission ? 'border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-200' : 'border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700/50')}
-                                    title="Policierte Verträge, deren Provision noch nicht eingegangen ist"
-                                >
-                                    <Hourglass className="h-3.5 w-3.5" />
-                                    Provision offen
-                                    {openCommission.length > 0 && <span className="tabular">· {openCommission.length} · {new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(openCommissionSum)}</span>}
+                <section aria-labelledby="contracts-title" className="card overflow-hidden">
+                    <div className="flex flex-col gap-3 border-b border-gray-100 px-4 py-4 dark:border-gray-700 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                            <h2 id="contracts-title" className="text-base font-semibold text-gray-900 dark:text-white">
+                                Verträge
+                                <span className="tabular ml-2 text-sm font-normal text-gray-400">{filteredEntries.length}</span>
+                            </h2>
+                            {onlyCourtage && (
+                                <button type="button" onClick={() => setOnlyCourtage(false)} className="chip bg-amber-100 text-amber-800 hover:bg-amber-200 dark:bg-amber-900/40 dark:text-amber-200">
+                                    Offene Courtage {courtageYearSel} <X className="h-3 w-3" />
+                                </button>
+                            )}
+                            {filterCategory !== 'all' && (
+                                <button type="button" onClick={() => setFilterCategory('all')} className="chip bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200">
+                                    {categoryLabel(filterCategory)} <X className="h-3 w-3" />
                                 </button>
                             )}
                         </div>
-                        <div className="relative w-full sm:w-64">
-                            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                            <input type="search" placeholder="Kunde, Schein-Nr., Notiz" aria-label="Verträge durchsuchen" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="input pl-9" />
+                        <div className="flex items-center gap-2">
+                            <button
+                                type="button"
+                                aria-pressed={onlyOpenCommission}
+                                onClick={() => { setOnlyOpenCommission(v => !v); setOnlyCourtage(false); }}
+                                className={cn('inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-2 text-xs font-medium transition-colors', onlyOpenCommission ? 'border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-200' : 'border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700/50')}
+                                title="Policierte Verträge, deren Provision noch nicht eingegangen ist"
+                            >
+                                <Hourglass className="h-3.5 w-3.5" />
+                                Provision offen
+                                {openCommission.length > 0 && <span className="tabular rounded bg-white/70 px-1 dark:bg-black/20">{openCommission.length}</span>}
+                            </button>
+                            <div className="relative w-full sm:w-64">
+                                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                                <input type="search" placeholder="Kunde, Schein-Nr., Notiz" aria-label="Verträge durchsuchen" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="input pl-9" />
+                            </div>
                         </div>
                     </div>
 
@@ -1161,9 +1203,9 @@ export const Production = () => {
                     ) : filteredEntries.length === 0 ? (
                         <EmptyState
                             icon={FileText}
-                            title={searchQuery || filterCategory !== 'all' ? 'Keine Verträge in dieser Auswahl' : 'Noch keine Verträge erfasst'}
-                            description={searchQuery || filterCategory !== 'all' ? 'Ändere Filter oder Suche.' : 'Erfasse deinen ersten Vertrag, dann erscheinen hier Provision und Lebenswerte.'}
-                            action={!searchQuery && filterCategory === 'all' ? <Button icon={Plus} onClick={() => { resetForm(); setIsModalOpen(true); }}>Vertrag erfassen</Button> : undefined}
+                            title={searchQuery || filterCategory !== 'all' || onlyCourtage || onlyOpenCommission ? 'Keine Verträge in dieser Auswahl' : 'Noch keine Verträge erfasst'}
+                            description={searchQuery || filterCategory !== 'all' || onlyCourtage || onlyOpenCommission ? 'Ändere Filter oder Suche.' : 'Erfasse deinen ersten Vertrag, dann erscheinen hier Provision und Lebenswerte.'}
+                            action={!searchQuery && filterCategory === 'all' && !onlyCourtage && !onlyOpenCommission ? <Button icon={Plus} onClick={() => { resetForm(); setIsModalOpen(true); }}>Vertrag erfassen</Button> : undefined}
                         />
                     ) : (
                         <>
@@ -1171,103 +1213,123 @@ export const Production = () => {
                                 <table className="table-base">
                                     <thead>
                                         <tr>
-                                            <th>Kunde</th>
+                                            <th className="!pl-6">Kunde</th>
                                             <th>Sparte</th>
                                             <th>Status</th>
                                             <th>Betreuung</th>
                                             <th className="text-right">Beitrag</th>
-                                            <th className="text-right">Bewertung</th>
                                             <th className="text-right">Lebenswerte</th>
                                             <th className="text-right">Provision</th>
                                             <th className="w-20"><span className="sr-only">Aktionen</span></th>
                                         </tr>
                                     </thead>
-                                    <tbody>
-                                        {filteredEntries.map(entry => {
-                                            const st = STATUS_META[entry.status] || STATUS_META.submitted;
-                                            const cancelled = entry.status === 'cancelled';
-                                            return (
-                                                <tr key={entry.id} className={cn('group', cancelled && 'text-gray-400 [&_td]:line-through [&_td]:decoration-gray-300')}>
-                                                    <td>
-                                                        <button type="button" onClick={() => handleEdit(entry)} className="text-left">
-                                                            <span className="block font-medium text-gray-900 hover:text-brand-700 dark:text-white dark:hover:text-brand-300">{entry.customer_name}{entry.customer_firstname ? `, ${entry.customer_firstname}` : ''}</span>
-                                                        </button>
-                                                        <span className="flex items-center gap-1.5 text-xs text-gray-500">
-                                                            <span className="font-mono">{entry.policy_number || 'ohne Nr.'}</span>
-                                                            <span>· {format(new Date(entry.submission_date), 'dd.MM.yy')}</span>
-                                                            {entry.document_url && (
-                                                                <button type="button" onClick={() => openProductionDoc(entry.document_url)} className="rounded p-0.5 text-brand-600 hover:bg-brand-50 dark:text-brand-300 dark:hover:bg-brand-900/40" title="Dokument öffnen" aria-label="Dokument öffnen">
-                                                                    <FileText className="h-3.5 w-3.5" />
-                                                                </button>
-                                                            )}
-                                                        </span>
-                                                    </td>
-                                                    <td>
-                                                        <span className="flex items-center gap-2">
-                                                            <span className="h-2 w-2 shrink-0 rounded-sm" style={{ background: CATEGORY_COLORS[entry.category] }} />
-                                                            <span className="text-gray-700 dark:text-gray-300">{entry.sub_category || categoryLabel(entry.category)}</span>
-                                                        </span>
-                                                    </td>
-                                                    <td className="!no-underline"><Badge tone={st.tone}>{st.label}</Badge></td>
-                                                    <td>
-                                                        <span className="block text-gray-700 dark:text-gray-300">{entry.manager?.full_name || '–'}</span>
-                                                        {entry.profiles?.full_name && entry.profiles.full_name !== entry.manager?.full_name && <span className="text-xs text-gray-500">von {entry.profiles.full_name}</span>}
-                                                    </td>
-                                                    <td className="tabular text-right">
-                                                        <span className="block text-gray-700 dark:text-gray-300">{formatCurrency(entry.gross_premium || 0)}</span>
-                                                        <span className="text-xs text-gray-500">{PAYMENT_LABEL[entry.payment_method] || entry.payment_method}</span>
-                                                    </td>
-                                                    <td className="tabular text-right text-gray-700 dark:text-gray-300">{formatCurrency(entry.valuation_sum || 0)}</td>
-                                                    <td className="tabular text-right font-medium text-brand-700 dark:text-brand-300">{new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 }).format(entry.life_values || 0)}</td>
-                                                    <td className="tabular text-right">
-                                                        <span className="block font-semibold text-gray-900 dark:text-white">{formatCurrency(entry.commission_amount || 0)}</span>
-                                                        {entry.status === 'policed' && entry.user_id === user?.id && (entry.commission_received_date ? (
-                                                            <span className="text-2xs text-emerald-700 dark:text-emerald-400">erhalten {format(new Date(entry.commission_received_date), 'dd.MM.')}</span>
-                                                        ) : (
-                                                            <button type="button" onClick={() => markCommissionReceived(entry.id)} className="text-2xs font-medium text-amber-700 hover:underline dark:text-amber-300" title="Provision als erhalten markieren">
-                                                                offen · erhalten?
+                                    {entryGroups.map(group => (
+                                        <tbody key={group.key}>
+                                            <tr className="!bg-gray-50/80 hover:!bg-gray-50/80 dark:!bg-gray-900/40">
+                                                <th colSpan={4} scope="colgroup" className="border-b border-gray-100 px-4 py-2 text-left text-sm font-semibold text-gray-900 dark:border-gray-700/60 dark:text-white sm:px-6">
+                                                    {group.label}
+                                                    <span className="tabular ml-2 text-xs font-normal text-gray-400">{group.count} {group.count === 1 ? 'Vertrag' : 'Verträge'}</span>
+                                                </th>
+                                                <th className="border-b border-gray-100 dark:border-gray-700/60"><span className="sr-only">Beitrag</span></th>
+                                                <th className="tabular border-b border-gray-100 px-4 py-2 text-right text-xs font-medium text-brand-700 dark:border-gray-700/60 dark:text-brand-300">{new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 }).format(group.lifeValues)} LW</th>
+                                                <th className="tabular border-b border-gray-100 px-4 py-2 text-right text-sm font-semibold text-gray-900 dark:border-gray-700/60 dark:text-white">{formatCurrency(group.commission)}</th>
+                                                <th className="border-b border-gray-100 dark:border-gray-700/60"><span className="sr-only">Aktionen</span></th>
+                                            </tr>
+                                            {group.entries.map(entry => {
+                                                const st = STATUS_META[entry.status] || STATUS_META.submitted;
+                                                const cancelled = entry.status === 'cancelled';
+                                                const courtage = isCourtage(entry.sub_category);
+                                                return (
+                                                    <tr key={entry.id} className={cn('group', cancelled && 'text-gray-400 [&_td]:line-through [&_td]:decoration-gray-300')}>
+                                                        <td className="relative !pl-6">
+                                                            <span aria-hidden className="absolute inset-y-2 left-0 w-1 rounded-r" style={{ background: CATEGORY_COLORS[entry.category] }} />
+                                                            <button type="button" onClick={() => handleEdit(entry)} className="text-left">
+                                                                <span className="block font-medium text-gray-900 hover:text-brand-700 dark:text-white dark:hover:text-brand-300">{entry.customer_name}{entry.customer_firstname ? `, ${entry.customer_firstname}` : ''}</span>
                                                             </button>
-                                                        ))}
-                                                    </td>
-                                                    <td>
-                                                        <div className="flex justify-end gap-0.5 opacity-60 transition-opacity group-hover:opacity-100 [&_*]:no-underline">
-                                                            <button type="button" onClick={() => handleEdit(entry)} className="btn-icon p-1.5" title="Bearbeiten" aria-label="Bearbeiten"><Pencil className="h-4 w-4" /></button>
-                                                            <button type="button" onClick={() => handleDelete(entry.id)} className="btn-icon p-1.5 hover:!text-red-600" title="Löschen" aria-label="Löschen"><Trash2 className="h-4 w-4" /></button>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
+                                                            <span className="flex items-center gap-2 text-xs text-gray-500">
+                                                                <span className="font-mono">{entry.policy_number || 'ohne Nr.'}</span>
+                                                                <span>{format(new Date(entry.submission_date), 'dd.MM.yy')}</span>
+                                                                {entry.document_url && (
+                                                                    <button type="button" onClick={() => openProductionDoc(entry.document_url)} className="rounded p-0.5 text-brand-600 hover:bg-brand-50 dark:text-brand-300 dark:hover:bg-brand-900/40" title="Dokument öffnen" aria-label="Dokument öffnen">
+                                                                        <FileText className="h-3.5 w-3.5" />
+                                                                    </button>
+                                                                )}
+                                                            </span>
+                                                        </td>
+                                                        <td className="text-gray-700 dark:text-gray-300">{entry.sub_category || categoryLabel(entry.category)}</td>
+                                                        <td className="!no-underline"><Badge tone={st.tone}>{st.label}</Badge></td>
+                                                        <td>
+                                                            <span className="block text-gray-700 dark:text-gray-300">{entry.manager?.full_name || '–'}</span>
+                                                            {entry.profiles?.full_name && entry.profiles.full_name !== entry.manager?.full_name && <span className="text-xs text-gray-500">von {entry.profiles.full_name}</span>}
+                                                        </td>
+                                                        <td className="tabular text-right">
+                                                            <span className="block text-gray-700 dark:text-gray-300">{formatCurrency(entry.gross_premium || 0)}</span>
+                                                            <span className="text-xs text-gray-500">{PAYMENT_LABEL[entry.payment_method] || entry.payment_method}</span>
+                                                        </td>
+                                                        <td className="tabular text-right font-medium text-brand-700 dark:text-brand-300">{new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 }).format(entry.life_values || 0)}</td>
+                                                        <td className="tabular text-right">
+                                                            <span className="block font-semibold text-gray-900 dark:text-white">{formatCurrency(entry.commission_amount || 0)}</span>
+                                                            {courtage && !cancelled && !entry.commission_received_date && (
+                                                                <span className="block text-2xs text-gray-500">Courtage zum 31.12.</span>
+                                                            )}
+                                                            {entry.status === 'policed' && entry.user_id === user?.id && (entry.commission_received_date ? (
+                                                                <span className="text-2xs text-emerald-700 dark:text-emerald-400">erhalten {format(new Date(entry.commission_received_date), 'dd.MM.')}</span>
+                                                            ) : !courtage && (
+                                                                <button type="button" onClick={() => markCommissionReceived(entry.id)} className="text-2xs font-medium text-amber-700 hover:underline dark:text-amber-300" title="Provision als erhalten markieren">
+                                                                    offen, erhalten?
+                                                                </button>
+                                                            ))}
+                                                        </td>
+                                                        <td>
+                                                            <div className="flex justify-end gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 [&_*]:no-underline">
+                                                                <button type="button" onClick={() => handleEdit(entry)} className="btn-icon p-1.5" title="Bearbeiten" aria-label="Bearbeiten"><Pencil className="h-4 w-4" /></button>
+                                                                <button type="button" onClick={() => handleDelete(entry.id)} className="btn-icon p-1.5 hover:!text-red-600" title="Löschen" aria-label="Löschen"><Trash2 className="h-4 w-4" /></button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    ))}
                                 </table>
                             </div>
 
-                            <ul className="divide-y divide-gray-100 dark:divide-gray-700/70 md:hidden">
-                                {filteredEntries.map(entry => {
-                                    const st = STATUS_META[entry.status] || STATUS_META.submitted;
-                                    return (
-                                        <li key={entry.id}>
-                                            <button type="button" onClick={() => handleEdit(entry)} className="flex w-full items-start gap-3 px-4 py-3.5 text-left">
-                                                <span className="mt-1.5 h-2 w-2 shrink-0 rounded-sm" style={{ background: CATEGORY_COLORS[entry.category] }} />
-                                                <span className="min-w-0 flex-1">
-                                                    <span className="block truncate text-sm font-medium text-gray-900 dark:text-white">{entry.customer_name}{entry.customer_firstname ? `, ${entry.customer_firstname}` : ''}</span>
-                                                    <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-gray-500">
-                                                        <Badge tone={st.tone}>{st.label}</Badge>
-                                                        {entry.sub_category || categoryLabel(entry.category)} · {format(new Date(entry.submission_date), 'dd.MM.yy')}
-                                                    </span>
-                                                </span>
-                                                <span className="text-right">
-                                                    <span className={cn('tabular block text-sm font-semibold', entry.status === 'cancelled' ? 'text-gray-400 line-through' : 'text-gray-900 dark:text-white')}>{formatCurrency(entry.commission_amount || 0)}</span>
-                                                    <span className="tabular block text-xs text-brand-700 dark:text-brand-300">{new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 }).format(entry.life_values || 0)} LW</span>
-                                                </span>
-                                            </button>
-                                        </li>
-                                    );
-                                })}
-                            </ul>
+                            <div className="md:hidden">
+                                {entryGroups.map(group => (
+                                    <div key={group.key}>
+                                        <div className="flex items-baseline justify-between bg-gray-50/80 px-4 py-2 dark:bg-gray-900/40">
+                                            <span className="text-sm font-semibold text-gray-900 dark:text-white">{group.label}</span>
+                                            <span className="tabular text-sm font-semibold text-gray-900 dark:text-white">{formatCurrency(group.commission)}</span>
+                                        </div>
+                                        <ul className="divide-y divide-gray-100 dark:divide-gray-700/70">
+                                            {group.entries.map(entry => {
+                                                const st = STATUS_META[entry.status] || STATUS_META.submitted;
+                                                return (
+                                                    <li key={entry.id}>
+                                                        <button type="button" onClick={() => handleEdit(entry)} className="relative flex w-full items-start gap-3 py-3.5 pl-5 pr-4 text-left">
+                                                            <span aria-hidden className="absolute inset-y-3 left-0 w-1 rounded-r" style={{ background: CATEGORY_COLORS[entry.category] }} />
+                                                            <span className="min-w-0 flex-1">
+                                                                <span className="block truncate text-sm font-medium text-gray-900 dark:text-white">{entry.customer_name}{entry.customer_firstname ? `, ${entry.customer_firstname}` : ''}</span>
+                                                                <span className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-gray-500">
+                                                                    <Badge tone={st.tone}>{st.label}</Badge>
+                                                                    {entry.sub_category || categoryLabel(entry.category)}, {format(new Date(entry.submission_date), 'dd.MM.')}
+                                                                </span>
+                                                            </span>
+                                                            <span className="text-right">
+                                                                <span className={cn('tabular block text-sm font-semibold', entry.status === 'cancelled' ? 'text-gray-400 line-through' : 'text-gray-900 dark:text-white')}>{formatCurrency(entry.commission_amount || 0)}</span>
+                                                                <span className="tabular block text-xs text-brand-700 dark:text-brand-300">{new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 }).format(entry.life_values || 0)} LW</span>
+                                                            </span>
+                                                        </button>
+                                                    </li>
+                                                );
+                                            })}
+                                        </ul>
+                                    </div>
+                                ))}
+                            </div>
                         </>
                     )}
-                </div>
+                </section>
             </>
         )}
 
@@ -1416,7 +1478,7 @@ export const Production = () => {
                             <div>
                                 <p className="text-xs text-gray-500">Provision</p>
                                 <p className="tabular font-display text-3xl font-semibold text-gray-900 dark:text-white">{formatCurrency(commissionAmount)}</p>
-                                {isCourtage && (
+                                {formIsCourtage && (
                                     <p className="mt-1 text-xs text-gray-500">
                                         {courtageRates} {courtageRates === 1 ? 'Rate' : 'Raten'} à {formatCurrency((Number(netPremium) || 0) * (Number(commissionRate) || 0) / 100)}, Auszahlung zum 31.12.
                                         {!startDate && paymentMethod !== 'one_time' && ' Ohne Vertragsbeginn wird das ganze Jahr gerechnet.'}
@@ -1452,7 +1514,7 @@ export const Production = () => {
                                     <dd className="tabular pt-1.5 font-semibold text-brand-700 dark:text-brand-300">{new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 }).format(lifeValues)}</dd>
                                 </div>
                             </dl>
-                            {!isCourtage && (<>
+                            {!formIsCourtage && (<>
                             <div className="flex items-center justify-between gap-3 border-t border-brand-100 pt-4 dark:border-brand-900">
                                 <label htmlFor="liabilityCheck" className="flex cursor-pointer items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
                                     <input type="checkbox" id="liabilityCheck" checked={liabilityActive} onChange={e => setLiabilityActive(e.target.checked)} className="h-4 w-4 rounded" />
