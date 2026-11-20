@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Avatar } from '@/components/ui';
 import { PageHeader } from '@/components/ui';
+import { HeroDivider, HeroNumber, HeroPanel, HeroStat } from '@/components/ui/hero';
 import { supabase } from '@/lib/supabase';
 import { PROFILE_COLUMNS } from '@/lib/profiles';
 import { useStore } from '@/store/useStore';
@@ -206,52 +207,27 @@ export const Admin = () => {
         <div className="space-y-6">
             <PageHeader title="Verwaltung" description="Konten freischalten, Rollen vergeben und das Team im Überblick." />
 
-            {/* Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-white dark:bg-gray-800 p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700">
-                    <div className="flex items-center justify-between mb-4">
-                        <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-xl text-blue-600 dark:text-blue-400">
-                            <Users className="w-6 h-6" />
-                        </div>
-                        {stats.pendingUsers > 0 && (
-                            <span className="bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full animate-pulse">
-                                {stats.pendingUsers} Warten
-                            </span>
-                        )}
-                    </div>
-                    <p className="text-sm text-gray-500 font-medium">Nutzer Gesamt</p>
-                    <p className="text-3xl font-semibold text-gray-900 dark:text-white">{stats.totalUsers}</p>
+            <HeroPanel aria-label="Verwaltung im Überblick">
+                <div className="flex flex-col gap-6 p-6 sm:flex-row sm:items-end sm:justify-between sm:p-8">
+                    <HeroNumber value={stats.totalRevenue} format="eur" label="Provision im Team, alle Verträge" />
+                    {stats.pendingUsers > 0 ? (
+                        <button type="button" onClick={() => setSearchQuery('')} className="inline-flex items-center gap-2 self-start rounded-xl bg-amber-300 px-4 py-2.5 text-sm font-semibold text-brand-950 shadow-[0_0_30px_rgba(242,165,65,0.45)] sm:self-auto">
+                            <Users className="h-4 w-4" /> {stats.pendingUsers} {stats.pendingUsers === 1 ? 'Konto wartet' : 'Konten warten'} auf Freigabe
+                        </button>
+                    ) : <p className="text-sm text-brand-100">Alle Konten sind freigeschaltet.</p>}
                 </div>
-
-                <div className="bg-white dark:bg-gray-800 p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700">
-                    <div className="flex items-center justify-between mb-4">
-                        <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-xl text-green-600 dark:text-green-400">
-                            <DollarSign className="w-6 h-6" />
-                        </div>
-                    </div>
-                    <p className="text-sm text-gray-500 font-medium">Umsatz (YTD)</p>
-                    <p className="text-3xl font-semibold text-gray-900 dark:text-white">
-                        {new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(stats.totalRevenue)}
-                    </p>
-                </div>
-
-                <div className="bg-white dark:bg-gray-800 p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700">
-                    <div className="flex items-center justify-between mb-4">
-                        <div className="p-3 bg-purple-50 dark:bg-purple-900/20 rounded-xl text-purple-600 dark:text-purple-400">
-                            <Activity className="w-6 h-6" />
-                        </div>
-                    </div>
-                    <p className="text-sm text-gray-500 font-medium">Letzte Aktivität</p>
-                    <p className="text-sm font-bold text-gray-900 dark:text-white mt-1">
-                        {recentActivity[0] ? format(new Date(recentActivity[0].created_at), 'dd.MM. HH:mm') : '-'}
-                    </p>
-                </div>
-            </div>
+                <HeroDivider />
+                <dl className="grid grid-cols-3 gap-6 px-6 py-5 sm:px-8">
+                    <HeroStat label="Nutzer gesamt" value={stats.totalUsers} />
+                    <HeroStat label="Warten auf Freigabe" value={stats.pendingUsers} accent={stats.pendingUsers > 0} />
+                    <HeroStat label="Letzter Vertrag" value={recentActivity[0] ? format(new Date(recentActivity[0].created_at), 'dd.MM. HH:mm') : '–'} />
+                </dl>
+            </HeroPanel>
 
             {/* User Management Section */}
             <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                    <h2 className="text-xl font-bold text-gray-900 dark:text-white">Benutzerverwaltung</h2>
+                    <h2 className="font-display text-lg font-semibold text-gray-900 dark:text-white">Benutzerverwaltung</h2>
                     <div className="relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                         <input 
@@ -264,7 +240,7 @@ export const Admin = () => {
                     </div>
                 </div>
 
-                <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+                <div className="card overflow-hidden">
                     <div className="hidden md:block overflow-x-auto">
                         <table className="w-full text-left text-sm">
                             <thead className="bg-gray-50/50 dark:bg-gray-900/50">
@@ -426,7 +402,7 @@ export const Admin = () => {
             <AuditLog users={users} />
 
             {/* Recent Activity Table */}
-            <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+            <div className="card overflow-hidden">
                 <div className="p-6 border-b border-gray-100 dark:border-gray-700">
                     <h3 className="font-bold text-lg">Neueste Einreichungen (Global)</h3>
                 </div>
