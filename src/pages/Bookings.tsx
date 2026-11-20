@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Avatar } from '@/components/ui';
 import { PageHeader, Button } from '@/components/ui';
+import { HeroPanel, StatusPill } from '@/components/ui/hero';
 import { supabase } from '@/lib/supabase';
 import { PROFILE_PUBLIC } from '@/lib/profiles';
 import { Booking } from '@/types';
 import { useStore } from '@/store/useStore';
-import { format, parseISO, addDays, startOfDay, isBefore, setHours, setMinutes } from 'date-fns';
+import { format, parseISO, addDays, startOfDay, isBefore, setHours, setMinutes, isSameDay } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { Plus, Trash2, Calendar as CalendarIcon, MapPin, Clock, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Modal } from '@/components/Modal';
@@ -175,6 +176,63 @@ export const Bookings = () => {
         }
       />
 
+      {(() => {
+        const now = new Date();
+        const isToday = isSameDay(selectedDate, now);
+        const sorted = [...bookings].sort((a, b) => a.start_time.localeCompare(b.start_time));
+        const current = isToday ? sorted.find(b => parseISO(b.start_time) <= now && parseISO(b.end_time) > now) : undefined;
+        const next = isToday ? sorted.find(b => parseISO(b.start_time) > now) : sorted[0];
+        const DAY_START = 7, DAY_END = 19, SPAN = DAY_END - DAY_START;
+        const pos = (iso: string) => { const d = parseISO(iso); return Math.min(Math.max(((d.getHours() + d.getMinutes() / 60) - DAY_START) / SPAN, 0), 1) * 100; };
+        const nowPos = ((now.getHours() + now.getMinutes() / 60) - DAY_START) / SPAN * 100;
+        return (
+          <HeroPanel aria-label="Besprechungsraum">
+            <div className="flex flex-col gap-6 p-6 sm:flex-row sm:items-end sm:justify-between sm:p-8">
+              <div>
+                <p className="text-sm text-brand-200">Besprechungsraum{isToday ? ', jetzt' : `, ${format(selectedDate, 'EEEE d. MMMM', { locale: de })}`}</p>
+                {isToday ? (
+                  <p className={current ? 'mt-1.5 font-display text-6xl font-semibold leading-none tracking-tight text-amber-300' : 'mt-1.5 font-display text-6xl font-semibold leading-none tracking-tight text-emerald-300'}>
+                    {current ? 'Belegt' : 'Frei'}
+                  </p>
+                ) : (
+                  <p className="mt-1.5 font-display text-6xl font-semibold leading-none tracking-tight">{bookings.length} {bookings.length === 1 ? 'Buchung' : 'Buchungen'}</p>
+                )}
+                <p className="mt-3 text-sm text-brand-100">
+                  {current ? <>bis {format(parseISO(current.end_time), 'HH:mm')}: {current.title}, {current.profiles?.full_name?.split(' ')[0]}</>
+                    : next ? <>Nächste Buchung um {format(parseISO(next.start_time), 'HH:mm')}: {next.title}</>
+                    : isToday ? 'Heute keine weiteren Buchungen.' : 'Den ganzen Tag frei.'}
+                </p>
+              </div>
+              {!current && (
+                <button type="button" onClick={() => setIsModalOpen(true)} className="inline-flex items-center gap-2 self-start rounded-xl bg-amber-300 px-4 py-2.5 text-sm font-semibold text-brand-950 shadow-[0_0_30px_rgba(242,165,65,0.45)] hover:bg-amber-200 sm:self-auto">
+                  <Plus className="h-4 w-4" /> Jetzt buchen
+                </button>
+              )}
+            </div>
+            <div className="border-t border-white/10 px-6 pb-6 pt-5 sm:px-8">
+              <div className="relative h-12 rounded-xl bg-white/5 ring-1 ring-white/10">
+                {sorted.map(b => (
+                  <div
+                    key={b.id}
+                    title={`${format(parseISO(b.start_time), 'HH:mm')}–${format(parseISO(b.end_time), 'HH:mm')} ${b.title}`}
+                    className={b.user_id === user?.id ? 'absolute inset-y-1.5 overflow-hidden rounded-lg bg-amber-300 px-2 py-1 text-2xs font-semibold text-brand-950' : 'absolute inset-y-1.5 overflow-hidden rounded-lg bg-brand-300/80 px-2 py-1 text-2xs font-semibold text-brand-950'}
+                    style={{ left: `${pos(b.start_time)}%`, width: `${Math.max(pos(b.end_time) - pos(b.start_time), 1.5)}%` }}
+                  >
+                    <span className="block truncate">{b.title}</span>
+                  </div>
+                ))}
+                {isToday && nowPos > 0 && nowPos < 100 && (
+                  <div className="absolute -inset-y-1 w-0.5 rounded bg-white shadow-[0_0_10px_white]" style={{ left: `${nowPos}%` }} aria-hidden />
+                )}
+              </div>
+              <div className="tabular mt-2 flex justify-between text-2xs text-brand-200">
+                {Array.from({ length: SPAN / 2 + 1 }, (_, i) => <span key={i}>{DAY_START + i * 2}:00</span>)}
+              </div>
+            </div>
+          </HeroPanel>
+        );
+      })()}
+
       <div className="grid grid-cols-1 gap-6">
         {RESOURCES.map((resource, idx) => {
             const Icon = resource.icon;
@@ -184,13 +242,12 @@ export const Bookings = () => {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: idx * 0.1 }}
-                    className="bg-white dark:bg-gray-800 rounded-3xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden flex flex-col h-full"
+                    className="card flex h-full flex-col overflow-hidden"
                 >
-                    <div className="p-5 border-b border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800 flex items-center gap-4">
-                        <div className={`w-10 h-10 rounded-xl ${resource.bg} dark:bg-opacity-20 flex items-center justify-center ${resource.color} dark:text-opacity-80 shadow-inner`}>
-                            <Icon className="w-5 h-5" />
-                        </div>
-                        <h2 className="text-lg font-bold text-gray-900 dark:text-white">{resource.label}</h2>
+                    <div className="flex items-center gap-3 border-b border-gray-100 px-5 py-4 dark:border-gray-700 sm:px-6">
+                        <Icon className="h-4 w-4 text-gray-400" />
+                        <h2 className="font-display text-lg font-semibold text-gray-900 dark:text-white">Buchungen am {format(selectedDate, 'EEEE, d. MMMM', { locale: de })}</h2>
+                        <span className="tabular ml-auto rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-600 dark:bg-gray-700 dark:text-gray-300">{bookingsByResource[resource.id]?.length || 0}</span>
                     </div>
                     <div className="p-5 flex-1 overflow-y-auto max-h-[400px]">
                         {bookingsByResource[resource.id]?.length === 0 ? (
@@ -223,7 +280,7 @@ export const Bookings = () => {
 
                                                 {/* Content */}
                                                 <div className="flex-1 min-w-0">
-                                                    <h3 className="font-bold text-gray-800 dark:text-gray-200 text-sm truncate">{booking.title}</h3>
+                                                    <h3 className="flex items-center gap-2 truncate text-[15px] font-semibold text-gray-900 dark:text-white">{booking.title}{isOwn && <StatusPill tone="amber">Deine</StatusPill>}</h3>
                                                     <div className="flex items-center gap-2 mt-1">
                                                         <Avatar name={booking.profiles?.full_name} src={booking.profiles?.avatar_url} size="xs" className="w-4 h-4 text-[7px] rounded-full ring-1 ring-white dark:ring-gray-800" />
                                                         <span className="text-xs text-gray-500 dark:text-gray-400 truncate">

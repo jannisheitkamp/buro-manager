@@ -8,7 +8,8 @@ import { useStore } from '@/store/useStore';
 import { PROFILE_COLUMNS } from '@/lib/profiles';
 import { getHolidayName } from '@/utils/dateUtils';
 import { DEFAULT_RULES, WEEKDAY_NAMES, dayKey, isOfficeClosed, matchesPerson, useReceptionPlan, type PlanProfile, type ReceptionRule } from '@/lib/reception';
-import { Avatar, Badge, Button, Card, Field, IconButton, PageHeader } from '@/components/ui';
+import { Avatar, Button, Card, Field, IconButton, PageHeader } from '@/components/ui';
+import { HeroPanel, StatusPill } from '@/components/ui/hero';
 import { Modal } from '@/components/Modal';
 import { cn } from '@/utils/cn';
 
@@ -202,6 +203,64 @@ export const Reception = () => {
         }
       />
 
+      {(() => {
+        const today = startOfDay(new Date());
+        const todayInfo = dayInfo(today);
+        const todayMine = !!todayInfo && (todayInfo.userId === user?.id || todayInfo.profile?.id === user?.id);
+        const upcoming: Date[] = [];
+        for (let d = addDays(today, 1); upcoming.length < 5; d = addDays(d, 1)) if (!isOfficeClosed(d)) upcoming.push(d);
+        const myDaysThisMonth = Array.from({ length: 31 }, (_, i) => addDays(startOfMonth(today), i))
+          .filter((d) => isSameMonth(d, today) && !isBefore(d, today))
+          .filter((d) => { const i = dayInfo(d); return !!i && (i.userId === user?.id || i.profile?.id === user?.id); }).length;
+        return (
+          <HeroPanel aria-label="Empfang heute">
+            <div className="grid gap-8 p-6 sm:p-8 lg:grid-cols-[auto_1fr] lg:items-center">
+              <div className="flex items-center gap-5">
+                {todayInfo ? (
+                  <Avatar name={todayInfo.profile?.full_name || todayInfo.person} src={todayInfo.profile?.avatar_url} size="xl" className="ring-4 ring-amber-300/80 ring-offset-4 ring-offset-brand-900 dark:ring-offset-brand-950" />
+                ) : (
+                  <span className="flex h-24 w-24 items-center justify-center rounded-full bg-white/10 font-display text-3xl text-brand-200">–</span>
+                )}
+                <div>
+                  <p className="text-sm text-brand-200">Heute am Empfang</p>
+                  <p className="mt-1 font-display text-5xl font-semibold leading-none tracking-tight">{todayInfo ? (todayMine ? 'Du' : todayInfo.person) : 'Geschlossen'}</p>
+                  {todayInfo?.absent ? (
+                    <p className="mt-3 inline-flex rounded-full bg-red-500/20 px-3 py-1 text-sm font-medium text-red-100 ring-1 ring-red-400/40">Abwesend, Vertretung nötig</p>
+                  ) : todayInfo?.override ? (
+                    <p className="mt-3 text-sm text-brand-100">{todayInfo.override.note || 'Abweichend vom Plan'}</p>
+                  ) : (
+                    <p className="mt-3 text-sm text-brand-100">{myDaysThisMonth > 0 ? `Du bist diesen Monat noch ${myDaysThisMonth}× dran` : 'Diesen Monat bist du nicht mehr dran'}</p>
+                  )}
+                </div>
+              </div>
+              <ol className="grid grid-cols-5 gap-2">
+                {upcoming.map((d) => {
+                  const i = dayInfo(d);
+                  const mine = !!i && (i.userId === user?.id || i.profile?.id === user?.id);
+                  return (
+                    <li key={d.toISOString()}>
+                      <button
+                        type="button"
+                        onClick={() => { setSelected(d); setCurrentDate(d); }}
+                        className={cn(
+                          'flex w-full flex-col items-center gap-2 rounded-2xl px-1 py-3 text-center transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-300',
+                          mine ? 'bg-amber-300 text-brand-950' : 'bg-white/5 hover:bg-white/10',
+                        )}
+                      >
+                        <span className={cn('text-xs', mine ? 'font-semibold' : 'text-brand-200')}>{format(d, 'EEE d.', { locale: de })}</span>
+                        <Avatar name={i?.profile?.full_name || i?.person} src={i?.profile?.avatar_url} size="sm" className={cn(i?.absent && 'opacity-50 grayscale')} />
+                        <span className="w-full truncate text-xs font-semibold">{mine ? 'Du' : i?.person || '–'}</span>
+                        {i?.absent && <span className="text-2xs font-medium text-red-200">abwesend</span>}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ol>
+            </div>
+          </HeroPanel>
+        );
+      })()}
+
       {/* Offene Anfragen an mich */}
       {myPending.length > 0 && (
         <Card className="border-amber-300 bg-amber-50/60 dark:border-amber-800 dark:bg-amber-950/30">
@@ -300,9 +359,9 @@ export const Reception = () => {
                   <div className="min-w-0">
                     <p className="font-display text-lg font-semibold text-gray-900 dark:text-white">{selectedInfo.person}</p>
                     <div className="flex flex-wrap gap-1">
-                      {selectedInfo.absent && <Badge tone="danger">Abwesend</Badge>}
-                      {selectedInfo.override && <Badge tone="brand">{selectedInfo.override.note || 'Abweichend vom Plan'}</Badge>}
-                      {selectedIsMine && <Badge tone="warning">Du</Badge>}
+                      {selectedInfo.absent && <StatusPill tone="red" pulse>Abwesend</StatusPill>}
+                      {selectedInfo.override && <StatusPill tone="brand">{selectedInfo.override.note || 'Abweichend vom Plan'}</StatusPill>}
+                      {selectedIsMine && <StatusPill tone="amber">Du</StatusPill>}
                     </div>
                   </div>
                 </div>

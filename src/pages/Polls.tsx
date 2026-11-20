@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Avatar } from '@/components/ui';
-import { PageHeader, Button } from '@/components/ui';
+import { PageHeader, Button, EmptyState } from '@/components/ui';
+import { CountUp, HeroPanel } from '@/components/ui/hero';
 import { supabase } from '@/lib/supabase';
 import { PROFILE_PUBLIC } from '@/lib/profiles';
 import { useStore } from '@/store/useStore';
@@ -186,21 +187,38 @@ export const Polls = () => {
         actions={user ? <Button icon={Plus} onClick={() => setIsCreateModalOpen(true)}>Umfrage starten</Button> : undefined}
       />
 
+      {polls.length > 0 && (() => {
+        const open = polls.filter(p => p.is_active);
+        const notVoted = open.filter(p => !p.votes?.some(v => v.user_id === user?.id));
+        const votes = polls.reduce((a, p) => a + (p.votes?.length || 0), 0);
+        return (
+          <HeroPanel aria-label="Umfragen im Überblick">
+            <div className="flex flex-col gap-6 p-6 sm:flex-row sm:items-end sm:justify-between sm:p-8">
+              <div>
+                <p className="text-sm text-brand-200">Wartet auf deine Stimme</p>
+                <p className="mt-1.5 font-display font-semibold leading-[0.9] tracking-tight">
+                  <CountUp value={notVoted.length} className={notVoted.length ? 'text-7xl text-amber-300 sm:text-8xl' : 'text-7xl sm:text-8xl'} />
+                  <span className="ml-2 text-3xl text-brand-200 sm:text-4xl">{notVoted.length === 1 ? 'Umfrage' : 'Umfragen'}</span>
+                </p>
+                <p className="mt-4 text-sm text-brand-100">{notVoted.length ? `Zuerst: „${notVoted[0].question}“` : 'Du hast überall abgestimmt.'}</p>
+              </div>
+              <dl className="flex gap-8">
+                <div><dt className="text-xs text-brand-200">Laufend</dt><dd className="tabular font-display text-3xl font-semibold">{open.length}</dd></div>
+                <div><dt className="text-xs text-brand-200">Stimmen gesamt</dt><dd className="tabular font-display text-3xl font-semibold">{votes}</dd></div>
+              </dl>
+            </div>
+          </HeroPanel>
+        );
+      })()}
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <AnimatePresence>
             {loading ? (
                 <div className="col-span-full py-20 text-center text-gray-400">Lade Umfragen...</div>
             ) : polls.length === 0 ? (
-                <motion.div 
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="col-span-full text-center py-20"
-                >
-                    <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gray-100 dark:bg-gray-800 mb-4">
-                        <BarChart2 className="w-10 h-10 text-gray-400" />
-                    </div>
-                    <p className="text-xl text-gray-500 font-medium">Noch keine Umfragen vorhanden.</p>
-                </motion.div>
+                <div className="card col-span-full">
+                    <EmptyState icon={BarChart2} title="Noch keine Umfragen" description="Frag das Team, zum Beispiel nach einem Termin oder einer Anschaffung." action={user ? <Button icon={Plus} onClick={() => setIsCreateModalOpen(true)}>Umfrage starten</Button> : undefined} />
+                </div>
             ) : (
                 polls.map((poll, index) => {
                 const totalVotes = poll.votes?.length || 0;
@@ -213,10 +231,8 @@ export const Polls = () => {
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: index * 0.05 }}
-                        className="bg-white dark:bg-gray-800 rounded-3xl p-6 border border-gray-200 shadow-sm flex flex-col group relative overflow-hidden"
+                        className={cn('card group relative flex flex-col overflow-hidden p-6', !userVote && poll.is_active && 'ring-2 ring-amber-300/70')}
                     >
-                        {/* Decorative background element */}
-                        <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
 
                         <div className="flex justify-between items-start mb-6 relative z-10">
                             <div className="flex items-center gap-3">
@@ -241,7 +257,7 @@ export const Polls = () => {
                             )}
                         </div>
 
-                        <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-6 leading-tight relative z-10">
+                        <h3 className="relative z-10 mb-6 font-display text-xl font-semibold leading-tight text-gray-900 dark:text-white">
                             {poll.question}
                         </h3>
 
@@ -258,28 +274,28 @@ export const Polls = () => {
                                 className={cn(
                                     "w-full relative overflow-hidden rounded-xl border text-left transition-all p-3 group/opt",
                                     isSelected 
-                                    ? "border-indigo-500 ring-1 ring-indigo-500 ring-offset-1 dark:ring-offset-gray-800" 
-                                    : "border-gray-200 dark:border-gray-700 hover:border-indigo-300 dark:hover:border-indigo-700"
+                                    ? "border-amber-400 ring-1 ring-amber-400" 
+                                    : "border-gray-200 dark:border-gray-700 hover:border-brand-300 dark:hover:border-brand-700"
                                 )}
                                 >
                                 {/* Progress Bar Background */}
                                 <div 
                                     className={cn(
-                                    "absolute inset-y-0 left-0 transition-all duration-700 ease-out opacity-20",
-                                    isSelected ? "bg-indigo-600" : "bg-gray-200 dark:bg-gray-600 group-hover/opt:bg-indigo-200 dark:group-hover/opt:bg-indigo-900"
+                                    "absolute inset-y-0 left-0 transition-all duration-700 ease-out",
+                                    isSelected ? "bg-amber-300/50 dark:bg-amber-400/25" : "bg-brand-100/70 dark:bg-brand-900/50"
                                     )}
                                     style={{ width: `${percentage}%` }}
                                 />
                                 
                                 <div className="relative flex justify-between items-center z-10">
                                     <span className={cn(
-                                    "text-sm font-medium transition-colors",
-                                    isSelected ? "text-indigo-700 dark:text-indigo-300" : "text-gray-700 dark:text-gray-300"
+                                    "text-sm font-semibold transition-colors",
+                                    isSelected ? "text-gray-900 dark:text-white" : "text-gray-700 dark:text-gray-300"
                                     )}>
                                     {option.text}
                                     </span>
                                     <div className="flex items-center gap-2">
-                                        {isSelected && <CheckCircle2 className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />}
+                                        {isSelected && <CheckCircle2 className="w-4 h-4 text-amber-600 dark:text-amber-300" />}
                                         <span className="text-xs font-bold text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-800 px-2 py-0.5 rounded-md">
                                             {percentage}%
                                         </span>
