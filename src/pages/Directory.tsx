@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Avatar, PageHeader, IconButton, Segmented } from '@/components/ui';
+import { Avatar, PageHeader, IconButton, Segmented, EmptyState } from '@/components/ui';
+import { CountUp, HeroPanel } from '@/components/ui/hero';
 import { useSearchParams } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { PROFILE_COLUMNS } from '@/lib/profiles';
@@ -224,21 +225,49 @@ export const Directory = () => {
         }
       />
 
+      {(() => {
+        const approved = profiles.filter(p => p.is_approved);
+        const fresh = (p: typeof profiles[number]) => !!p.status?.updated_at && Date.now() - new Date(p.status.updated_at).getTime() < 14 * 3600 * 1000;
+        const here = approved.filter(p => fresh(p) && p.status?.status && !['off', 'vacation', 'sick'].includes(p.status.status));
+        return (
+          <HeroPanel aria-label="Team im Überblick">
+            <div className="flex flex-col gap-6 p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8">
+              <div>
+                <p className="text-sm text-brand-200">Gerade erreichbar</p>
+                <p className="mt-1.5 font-display font-semibold leading-[0.9] tracking-tight">
+                  <CountUp value={here.length} className="text-7xl text-emerald-300 sm:text-8xl" />
+                  <span className="ml-2 text-3xl text-brand-200 sm:text-4xl">von {approved.length}</span>
+                </p>
+              </div>
+              {here.length > 0 && (
+                <ul className="flex flex-wrap items-center gap-3">
+                  {here.slice(0, 8).map(p => (
+                    <li key={p.id}>
+                      <button type="button" onClick={() => setSelectedUser(p)} className="flex items-center gap-2.5 rounded-2xl bg-white/5 py-1.5 pl-1.5 pr-3.5 ring-1 ring-white/10 transition-colors hover:bg-white/10">
+                        <span className="relative">
+                          <Avatar name={p.full_name} src={p.avatar_url} size="sm" />
+                          <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-emerald-400 ring-2 ring-brand-900" />
+                        </span>
+                        <span className="text-left">
+                          <span className="block text-sm font-semibold leading-tight">{p.full_name?.split(' ')[0]}</span>
+                          <span className="block text-2xs text-brand-200">{STATUS_LABELS[p.status!.status] || p.status!.status}</span>
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </HeroPanel>
+        );
+      })()}
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         <AnimatePresence>
             {loading ? (
                 <div className="col-span-full py-20 text-center text-gray-400">Lade Mitarbeiter...</div>
             ) : filteredProfiles.length === 0 ? (
-                <motion.div 
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="col-span-full text-center py-20"
-                >
-                    <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gray-100 dark:bg-gray-800 mb-4">
-                        <User className="w-10 h-10 text-gray-400" />
-                    </div>
-                    <p className="text-xl text-gray-500 font-medium">Keine Mitarbeiter gefunden.</p>
-                </motion.div>
+                <div className="card col-span-full"><EmptyState icon={User} title={view === 'pending' ? 'Niemand wartet auf Freigabe' : 'Noch niemand im Verzeichnis'} /></div>
             ) : (
                 filteredProfiles.map((profile, index) => {
                     const statusKey = profile.status?.status || 'off';
@@ -253,7 +282,7 @@ export const Directory = () => {
                             transition={{ delay: index * 0.05 }}
                             layout
                             onClick={() => setSelectedUser(profile)}
-                            className="bg-white dark:bg-gray-800 rounded-3xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 flex flex-col items-center text-center relative group transition-all duration-300 cursor-pointer"
+                            className="card group relative flex cursor-pointer flex-col items-center p-6 text-center transition-all duration-300 hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-md dark:hover:border-gray-600"
                         >
                             
                             {/* Status Dot */}
@@ -284,7 +313,7 @@ export const Directory = () => {
                             )}
 
                             <div className="relative mb-4">
-                                <div className="absolute inset-0 bg-gradient-to-tr from-indigo-500 to-violet-500 rounded-full blur-lg opacity-20 group-hover:opacity-40 transition-opacity" />
+                                <div className="absolute inset-0 rounded-full bg-amber-300 opacity-0 blur-xl transition-opacity group-hover:opacity-40" />
                                 <Avatar name={profile.full_name} src={profile.avatar_url} size="xl" className={cn(
                                         "w-28 h-28 rounded-full shadow-sm object-cover ring-4 ring-white dark:ring-gray-700 relative z-10",
                                         !profile.is_approved && "grayscale opacity-70"
@@ -298,7 +327,7 @@ export const Directory = () => {
                                 </div>
                             </div>
                             
-                            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-1">
+                            <h3 className="mb-1 font-display text-xl font-semibold text-gray-900 dark:text-white">
                                 {profile.full_name || 'Unbekannt'}
                             </h3>
                             
@@ -311,7 +340,7 @@ export const Directory = () => {
                                     <span key={role} className={cn(
                                         "inline-flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-bold border shadow-sm",
                                         role === 'admin' 
-                                            ? "bg-purple-50 text-purple-700 border-purple-100 dark:bg-purple-900/20 dark:text-purple-300 dark:border-purple-800" 
+                                            ? "bg-brand-50 text-brand-700 border-brand-100 dark:bg-brand-900/40 dark:text-brand-200 dark:border-brand-800" 
                                             : "bg-gray-50 text-gray-600 border-gray-100 dark:bg-gray-700/50 dark:text-gray-300 dark:border-gray-600"
                                     )}>
                                         {role === 'admin' && <Shield className="w-3 h-3" />}
