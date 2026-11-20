@@ -498,7 +498,7 @@ export const Reception = () => {
                   type="text"
                   value={r.persons.join(', ')}
                   onChange={(e) => setDraft((d) => d.map((x, j) => (j === i ? { ...x, persons: e.target.value.split(',') } : x)))}
-                  placeholder="Vorname, z. B. Lucas"
+                  placeholder="Vorname, z. B. Anna"
                   className="input"
                 />
                 {r.persons.filter((p) => p.trim()).length > 1 && (
@@ -515,7 +515,7 @@ export const Reception = () => {
               </div>
             </div>
           ))}
-          <p className="text-xs text-gray-500">Namen wie im Rollen-Kürzel oder Vornamen, z. B. „Flori“. So findet die App das passende Konto für Abwesenheiten und Benachrichtigungen.</p>
+          <p className="text-xs text-gray-500">Namen wie im Rollen-Kürzel oder Vornamen, z. B. „Anna“. So findet die App das passende Konto für Abwesenheiten und Benachrichtigungen.</p>
         </div>
       </Modal>
     </div>

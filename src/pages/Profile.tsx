@@ -424,7 +424,7 @@ export const ProfilePage = () => {
                                     type="text" 
                                     value={phoneExtension}
                                     onChange={e => setPhoneExtension(e.target.value)}
-                                    placeholder="z.B. 100 oder Jannis"
+                                    placeholder="z. B. 100 oder Anna"
                                     className="w-full rounded-xl bg-gray-50 dark:bg-gray-900 border-transparent focus:bg-white focus:ring-2 focus:ring-indigo-500/20 px-4 py-2.5 text-sm transition-all"
                                 />
                                 <p className="text-[10px] text-gray-400 mt-1">Wichtig für die Zuordnung von Anrufen, wenn der Browser nicht eingeloggt ist.</p>
