@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { openStoredFile } from '@/lib/storage';
 import { PageHeader, Button } from '@/components/ui';
+import { CountUp, HeroPanel } from '@/components/ui/hero';
 import { useStore } from '../store/useStore';
 import { supabase } from '@/lib/supabase';
 import { sanitizeHtmlToFragment } from '@/utils/sanitizeHtml';
@@ -302,18 +303,43 @@ export function Documents() {
         actions={<Button icon={Plus} onClick={() => setIsModalOpen(true)}>Dokument anlegen</Button>}
       />
 
+      {(() => {
+        const mine = documents.filter(d => d.created_by === user?.id).length;
+        const shared = documents.length - mine;
+        const latest = [...documents].sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+        return (
+          <HeroPanel aria-label="Dokumente im Überblick">
+            <div className="flex flex-col gap-6 p-6 sm:flex-row sm:items-end sm:justify-between sm:p-8">
+              <div>
+                <p className="text-sm text-brand-200">Für dich sichtbar</p>
+                <p className="mt-1.5 font-display font-semibold leading-[0.9] tracking-tight">
+                  <CountUp value={documents.length} className="text-7xl sm:text-8xl" />
+                  <span className="ml-2 text-3xl text-brand-200 sm:text-4xl">{documents.length === 1 ? 'Dokument' : 'Dokumente'}</span>
+                </p>
+                {latest && <p className="mt-4 text-sm text-brand-100">Zuletzt: <button type="button" onClick={() => handleDownload(latest)} className="font-semibold text-amber-300 hover:underline">{latest.title}</button></p>}
+              </div>
+              <dl className="flex gap-8">
+                <div><dt className="text-xs text-brand-200">Von dir</dt><dd className="tabular font-display text-3xl font-semibold">{mine}</dd></div>
+                <div><dt className="text-xs text-brand-200">Mit dir geteilt</dt><dd className="tabular font-display text-3xl font-semibold text-amber-300">{shared}</dd></div>
+              </dl>
+            </div>
+          </HeroPanel>
+        );
+      })()}
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {documents.map((doc) => (
-          <div key={doc.id} className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700 p-4 hover:border-gray-300 dark:hover:border-gray-600 transition-shadow">
+          <div key={doc.id} className="card group relative overflow-hidden p-5 transition-all hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-md dark:hover:border-gray-600">
+            <span aria-hidden className="absolute inset-x-0 top-0 h-1" style={{ background: doc.file_type === 'file' ? '#5B8DB8' : '#22807C' }} />
             <div className="flex justify-between items-start mb-4">
               <div className="flex items-center gap-3">
-                <div className={`p-2 rounded-lg ${doc.file_type === 'file' ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400' : 'bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-400'}`}>
+                <div className={`flex h-11 w-11 items-center justify-center rounded-xl ${doc.file_type === 'file' ? 'bg-sky-50 text-sky-600 dark:bg-sky-900/30 dark:text-sky-300' : 'bg-brand-50 text-brand-700 dark:bg-brand-900/40 dark:text-brand-300'}`}>
                   {doc.file_type === 'file' ? <File className="w-6 h-6" /> : <FileText className="w-6 h-6" />}
                 </div>
                 <div>
-                  <h3 className="font-medium text-gray-900 dark:text-white line-clamp-1" title={doc.title}>{doc.title}</h3>
+                  <h3 className="line-clamp-1 font-display text-base font-semibold text-gray-900 dark:text-white" title={doc.title}>{doc.title}</h3>
                   <p className="text-xs text-gray-500">
-                    von {doc.creator?.full_name || 'Unbekannt'} • {new Date(doc.created_at).toLocaleDateString()}
+                    von {doc.creator?.full_name || 'Unbekannt'}, {new Date(doc.created_at).toLocaleDateString('de-DE')}
                   </p>
                 </div>
               </div>
