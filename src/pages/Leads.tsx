@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { PageHeader, Button } from '@/components/ui';
+import { CountUp, HeroPanel } from '@/components/ui/hero';
 import { supabase } from '@/lib/supabase';
 import { useStore } from '@/store/useStore';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -24,10 +25,10 @@ type Lead = {
 };
 
 const COLUMNS = [
-    { id: 'new', label: 'Neu', color: 'bg-blue-50 text-blue-700 border-blue-200' },
-    { id: 'contacted', label: 'Terminiert', color: 'bg-amber-50 text-amber-700 border-amber-200' },
-    { id: 'proposal', label: 'Angebot', color: 'bg-purple-50 text-purple-700 border-purple-200' },
-    { id: 'closed', label: 'Abschluss', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+    { id: 'new', label: 'Neu', hex: '#5B8DB8' },
+    { id: 'contacted', label: 'Terminiert', hex: '#F2A541' },
+    { id: 'proposal', label: 'Angebot', hex: '#C2577A' },
+    { id: 'closed', label: 'Abschluss', hex: '#10B981' },
 ];
 
 export const Leads = () => {
@@ -296,6 +297,43 @@ export const Leads = () => {
                 }
             />
 
+            {/* Pipeline */}
+            {(() => {
+                const active = COLUMNS.reduce((a, c) => a + getColumnLeads(c.id).length, 0);
+                const closed = getColumnLeads('closed').length;
+                const rate = active ? Math.round((closed / active) * 100) : 0;
+                return (
+                    <HeroPanel aria-label="Pipeline" className="mb-5 flex-shrink-0">
+                        <div className="flex flex-col gap-5 p-5 sm:p-6 lg:flex-row lg:items-center">
+                            <div className="flex items-end gap-6 lg:w-72 lg:shrink-0">
+                                <div>
+                                    <p className="text-sm text-brand-200">In der Pipeline</p>
+                                    <p className="mt-1 font-display text-5xl font-semibold leading-none"><CountUp value={active} /></p>
+                                </div>
+                                <div className="pb-1">
+                                    <p className="text-xs text-brand-200">Abschlussquote</p>
+                                    <p className="font-display text-2xl font-semibold leading-tight text-amber-300"><CountUp value={rate} /> %</p>
+                                </div>
+                            </div>
+                            <ol className="grid flex-1 grid-cols-4 gap-1.5">
+                                {COLUMNS.map((c) => {
+                                    const n = getColumnLeads(c.id).length;
+                                    return (
+                                        <li key={c.id} className="min-w-0">
+                                            <div className="h-2 rounded-full bg-white/10">
+                                                <div className="h-full rounded-full motion-safe:transition-[width] motion-safe:duration-700" style={{ width: active ? `${Math.max((n / active) * 100, n ? 8 : 0)}%` : '0%', background: c.hex, boxShadow: `0 0 16px ${c.hex}80` }} />
+                                            </div>
+                                            <p className="mt-2 truncate text-xs text-brand-200">{c.label}</p>
+                                            <p className="tabular font-display text-xl font-semibold">{n}</p>
+                                        </li>
+                                    );
+                                })}
+                            </ol>
+                        </div>
+                    </HeroPanel>
+                );
+            })()}
+
             {/* Kanban Board (Scrollable Container) */}
             <div className="flex-1 overflow-x-auto overflow-y-hidden pb-4 -mx-4 px-4 md:mx-0 md:px-0 snap-x snap-mandatory">
                 <div className="flex gap-4 md:gap-6 h-full w-max md:min-w-0 md:w-full px-1">
@@ -314,12 +352,13 @@ export const Leads = () => {
                                 }}
                             >
                                 {/* Column Header */}
-                                <div className={`p-4 rounded-t-3xl border-b border-gray-100 dark:border-gray-700 flex items-center justify-between ${col.color.split(' ')[0]} bg-opacity-50`}>
-                                    <div>
-                                        <h3 className={`font-bold ${col.color.split(' ')[1]}`}>{col.label}</h3>
-                                        <p className="text-xs opacity-70 font-medium">{colLeads.length} Leads</p>
-                                    </div>
-                                    <div className={`w-2 h-2 rounded-full ${col.color.replace('text', 'bg').split(' ')[1]}`} />
+                                <div className="relative flex items-center justify-between overflow-hidden rounded-t-3xl border-b border-gray-100 px-4 pb-3 pt-4 dark:border-gray-700">
+                                    <span aria-hidden className="absolute inset-x-0 top-0 h-1" style={{ background: col.hex }} />
+                                    <h3 className="flex items-center gap-2 font-display text-base font-semibold text-gray-900 dark:text-white">
+                                        <span className="h-2.5 w-2.5 rounded-full" style={{ background: col.hex }} />
+                                        {col.label}
+                                    </h3>
+                                    <span className="tabular rounded-full px-2 py-0.5 text-xs font-semibold text-gray-800 dark:text-gray-100" style={{ background: `${col.hex}26` }}>{colLeads.length}</span>
                                 </div>
 
                                 {/* Cards Container */}
@@ -338,10 +377,11 @@ export const Leads = () => {
                                                     (e as any).dataTransfer.setData('leadId', lead.id);
                                                 }}
                                                 onClick={() => handleEdit(lead)}
-                                                className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 group hover:border-gray-300 dark:hover:border-gray-600 transition-all cursor-grab active:cursor-grabbing hover:ring-2 hover:ring-indigo-500/20 relative"
+                                                className="group relative cursor-grab overflow-hidden rounded-2xl border border-gray-100 bg-white p-4 pl-5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-md active:cursor-grabbing dark:border-gray-700 dark:bg-gray-800 dark:hover:border-gray-600"
                                             >
+                                                <span aria-hidden className="absolute inset-y-3 left-0 w-1 rounded-r" style={{ background: col.hex }} />
                                                 <div className="flex justify-between items-start mb-3">
-                                                    <h4 className="font-bold text-gray-900 dark:text-white line-clamp-1 text-base">{lead.customer_name}</h4>
+                                                    <h4 className="line-clamp-1 font-display text-base font-semibold text-gray-900 dark:text-white">{lead.customer_name}</h4>
                                                     <button 
                                                         onClick={(e) => { e.stopPropagation(); deleteLead(lead.id); }} 
                                                         className="text-gray-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100 p-1"
