@@ -40,6 +40,11 @@ export const Calendar = () => {
   const [useLastSig, setUseLastSig] = useState(false);
   const [approvalBusy, setApprovalBusy] = useState(false);
 
+  // Admins tragen auch für andere ein (Planung, ohne Antrag)
+  const [people, setPeople] = useState<{ id: string; full_name: string | null }[]>([]);
+  const [targetUserId, setTargetUserId] = useState('');
+  const forOther = !!targetUserId && targetUserId !== user?.id;
+
   // Form state
   const [formData, setFormData] = useState({
     type: 'vacation',
@@ -51,6 +56,13 @@ export const Calendar = () => {
     deduct_vacation_days: true,
     half_day: false
   });
+
+  useEffect(() => {
+    if (!profile?.roles?.includes('admin')) return;
+    supabase.from('profiles').select('id, full_name, is_approved').order('full_name').then(({ data }) => {
+      setPeople((data || []).filter((p) => p.is_approved !== false));
+    });
+  }, [profile?.roles]);
 
   const fetchAbsences = async () => {
     try {
@@ -109,7 +121,7 @@ export const Calendar = () => {
       let signature_url: string | undefined;
 
       // Upload sick note if exists
-      if (formData.type === 'sick_leave' && sickNoteFile) {
+      if (formData.type === 'sick_leave' && sickNoteFile && !forOther) {
         const fileExt = sickNoteFile.name.split('.').pop();
         const fileName = `${user.id}_sick_${Date.now()}.${fileExt}`;
         const filePath = `certificates/${fileName}`;
@@ -126,7 +138,7 @@ export const Calendar = () => {
       }
 
       // Upload signature if exists (for vacation)
-      if (formData.type === 'vacation' && sigPad.current && !sigPad.current.isEmpty()) {
+      if (formData.type === 'vacation' && !forOther && sigPad.current && !sigPad.current.isEmpty()) {
         const signatureDataUrl = sigPad.current.getTrimmedCanvas().toDataURL('image/png');
         // Convert data URL to Blob
         const res = await fetch(signatureDataUrl);
@@ -150,14 +162,14 @@ export const Calendar = () => {
       // User said "Seminar... keine genehmigung notwendig".
       // School: "Serie...". Let's assume auto-approve for school too as it's a fixed schedule.
       let status = 'pending';
-      if (['sick_leave', 'seminar', 'school'].includes(formData.type)) {
+      if (['sick_leave', 'seminar', 'school'].includes(formData.type) || forOther) {
           status = 'approved';
       }
 
       // Explicitly type the payload to match DB schema or cast to any if types are strict
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const payload: any = {
-        user_id: user.id,
+        user_id: forOther ? targetUserId : user.id,
         type: formData.type,
         start_date: formData.start_date,
         end_date: formData.end_date,
@@ -183,6 +195,7 @@ export const Calendar = () => {
       if (error) throw error;
 
       setIsModalOpen(false);
+      setTargetUserId('');
       setSickNoteFile(null);
       if (sigPad.current) sigPad.current.clear();
       setFormData({ 
@@ -196,7 +209,7 @@ export const Calendar = () => {
           half_day: false
       });
       fetchAbsences();
-      toast.success('Abwesenheit erfolgreich erstellt.');
+      toast.success(forOther ? `Für ${people.find(p => p.id === targetUserId)?.full_name?.split(' ')[0] || 'die Person'} eingetragen` : 'Abwesenheit erfolgreich erstellt.');
     } catch (error) {
       // Schon hochgeladene Dateien wieder entfernen, sonst bleiben sie ohne Antrag im Speicher liegen
       if (uploaded.length) await supabase.storage.from('absence_documents').remove(uploaded);
@@ -599,7 +612,7 @@ export const Calendar = () => {
                                 >
                                     <Download className="w-4 h-4" />
                                 </button>
-                                {absence.user_id === user?.id && (
+                                {(absence.user_id === user?.id || isAdmin) && (
                                     <button
                                     onClick={() => setDeleteId(absence.id)}
                                     className="p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg text-gray-400 hover:text-red-500 transition-colors"
@@ -711,7 +724,7 @@ export const Calendar = () => {
                             >
                                 <Download className="w-4 h-4" />
                             </button>
-                            {isOwn && (
+                            {(isOwn || isAdmin) && (
                                 <button
                                 onClick={() => setDeleteId(absence.id)}
                                 className="p-2 bg-white dark:bg-gray-800 rounded-xl text-gray-400 hover:text-red-500 shadow-sm border border-gray-100 dark:border-gray-700 transition-colors"
@@ -761,9 +774,24 @@ export const Calendar = () => {
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title={formData.type === 'sick_leave' ? "Krankmeldung" : "Abwesenheit beantragen"}
+        title={forOther ? 'Abwesenheit eintragen' : formData.type === 'sick_leave' ? 'Krankmeldung' : 'Abwesenheit beantragen'}
       >
         <form onSubmit={handleSubmit} className="space-y-6">
+          {isAdmin && people.length > 0 && (
+            <div>
+              <label htmlFor="abs-target" className="field-label">Für wen</label>
+              <select id="abs-target" value={targetUserId || user?.id || ''} onChange={(e) => setTargetUserId(e.target.value === user?.id ? '' : e.target.value)} className="input">
+                {people.map((p) => (
+                  <option key={p.id} value={p.id}>{p.full_name || 'Ohne Namen'}{p.id === user?.id ? ' (du)' : ''}</option>
+                ))}
+              </select>
+              {forOther && (
+                <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-900/30 dark:text-amber-200">
+                  Wird direkt als genehmigt eingetragen, ohne Antrag, Unterschrift und Benachrichtigung.
+                </p>
+              )}
+            </div>
+          )}
           <div>
             <label className="block text-xs font-bold text-gray-500 mb-2">
               Art der Abwesenheit
@@ -881,6 +909,7 @@ export const Calendar = () => {
                           />
                       </div>
                   )}
+                  {!forOther && (
                   <div className="pt-3 border-t border-indigo-200 dark:border-indigo-800">
                       <label className="text-xs font-bold text-indigo-900 dark:text-indigo-300 mb-2 flex justify-between">
                           <span>Digitale Unterschrift</span>
@@ -896,10 +925,11 @@ export const Calendar = () => {
                           />
                       </div>
                   </div>
+                  )}
               </div>
           )}
 
-          {formData.type === 'sick_leave' && (
+          {formData.type === 'sick_leave' && !forOther && (
               <div className="bg-red-50 dark:bg-red-900/10 p-4 rounded-xl border border-red-100 dark:border-red-900/30 flex flex-col gap-2 animate-fade-in">
                   <label className="text-sm font-bold text-red-900 dark:text-red-300 flex items-center gap-2">
                       <ThermometerSun className="w-4 h-4" /> Krankenschein (eAU) hochladen
@@ -979,7 +1009,7 @@ export const Calendar = () => {
               disabled={submitting}
               className="px-6 py-2.5 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-sm transition-all disabled:opacity-50 disabled:scale-100"
             >
-              {submitting ? 'Wird gesendet...' : (formData.type === 'sick_leave' ? 'Krankmeldung senden' : 'Beantragen')}
+              {submitting ? 'Wird gesendet...' : forOther ? 'Eintragen' : (formData.type === 'sick_leave' ? 'Krankmeldung senden' : 'Beantragen')}
             </button>
           </div>
         </form>
