@@ -13,7 +13,6 @@ import { ConfirmModal } from '@/components/ConfirmModal';
 import { Avatar, Badge, Button, EmptyState, Field, PageHeader, Segmented } from '@/components/ui';
 import { toast } from 'react-hot-toast';
 import { useDropzone } from 'react-dropzone';
-import { LiabilityTrackerModal } from '@/components/LiabilityTrackerModal';
 import { ProductionHero, type HeroMonth } from '@/components/Production/ProductionHero';
 import { CourtagePanel } from '@/components/Production/CourtagePanel';
 import { CategoryTiles } from '@/components/Production/CategoryTiles';
@@ -76,7 +75,6 @@ export const Production = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [documentUrl, setDocumentUrl] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [isLiabilityModalOpen, setIsLiabilityModalOpen] = useState(false);
 
   const openProductionDoc = (pathOrUrl: string) => {
       if (!pathOrUrl) return;
@@ -246,8 +244,6 @@ export const Production = () => {
   
   // Commission Logic
   const [commissionRate, setCommissionRate] = useState<number | ''>(''); // e.g. 8.0 (Promille) or 7.5 (Percent)
-  const [liabilityActive, setLiabilityActive] = useState(true);
-  const [liabilityRate, setLiabilityRate] = useState<number>(10);
   
   // Calculated Fields (derived)
   const [valuationSum, setValuationSum] = useState(0); // AP-Summe
@@ -435,7 +431,7 @@ export const Production = () => {
             commission_rate: Number(commissionRate),
             valuation_sum: valuationSum,
             commission_amount: commissionAmount,
-            liability_rate: liabilityActive && !COURTAGE_SUBCATEGORIES.includes(subCategory) ? Number(liabilityRate) : 0,
+            liability_rate: 0, // Stornohaftung wird nicht mehr einbehalten
             status,
             notes,
             life_values: lifeValues,
@@ -511,8 +507,6 @@ export const Production = () => {
       setGrossPremium('');
       setDuration(1);
       setPaymentMethod('monthly');
-      setLiabilityRate(10);
-      setLiabilityActive(true);
       setNotes('');
       setLifeValues(0);
       setLifeValueFactor(0);
@@ -549,14 +543,6 @@ export const Production = () => {
       setDocumentUrl(entry.document_url || null);
       setSelectedFile(null);
       
-      const lRate = Number(entry.liability_rate);
-      if (lRate > 0) {
-          setLiabilityRate(lRate);
-          setLiabilityActive(true);
-      } else {
-          setLiabilityRate(10); // Default if user enables it again
-          setLiabilityActive(false);
-      }
 
       setIsModalOpen(true);
   };
@@ -645,7 +631,6 @@ export const Production = () => {
   const cancelledCount = filteredEntries.length - activeEntries.length;
   const totalCommission = activeEntries.reduce((acc, curr) => acc + Number(curr.commission_amount || 0), 0);
   const totalLifeValues = activeEntries.reduce((acc, curr) => acc + Number(curr.life_values || 0), 0);
-  const totalLiability = activeEntries.reduce((acc, curr) => acc + (Number(curr.commission_amount || 0) * Number(curr.liability_rate || 0) / 100), 0);
 
   // Lebenswerte mit Monatslisten-Korrektur: nur sinnvoll für die eigene Gesamtsumme eines Jahres (ohne Filter)
   const canCorrectLv = viewMode === 'personal' && selectedYear !== 'all' && filterCategory === 'all' && !searchQuery && !onlyOpenCommission && !!user;
@@ -988,7 +973,6 @@ export const Production = () => {
       const exportActive = exportEntries.filter(e => e.status !== 'cancelled');
       const exportTotalCommission = exportActive.reduce((acc, curr) => acc + (curr.commission_amount || 0), 0);
       const exportTotalLifeValues = exportActive.reduce((acc, curr) => acc + (curr.life_values || 0), 0);
-      const exportTotalLiability = exportActive.reduce((acc, curr) => acc + ((curr.commission_amount || 0) * (curr.liability_rate || 0) / 100), 0);
       
       doc.setFontSize(18);
       doc.text('Produktionsnachweis (Persönlich)', 14, 20);
@@ -1019,10 +1003,6 @@ export const Production = () => {
           footStyles: { fillColor: [243, 244, 246], textColor: [0, 0, 0], fontStyle: 'bold' } // Gray 100
       });
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const finalY = (doc as any).lastAutoTable.finalY || 45;
-      
-      doc.text(`Haftungsreserve (Total): ${formatCurrency(exportTotalLiability)}`, 14, finalY + 10);
       
       doc.save(`Produktion_Personal_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
   };
@@ -1146,8 +1126,6 @@ export const Production = () => {
                         months={heroMonths}
                         contractCount={activeEntries.length}
                         cancelledCount={cancelledCount}
-                        totalLiability={totalLiability}
-                        onOpenLiability={() => setIsLiabilityModalOpen(true)}
                     />
                     <CourtagePanel
                         year={courtageYearSel}
@@ -1514,23 +1492,6 @@ export const Production = () => {
                                     <dd className="tabular pt-1.5 font-semibold text-brand-700 dark:text-brand-300">{new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 }).format(lifeValues)}</dd>
                                 </div>
                             </dl>
-                            {!formIsCourtage && (<>
-                            <div className="flex items-center justify-between gap-3 border-t border-brand-100 pt-4 dark:border-brand-900">
-                                <label htmlFor="liabilityCheck" className="flex cursor-pointer items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-                                    <input type="checkbox" id="liabilityCheck" checked={liabilityActive} onChange={e => setLiabilityActive(e.target.checked)} className="h-4 w-4 rounded" />
-                                    Stornohaftung einbehalten
-                                </label>
-                                {liabilityActive && (
-                                    <div className="flex items-center gap-1">
-                                        <input type="number" aria-label="Haftung in Prozent" value={liabilityRate} onChange={e => setLiabilityRate(Number(e.target.value))} className="input tabular w-16 py-1 text-center" />
-                                        <span className="text-sm text-gray-500">%</span>
-                                    </div>
-                                )}
-                            </div>
-                            {liabilityActive && commissionAmount > 0 && (
-                                <p className="text-xs text-gray-500">Einbehalt: {formatCurrency(commissionAmount * liabilityRate / 100)}, Auszahlung: {formatCurrency(commissionAmount * (1 - liabilityRate / 100))}</p>
-                            )}
-                            </>)}
                         </div>
                     </aside>
                 </form>
@@ -1627,11 +1588,6 @@ export const Production = () => {
             isDestructive
         />
 
-        <LiabilityTrackerModal 
-            isOpen={isLiabilityModalOpen} 
-            onClose={() => setIsLiabilityModalOpen(false)} 
-            entries={filteredEntries} 
-        />
     </div>
   );
 };

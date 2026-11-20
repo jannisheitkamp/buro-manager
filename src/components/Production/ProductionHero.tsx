@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { ShieldAlert } from 'lucide-react';
 import { cn } from '@/utils/cn';
 
 const eur = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' });
@@ -17,14 +16,12 @@ type Props = {
   months: HeroMonth[];
   contractCount: number;
   cancelledCount: number;
-  totalLiability: number;
-  onOpenLiability: () => void;
 };
 
 /** Kopf der Produktionsseite: Jahresprovision, Lebenswerte gegen Ziel und der Verlauf über die Monate. */
 export const ProductionHero = ({
   periodLabel, totalCommission, totalLifeValues, lifeValuesGoal, lifeValuesNote, months,
-  contractCount, cancelledCount, totalLiability, onOpenLiability,
+  contractCount, cancelledCount,
 }: Props) => {
   const [mode, setMode] = useState<'commission' | 'lifeValues'>('commission');
   const values = months.map((m) => (mode === 'commission' ? m.commission : m.lifeValues));
@@ -118,18 +115,6 @@ export const ProductionHero = ({
         </ol>
       </div>
 
-      {totalLiability > 0 && (
-        <button
-          type="button"
-          onClick={onOpenLiability}
-          className="relative flex w-full items-center justify-between gap-3 border-t border-white/10 bg-black/10 px-6 py-3 text-left text-sm transition-colors hover:bg-black/20 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-amber-300 sm:px-8"
-        >
-          <span className="flex items-center gap-2 text-brand-100">
-            <ShieldAlert className="h-4 w-4 text-amber-300" /> Stornohaftung einbehalten
-          </span>
-          <span className="tabular font-medium text-white">{eur.format(totalLiability)} <span className="ml-1 text-xs font-normal text-brand-200">Verlauf ansehen</span></span>
-        </button>
-      )}
     </section>
   );
 };
