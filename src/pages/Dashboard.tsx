@@ -23,7 +23,8 @@ import { toast } from 'react-hot-toast';
 import { supabase } from '@/lib/supabase';
 import { useStore } from '@/store/useStore';
 import { correctedMonthlyLv, fetchLvSnapshots, sumUntil } from '@/lib/lifeValues';
-import { Avatar, Badge, Button, Card, CardHeader, EmptyState, GoalRuler, PageLoading } from '@/components/ui';
+import { Avatar, Button, Card, CardHeader, EmptyState, PageLoading } from '@/components/ui';
+import { CountUp, GoalGauge, HeroDivider, HeroPanel, HeroStat, StatusPill } from '@/components/ui/hero';
 import { STATUS_CONFIG, getStatusConfig, isStatusFresh, type StatusType } from '@/lib/status';
 import { isOfficeClosed, matchesPerson, useReceptionPlan } from '@/lib/reception';
 import { cn } from '@/utils/cn';
@@ -100,13 +101,13 @@ const StatusPicker = ({ current, onChange }: { current?: Colleague['status']; on
     <Popover className="relative">
       {({ close }) => (
         <>
-          <PopoverButton className="btn-secondary h-10 gap-2.5 pl-3 pr-2.5">
-            <span className={cn('h-2.5 w-2.5 rounded-full', cfg?.dot || 'bg-gray-300 dark:bg-gray-600')} />
+          <PopoverButton className="inline-flex h-11 items-center gap-2.5 rounded-xl border border-white/15 bg-white/10 pl-3 pr-2.5 text-white backdrop-blur transition-colors hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-300">
+            <span className={cn('h-2.5 w-2.5 rounded-full ring-2 ring-white/20', cfg?.dot || 'bg-white/30')} />
             <span className="text-left">
               <span className="block text-sm font-medium leading-tight">{cfg?.label || 'Status setzen'}</span>
-              {fresh && current?.message && <span className="block max-w-[11rem] truncate text-2xs text-gray-500">{current.message}</span>}
+              {fresh && current?.message && <span className="block max-w-[11rem] truncate text-2xs text-brand-200">{current.message}</span>}
             </span>
-            <ChevronDown className="h-4 w-4 text-gray-400" />
+            <ChevronDown className="h-4 w-4 text-brand-200" />
           </PopoverButton>
           <PopoverPanel
             anchor={{ to: 'bottom end', gap: 8 }}
@@ -374,79 +375,54 @@ export const Dashboard = () => {
 
   return (
     <div className="space-y-6">
-      {/* Kopf */}
-      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-sm text-gray-500 dark:text-gray-400">{format(today, 'EEEE, d. MMMM yyyy', { locale: de })}</p>
-          <h1 className="mt-1 text-[1.75rem] font-semibold leading-9 text-gray-900 dark:text-white sm:text-[2rem]">
-            {greeting(new Date())}
-            {firstName ? `, ${firstName}` : ''}
-          </h1>
+      <HeroPanel aria-label="Dein Tag">
+        <div className="grid items-center gap-8 p-6 sm:p-8 lg:grid-cols-[1fr_18rem]">
+          <div>
+            <p className="text-sm text-brand-200">{format(today, 'EEEE, d. MMMM yyyy', { locale: de })}</p>
+            <h1 className="mt-2 font-display text-4xl font-semibold leading-tight tracking-tight sm:text-5xl">
+              {greeting(new Date())}
+              {firstName ? `, ${firstName}` : ''}
+            </h1>
+            <div className="mt-5 flex flex-wrap items-center gap-3">
+              <StatusPicker current={me?.status} onChange={setStatus} />
+              {urgent.length > 0 && (
+                <Link to="/calls?tab=tasks" className="inline-flex h-11 items-center gap-2 rounded-xl bg-amber-300 px-3.5 text-sm font-semibold text-brand-950 transition-colors hover:bg-amber-200">
+                  <Phone className="h-4 w-4" /> {urgent.length} {urgent.length === 1 ? 'Rückruf' : 'Rückrufe'} offen
+                </Link>
+              )}
+            </div>
+          </div>
+
+          <Link to="/production" className="group block text-center focus-visible:outline-none">
+            <GoalGauge pct={monthPct} expected={progress.ratio} caption={`Ziel im ${format(today, 'MMMM', { locale: de })}`} />
+            <p className="tabular mt-4 font-display text-2xl font-semibold text-amber-300">
+              <CountUp value={stats.monthLv} /> <span className="font-sans text-sm font-normal text-brand-200">von {num.format(stats.monthlyGoal)} LW</span>
+            </p>
+            <p className="mt-1 text-xs text-brand-200 group-hover:text-white">
+              {missingLv === 0 ? 'Monatsziel geschafft 🎉' : workdaysLeft > 0 ? `Noch ${num.format(perDayLv)} pro Arbeitstag` : `Noch ${num.format(missingLv)} offen`}
+            </p>
+          </Link>
         </div>
-        <StatusPicker current={me?.status} onChange={setStatus} />
-      </header>
+
+        <HeroDivider />
+        <dl className="grid grid-cols-2 gap-x-6 gap-y-5 px-6 py-5 sm:grid-cols-4 sm:px-8">
+          <HeroStat label="Prognose Monat" value={<CountUp value={projectedLv} />} hint={onTrack ? 'Im Plan' : `Soll heute Tag ${progress.passed} von ${progress.total}`} accent={onTrack} />
+          <HeroStat label="Provision Monat" value={eur.format(stats.monthCommission)} />
+          <HeroStat label={`Lebenswerte ${today.getFullYear()}`} value={<CountUp value={stats.yearLv} />} hint={`${yearPct} % vom Jahresziel`} />
+          <HeroStat label={`Provision ${today.getFullYear()}`} value={eur.format(stats.yearCommission)} />
+        </dl>
+      </HeroPanel>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
         {/* Linke Spalte */}
         <div className="space-y-6 lg:col-span-8">
-          {/* Ziel */}
-          <Card padded={false} className="overflow-hidden">
-            <div className="p-5 sm:p-6">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Lebenswerte im {format(today, 'MMMM', { locale: de })}</p>
-                  <p className="mt-1 flex flex-wrap items-baseline gap-x-2">
-                    <span className="tabular font-display text-4xl font-semibold tracking-tight text-gray-900 dark:text-white sm:text-5xl">{num.format(stats.monthLv)}</span>
-                    <span className="tabular text-sm text-gray-500">von {num.format(stats.monthlyGoal)}</span>
-                  </p>
-                </div>
-                <Link to="/production" className="btn-ghost btn-sm -mr-2 shrink-0">
-                  Produktion <ChevronRight className="h-3.5 w-3.5" />
-                </Link>
-              </div>
-
-              <GoalRuler value={stats.monthLv} goal={stats.monthlyGoal} expected={progress.ratio} className="mt-6" />
-              <div className="mt-2 flex items-center justify-between text-xs text-gray-500">
-                <span className="tabular">
-                  {monthPct} % erreicht
-                  {missingLv > 0 && workdaysLeft > 0 && ` · noch ${num.format(missingLv)}, also ${num.format(perDayLv)} pro Arbeitstag`}
-                  {missingLv === 0 && ' · Ziel geschafft 🎉'}
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="h-2.5 w-0.5 rounded bg-amber-400" />
-                  Soll heute: Tag {progress.passed} von {progress.total}
-                </span>
-              </div>
-            </div>
-
-            <dl className="grid grid-cols-2 border-t border-gray-100 dark:border-gray-700 sm:grid-cols-4 [&>div]:border-gray-100 dark:[&>div]:border-gray-700">
-              <div className="border-b border-r p-4 sm:border-b-0 sm:px-6">
-                <dt className="text-xs text-gray-500">Prognose Monat</dt>
-                <dd className={cn('tabular mt-1 text-lg font-semibold', onTrack ? 'text-emerald-700 dark:text-emerald-400' : 'text-gray-900 dark:text-white')}>
-                  {num.format(projectedLv)}
-                </dd>
-              </div>
-              <div className="border-b p-4 sm:border-b-0 sm:border-r sm:px-6">
-                <dt className="text-xs text-gray-500">Provision Monat</dt>
-                <dd className="tabular mt-1 text-lg font-semibold text-gray-900 dark:text-white">{eur.format(stats.monthCommission)}</dd>
-              </div>
-              <div className="border-r p-4 sm:px-6">
-                <dt className="text-xs text-gray-500">Lebenswerte {today.getFullYear()}</dt>
-                <dd className="tabular mt-1 text-lg font-semibold text-gray-900 dark:text-white">
-                  {num.format(stats.yearLv)} <span className="text-xs font-normal text-gray-500">{yearPct} %</span>
-                </dd>
-              </div>
-              <div className="p-4 sm:px-6">
-                <dt className="text-xs text-gray-500">Provision {today.getFullYear()}</dt>
-                <dd className="tabular mt-1 text-lg font-semibold text-gray-900 dark:text-white">{eur.format(stats.yearCommission)}</dd>
-              </div>
-            </dl>
-          </Card>
-
           {/* Aufgaben */}
           <Card padded={false}>
             <div className="flex items-center justify-between px-5 pb-3 pt-5 sm:px-6">
-              <h2 className="text-base font-semibold text-gray-900 dark:text-white">Zu erledigen</h2>
+              <h2 className="font-display text-lg font-semibold text-gray-900 dark:text-white">
+                Zu erledigen
+                {urgent.length > 0 && <span className="tabular ml-2 rounded-full bg-amber-100 px-2 py-0.5 align-middle font-sans text-xs font-semibold text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">{urgent.length}</span>}
+              </h2>
               <Link to="/calls?tab=tasks" className="text-sm font-medium text-brand-700 hover:underline dark:text-brand-300">
                 Alle Anrufe
               </Link>
@@ -464,7 +440,7 @@ export const Dashboard = () => {
                       <div className="flex items-center gap-3">
                         <span
                           className={cn(
-                            'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg',
+                            'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl',
                             item.urgent ? 'bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-300' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300',
                           )}
                         >
@@ -476,8 +452,8 @@ export const Dashboard = () => {
                           onClick={() => (item.kind === 'callback' ? setOpenScript(openScript === item.id ? null : item.id) : navigate(target))}
                         >
                           <span className="flex items-center gap-2">
-                            <span className="truncate text-sm font-medium text-gray-900 dark:text-white">{item.title}</span>
-                            {item.urgent && <Badge tone="danger">{item.kind === 'callback' ? 'Dringend' : label}</Badge>}
+                            <span className="truncate text-[15px] font-semibold text-gray-900 dark:text-white">{item.title}</span>
+                            {item.urgent && <StatusPill tone="red" pulse>{item.kind === 'callback' ? 'Dringend' : label}</StatusPill>}
                           </span>
                           <span className="block truncate text-xs text-gray-500">
                             {!item.urgent && `${label} · `}
@@ -531,7 +507,7 @@ export const Dashboard = () => {
                   const past = e.time < new Date();
                   return (
                     <li key={e.id} className={cn('flex items-baseline gap-4 rounded-lg px-2 py-1.5', past && 'opacity-50')}>
-                      <span className="tabular w-12 shrink-0 font-mono text-sm text-gray-500">{format(e.time, 'HH:mm')}</span>
+                      <span className={cn('tabular w-14 shrink-0 rounded-md py-0.5 text-center text-sm font-semibold', past ? 'text-gray-400' : 'bg-brand-50 text-brand-800 dark:bg-brand-900/50 dark:text-brand-200')}>{format(e.time, 'HH:mm')}</span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm font-medium text-gray-900 dark:text-white">{e.title}</span>
                         {e.meta && <span className="block truncate text-xs text-gray-500">{e.meta}</span>}
@@ -547,24 +523,24 @@ export const Dashboard = () => {
         {/* Rechte Spalte */}
         <div className="space-y-6 lg:col-span-4">
           {/* Empfang */}
-          <Card className="bg-brand-900 text-white dark:bg-brand-950" padded={false}>
+          <Card padded={false} className="overflow-hidden">
             <div className="flex items-center gap-4 p-5">
               {receptionPersonToday ? (
-                <Avatar name={receptionPersonToday.full_name} src={receptionPersonToday.avatar_url} size="lg" className="ring-2 ring-white/20" />
+                <Avatar name={receptionPersonToday.full_name} src={receptionPersonToday.avatar_url} size="lg" className="ring-2 ring-amber-300 ring-offset-2 ring-offset-white dark:ring-offset-gray-800" />
               ) : (
-                <span className="flex h-14 w-14 items-center justify-center rounded-full bg-white/10">
-                  <Headset className="h-6 w-6 text-brand-100" />
+                <span className="flex h-14 w-14 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700">
+                  <Headset className="h-6 w-6 text-gray-400" />
                 </span>
               )}
               <div className="min-w-0">
-                <p className="text-xs text-brand-200">Empfang heute</p>
-                <p className="font-display text-xl font-semibold">{receptionToday || 'Büro geschlossen'}</p>
-                {receptionPersonToday?.absentToday && <p className="text-xs font-medium text-amber-300">{receptionPersonToday.absentToday}, Vertretung nötig</p>}
+                <p className="text-xs text-gray-500 dark:text-gray-400">Empfang heute</p>
+                <p className="font-display text-xl font-semibold text-gray-900 dark:text-white">{receptionToday || 'Büro geschlossen'}</p>
+                {receptionPersonToday?.absentToday && <p className="text-xs font-medium text-amber-700 dark:text-amber-300">{receptionPersonToday.absentToday}, Vertretung nötig</p>}
               </div>
             </div>
-            <Link to="/reception" className="flex items-center justify-between border-t border-white/10 px-5 py-3 text-sm text-brand-100 hover:bg-white/5">
+            <Link to="/reception" className="flex items-center justify-between border-t border-gray-100 px-5 py-3 text-sm text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700/40">
               <span>
-                {format(nextWorkday, 'EEEE', { locale: de })}: <strong className="font-medium text-white">{receptionNext}</strong>
+                {format(nextWorkday, 'EEEE', { locale: de })}: <strong className="font-medium text-gray-900 dark:text-white">{receptionNext}</strong>
               </span>
               <ChevronRight className="h-4 w-4" />
             </Link>

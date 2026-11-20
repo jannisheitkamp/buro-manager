@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { cn } from '@/utils/cn';
 import { useCountUp, useMounted } from '@/lib/useCountUp';
+import { GoalGauge, HeroPanel } from '@/components/ui/hero';
 
 const eur = new Intl.NumberFormat('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const eur0 = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
@@ -21,65 +22,6 @@ type Props = {
   cancelledCount: number;
 };
 
-// Halbkreis: Mittelpunkt (100, 100), Radius 84
-const R = 84;
-const ARC = `M ${100 - R} 100 A ${R} ${R} 0 0 1 ${100 + R} 100`;
-const pointAt = (f: number, r = R) => {
-  const a = Math.PI - Math.PI * f;
-  return { x: 100 + r * Math.cos(a), y: 100 - r * Math.sin(a) };
-};
-
-/** Bogen-Tacho für die Lebenswerte gegen das Jahresziel. */
-const GoalGauge = ({ pct, expected, reached }: { pct: number; expected: number | null; reached: boolean }) => {
-  const mounted = useMounted();
-  const shownPct = useCountUp(pct, 1400);
-  const fill = Math.min(pct, 100);
-  const tickIn = expected !== null ? pointAt(expected, R - 13) : null;
-  const tickOut = expected !== null ? pointAt(expected, R + 13) : null;
-
-  return (
-    <div className="relative mx-auto w-full max-w-[17rem]">
-      <svg viewBox="0 0 200 112" className="w-full overflow-visible" role="img" aria-label={`${pct} % vom Jahresziel erreicht`}>
-        <defs>
-          <linearGradient id="gauge-fill" x1="0" x2="1" y1="0" y2="0">
-            <stop offset="0%" stopColor={reached ? '#34D399' : '#F9D59C'} />
-            <stop offset="100%" stopColor={reached ? '#10B981' : '#F2A541'} />
-          </linearGradient>
-          <filter id="gauge-glow" x="-30%" y="-30%" width="160%" height="160%">
-            <feGaussianBlur stdDeviation="4" result="b" />
-            <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
-          </filter>
-        </defs>
-        <path d={ARC} fill="none" stroke="rgba(255,255,255,0.09)" strokeWidth="14" strokeLinecap="round" />
-        <path
-          d={ARC}
-          fill="none"
-          stroke="url(#gauge-fill)"
-          strokeWidth="14"
-          strokeLinecap="round"
-          pathLength={100}
-          strokeDasharray="100 100"
-          strokeDashoffset={mounted ? 100 - fill : 100}
-          filter="url(#gauge-glow)"
-          className="motion-safe:transition-[stroke-dashoffset] motion-safe:duration-[1400ms] motion-safe:ease-[cubic-bezier(0.22,1,0.36,1)]"
-        />
-        {tickIn && tickOut && (
-          <g>
-            <line x1={tickIn.x} y1={tickIn.y} x2={tickOut.x} y2={tickOut.y} stroke="white" strokeWidth="2" strokeLinecap="round" opacity="0.85" />
-            <title>Soll laut Kalender heute</title>
-          </g>
-        )}
-      </svg>
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 text-center">
-        <p className="tabular font-display text-5xl font-semibold leading-none tracking-tight">
-          {Math.round(shownPct)}<span className="text-2xl text-brand-200"> %</span>
-        </p>
-        <p className="mt-1 text-xs text-brand-200">vom Jahresziel</p>
-      </div>
-    </div>
-  );
-};
-
 /** Kopf der Produktionsseite: Jahresprovision, Lebenswerte gegen Ziel und der Verlauf über die Monate. */
 export const ProductionHero = ({
   periodLabel, totalCommission, totalLifeValues, lifeValuesGoal, goalExpected, lifeValuesNote, months,
@@ -96,19 +38,7 @@ export const ProductionHero = ({
   const behind = goalPct !== null && goalExpected !== null && goalPct < goalExpected * 100;
 
   return (
-    <section
-      aria-label={`Produktion ${periodLabel}`}
-      className="relative isolate overflow-hidden rounded-3xl bg-brand-900 text-white shadow-[0_30px_60px_-30px_rgba(7,34,35,0.8)] dark:bg-brand-950 dark:ring-1 dark:ring-brand-800/60"
-    >
-      {/* Licht: warm hinter dem Tacho, kühl unten links */}
-      <div aria-hidden className="pointer-events-none absolute -right-24 -top-32 -z-10 h-[30rem] w-[30rem] rounded-full" style={{ background: 'radial-gradient(closest-side, rgba(242,165,65,0.30), rgba(242,165,65,0.08) 55%, transparent)' }} />
-      <div aria-hidden className="pointer-events-none absolute -bottom-40 -left-24 -z-10 h-[26rem] w-[26rem] rounded-full" style={{ background: 'radial-gradient(closest-side, rgba(63,156,151,0.35), transparent)' }} />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 -z-10 opacity-[0.045]"
-        style={{ backgroundImage: 'linear-gradient(to right, #fff 1px, transparent 1px), linear-gradient(to bottom, #fff 1px, transparent 1px)', backgroundSize: '32px 32px' }}
-      />
-
+    <HeroPanel aria-label={`Produktion ${periodLabel}`}>
       <div className="grid items-center gap-8 p-6 sm:p-8 lg:grid-cols-[1fr_18rem]">
         <div>
           <p className="text-sm text-brand-200">Provision {periodLabel}</p>
@@ -125,7 +55,7 @@ export const ProductionHero = ({
         <div className="text-center">
           {goalPct !== null ? (
             <>
-              <GoalGauge pct={goalPct} expected={goalExpected} reached={goalPct >= 100} />
+              <GoalGauge pct={goalPct} expected={goalExpected} caption="vom Jahresziel" />
               <p className="tabular mt-4 font-display text-2xl font-semibold text-amber-300">
                 {num.format(shownLv)} <span className="font-sans text-sm font-normal text-brand-200">von {num.format(lifeValuesGoal)} LW</span>
               </p>
@@ -200,6 +130,6 @@ export const ProductionHero = ({
           })}
         </ol>
       </div>
-    </section>
+    </HeroPanel>
   );
 };
