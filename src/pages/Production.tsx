@@ -6,7 +6,7 @@ import { useLocation } from 'react-router-dom';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { Menu as MenuRoot, MenuButton, MenuItem, MenuItems } from '@headlessui/react';
-import { Plus, Search, FileText, Trash2, Pencil, FileDown, Trophy, LayoutGrid, Sparkles, Loader2, UploadCloud, FileSpreadsheet, ChevronDown, CalendarRange, Hourglass, ListChecks, X, CalendarClock, Check } from 'lucide-react';
+import { Plus, Search, FileText, Trash2, Pencil, FileDown, Trophy, LayoutGrid, Sparkles, Loader2, UploadCloud, FileSpreadsheet, ChevronDown, CalendarRange, Hourglass, ListChecks, X, CalendarClock, Check, Percent } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { Modal } from '@/components/Modal';
 import { ConfirmModal } from '@/components/ConfirmModal';
@@ -17,10 +17,12 @@ import { ProductionHero, type HeroMonth } from '@/components/Production/Producti
 import { CourtagePanel } from '@/components/Production/CourtagePanel';
 import { CategoryTiles } from '@/components/Production/CategoryTiles';
 import { CANCEL_REASONS, stornoStats } from '@/lib/storno';
-import { COURTAGE_SUBCATEGORIES, courtageInstallments, isCourtage, summarizeCourtage, type CourtagePayout } from '@/lib/courtage';
+import { courtageInstallments, isCourtage, summarizeCourtage, type CourtagePayout } from '@/lib/courtage';
+import { AREAS, areaLabel, calcCommission, methodOf, productByName, useProducts } from '@/lib/products';
+import { ProductPicker } from '@/components/ProductPicker';
+import { CommissionRates } from '@/components/Production/CommissionRates';
 import { extractPdfText } from '@/utils/extractPdfText';
 import { parseContractFromText } from '@/utils/pdfParser';
-import { INSURANCE_TYPES } from '@/utils/constants';
 import { CATEGORY_COLORS } from '@/lib/chartTheme';
 import { correctedMonthlyLv, computedMonthlyLv, fetchLvSnapshots, sumUntil, type LvSnapshot } from '@/lib/lifeValues';
 
@@ -51,7 +53,7 @@ const STATUS_PILL: Record<string, string> = {
 
 const nf0 = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 });
 
-const categoryLabel = (id: string) => INSURANCE_TYPES.find((t) => t.id === id)?.label || id;
+const categoryLabel = areaLabel;
 
 export const Production = () => {
   const { user, profile } = useStore();
@@ -67,7 +69,7 @@ export const Production = () => {
   const [reportMonth, setReportMonth] = useState(() => format(new Date(), 'yyyy-MM'));
   const [reportScope, setReportScope] = useState<'me' | 'team'>('me');
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<'personal' | 'leaderboard'>('personal');
+  const [viewMode, setViewMode] = useState<'personal' | 'leaderboard' | 'rates'>(() => (new URLSearchParams(window.location.search).get('tab') === 'rates' ? 'rates' : 'personal'));
   const [boardPeriod, setBoardPeriod] = useState<'month' | 'year' | 'all'>('month');
   const thisYear = new Date().getFullYear();
   // Angezeigtes Jahr (auch Vorjahre); 'all' = alle Jahre
@@ -196,33 +198,28 @@ export const Production = () => {
     }
   }, [location]);
 
+  // Sätze: Team-Standard aus dem Produktkatalog, eigene Abweichungen aus user_commission_settings
+  const { products } = useProducts();
+  const [myRates, setMyRates] = useState<Record<string, number>>({});
   useEffect(() => {
-    const loadRates = async () => {
-        if (!user) return;
-        const { data } = await supabase.from('user_commission_settings').select('*').eq('user_id', user.id);
-        
-        const rates: Record<string, number> = {};
-        // Defaults
-        rates['Leben'] = 8.0; rates['BU'] = 8.0;
-        rates['KV Voll'] = 3.0; rates['KV Zusatz'] = 3.0; rates['Reise-KV'] = 10.0;
-        rates['PHV'] = 7.5; rates['HR'] = 7.5; rates['UNF'] = 7.5; rates['Sach'] = 7.5;
-        rates['KFZ'] = 3.0; rates['Rechtsschutz'] = 5.0; rates['Sonstige'] = 5.0;
-
-        // Overwrite with DB values
-        if (data) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            data.forEach((row: any) => {
-                if (row.sub_category) rates[row.sub_category] = Number(row.rate_value);
-            });
-        }
-        setUserRates(rates);
-    };
-    loadRates();
+    if (!user) return;
+    supabase.from('user_commission_settings').select('sub_category, rate_value').eq('user_id', user.id).then(({ data }) => {
+        const mine: Record<string, number> = {};
+        (data || []).forEach((row: { sub_category: string | null; rate_value: number }) => { if (row.sub_category) mine[row.sub_category] = Number(row.rate_value); });
+        setMyRates(mine);
+    });
   }, [user]);
+  useEffect(() => {
+    const rates: Record<string, number> = {};
+    products.forEach((p) => { rates[p.name] = p.default_rate; });
+    setUserRates({ ...rates, ...myRates });
+  }, [products, myRates]);
 
   // --- Form State ---
   const [category, setCategory] = useState('life'); 
-  const [subCategory, setSubCategory] = useState(INSURANCE_TYPES[0].subcategories[0]);
+  const [subCategory, setSubCategory] = useState('Leben');
+  // Anlage-, Bauspar- oder Darlehenssumme (Rechenart „Prozent der Vertragssumme“)
+  const [contractSum, setContractSum] = useState<number | ''>('');
   
   // Basic Info
   const [policyNumber, setPolicyNumber] = useState('');
@@ -281,77 +278,45 @@ export const Production = () => {
     const netP = Number(netPremium) || 0;
     const grossP = Number(grossPremium) || 0;
     
-    const netYearly = netP * factor;
-    const grossYearly = grossP * factor;
 
-
-    // 2. Determine Rate and Calculate Commission
-    let valSum = 0;
-    let comm = 0;
-    let rate = 0;
-
-    // Get rate from loaded user settings (or default if not loaded yet)
-    rate = userRates[subCategory] || 0;
-
-    // NEW RULE: Provisionsberechnung und Lebenswert berechnung wird immer auf maximal 35 Jahre berechnet, EGAL welche Sparte
-    const cappedDuration = Math.min(duration, 35);
-
-    if (subCategory === 'Leben' || subCategory === 'BU') {
-        valSum = grossYearly * cappedDuration;
-        comm = valSum * (rate / 1000);
-    } 
-    else if (['KV Voll', 'KV Zusatz'].includes(subCategory)) {
-        valSum = grossP;
-        comm = grossP * rate;
-    }
-    else if (subCategory === 'Reise-KV') {
-        valSum = grossYearly;
-        comm = grossYearly * (rate / 100);
-    }
-    else if (COURTAGE_SUBCATEGORIES.includes(subCategory)) {
-        valSum = netYearly;
-        // Sach-Courtage kommt je Rate und wird zum 31.12. ausgezahlt:
-        // Provision = Courtage je Rate × Raten ab Vertragsbeginn bis Jahresende
-        comm = netP * (rate / 100) * courtageInstallments(startDate, paymentMethod);
-    }
-    
-    // 3. Calculate Life Values (Lebenswerte)
-    let lvFactor = 0;
-    let lv = 0;
-
-    // Logic for Lebenswerte Factor
-    if (subCategory === 'Leben' || subCategory === 'BU') {
-        lvFactor = 1.147;
-    } else if (category === 'car') {
-        lvFactor = 1;
-    } else if (category === 'property' || category === 'legal' || category === 'other') {
-        // "bei den anderen Sach geschichten bei 20"
-        lvFactor = 20;
-    }
+    // 2. Satz und Rechenart aus dem Produktkatalog
+    const product = productByName(subCategory);
+    const method = product?.calc_method || 'courtage_rate';
+    const rate = userRates[subCategory] ?? product?.default_rate ?? 0;
     // Ein von Hand eingetragener Faktor geht vor (sonst würde er bei jeder Änderung überschrieben)
-    if (manualLvFactor !== null) lvFactor = manualLvFactor;
-    // Basis: Leben/BU die Bewertungssumme, sonst der Jahres-Nettobeitrag
-    lv = (subCategory === 'Leben' || subCategory === 'BU' ? valSum : netYearly) * lvFactor;
+    const lvFactor = manualLvFactor !== null ? manualLvFactor : product?.lv_factor ?? 0;
+    // Provision und Lebenswerte werden höchstens auf 35 Jahre gerechnet (in calcCommission)
+    const result = calcCommission(method, {
+        rate, net: netP, gross: grossP, factor, duration, installments: courtageInstallments(startDate, paymentMethod),
+        contractSum: Number(contractSum) || 0, lvFactor,
+    });
 
     setCommissionRate(rate);
-    setValuationSum(valSum);
-    setCommissionAmount(comm);
+    setValuationSum(result.valuation);
+    setCommissionAmount(result.commission);
     setLifeValueFactor(lvFactor);
-    setLifeValues(lv);
+    setLifeValues(result.lifeValues);
 
-  }, [netPremium, grossPremium, duration, paymentMethod, subCategory, userRates, category, manualLvFactor, startDate]); 
+  }, [netPremium, grossPremium, duration, paymentMethod, subCategory, userRates, manualLvFactor, startDate, contractSum, products]); 
   
-  const formIsCourtage = COURTAGE_SUBCATEGORIES.includes(subCategory);
+  const formMethod = productByName(subCategory)?.calc_method || 'courtage_rate';
+  // Meistgenutzte eigene Produkte als Favoriten in der Auswahl
+  const favoriteProducts = useMemo(() => {
+      const counts = new Map<string, number>();
+      entries.filter(e => e.user_id === user?.id && e.sub_category).forEach(e => counts.set(e.sub_category, (counts.get(e.sub_category) || 0) + 1));
+      return [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([n]) => n);
+  }, [entries, user?.id]);
+  const formIsCourtage = formMethod === 'courtage_rate';
   const courtageRates = courtageInstallments(startDate, paymentMethod);
 
   // Update Category when SubCategory changes (reverse lookup if needed, or just handle in UI)
   useEffect(() => {
-      const parent = INSURANCE_TYPES.find(t => t.subcategories.includes(subCategory));
-      if (parent && parent.id !== category) {
-          setCategory(parent.id);
+      const parent = productByName(subCategory);
+      if (parent && parent.area !== category) {
+          setCategory(parent.area);
       }
       // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [subCategory]);
+  }, [subCategory, products]);
 
 
   const fetchEntries = async () => {
@@ -489,6 +454,7 @@ export const Production = () => {
       setCommissionReceivedDate('');
       setNetPremium('');
       setGrossPremium('');
+      setContractSum('');
       setDuration(1);
       setPaymentMethod('monthly');
       setNotes('');
@@ -521,6 +487,7 @@ export const Production = () => {
       setDuration(entry.duration || 1);
       setNetPremium(entry.net_premium || '');
       setGrossPremium(entry.gross_premium || '');
+      setContractSum(productByName(entry.sub_category)?.calc_method === 'percent_sum' ? Number(entry.valuation_sum) || '' : '');
       setNotes(entry.notes || '');
       setLifeValues(entry.life_values || 0);
       setLifeValueFactor(entry.life_value_factor || 0);
@@ -625,13 +592,14 @@ export const Production = () => {
   // Storno-Auswertung: eigene Verträge des gewählten Jahres (nach Einreichung)
   const stornoInfo = stornoStats(
       entries.filter(e => e.user_id === user?.id && (selectedYear === 'all' || String(e.submission_date || '').startsWith(`${selectedYear}-`))),
-      INSURANCE_TYPES.map(t => t.id),
+      AREAS.map(t => t.id),
   );
 
-  const categoryTiles = INSURANCE_TYPES.map(t => {
+  // Bereiche mit Verträgen; die sechs klassischen Sparten bleiben immer sichtbar
+  const categoryTiles = AREAS.map(t => {
       const rows = baseEntries.filter(e => e.category === t.id && e.status !== 'cancelled');
       return { id: t.id, label: t.label, amount: rows.reduce((a, e) => a + Number(e.commission_amount || 0), 0), count: rows.length };
-  });
+  }).filter(t => t.count > 0 || ['life', 'health', 'property', 'car', 'legal', 'other'].includes(t.id) || t.id === filterCategory);
 
   // Stornierte Verträge zählen nicht in Summen, Diagramme und Rangliste
   const activeEntries = filteredEntries.filter(e => e.status !== 'cancelled');
@@ -1037,10 +1005,11 @@ export const Production = () => {
                 <>
                     <Segmented
                         value={viewMode}
-                        onChange={(v) => setViewMode(v as 'personal' | 'leaderboard')}
+                        onChange={(v) => setViewMode(v as 'personal' | 'leaderboard' | 'rates')}
                         options={[
                             { value: 'personal', label: 'Meine', icon: LayoutGrid },
                             { value: 'leaderboard', label: 'Rangliste', icon: Trophy },
+                            { value: 'rates', label: 'Provisionssätze', icon: Percent },
                         ]}
                     />
                     <select
@@ -1084,7 +1053,9 @@ export const Production = () => {
             }
         />
 
-        {viewMode === 'leaderboard' ? (
+        {viewMode === 'rates' ? (
+            <CommissionRates myRates={myRates} onSaved={(name, value) => setMyRates((m) => { const n = { ...m }; if (value === null) delete n[name]; else n[name] = value; return n; })} />
+        ) : viewMode === 'leaderboard' ? (
             <div className="card overflow-hidden">
                 <div className="flex flex-col gap-3 border-b border-gray-100 px-5 py-4 dark:border-gray-700 sm:flex-row sm:items-center sm:justify-between sm:px-6">
                     <div>
@@ -1436,28 +1407,9 @@ export const Production = () => {
                 <form id="production-form" onSubmit={handleSubmit} className="grid grid-cols-1 gap-8 lg:grid-cols-5">
                     {/* Linke Seite: Eingaben */}
                     <div className="space-y-6 lg:col-span-3">
-                        <fieldset>
-                            <legend className="field-label">Sparte</legend>
-                            <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
-                                {INSURANCE_TYPES.map(c => (
-                                    <button
-                                        key={c.id}
-                                        type="button"
-                                        onClick={() => { setCategory(c.id); setSubCategory(c.subcategories[0]); }}
-                                        aria-pressed={category === c.id}
-                                        className={cn(
-                                            'flex flex-col items-center gap-1 rounded-lg border px-2 py-2.5 text-xs font-medium transition-colors',
-                                            category === c.id
-                                                ? 'border-brand-500 bg-brand-50 text-brand-800 dark:border-brand-400 dark:bg-brand-900/40 dark:text-brand-100'
-                                                : 'border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700/50'
-                                        )}
-                                    >
-                                        <span className="h-1.5 w-6 rounded-full" style={{ background: CATEGORY_COLORS[c.id] }} />
-                                        {c.label}
-                                    </button>
-                                ))}
-                            </div>
-                        </fieldset>
+                        <Field label="Versicherung / Produkt" htmlFor="pf-product" hint={`${categoryLabel(category)} · ${methodOf(formMethod).label}`}>
+                            <ProductPicker id="pf-product" value={subCategory} favorites={favoriteProducts} onChange={(p) => { setSubCategory(p.name); setCategory(p.area); setManualLvFactor(null); }} />
+                        </Field>
 
                         <div className="grid grid-cols-2 gap-4">
                             <Field label="Nachname" htmlFor="pf-name" hint={!editingId ? 'Bestehende Kunden werden vorgeschlagen' : undefined}>
@@ -1501,11 +1453,14 @@ export const Production = () => {
                         )}
 
                         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-                            <Field label="Tarif" htmlFor="pf-sub">
-                                <select id="pf-sub" value={subCategory} onChange={e => setSubCategory(e.target.value)} className="input">
-                                    {INSURANCE_TYPES.find(c => c.id === category)?.subcategories.map(sc => <option key={sc} value={sc}>{sc}</option>)}
-                                </select>
-                            </Field>
+                            {formMethod === 'percent_sum' && (
+                                <Field label="Vertragssumme" htmlFor="pf-sum" hint="Anlage-, Bauspar- oder Darlehenssumme">
+                                    <div className="relative">
+                                        <input id="pf-sum" type="number" step="0.01" inputMode="decimal" value={contractSum} onChange={e => setContractSum(e.target.value ? Number(e.target.value) : '')} className="input tabular pr-8" />
+                                        <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">€</span>
+                                    </div>
+                                </Field>
+                            )}
                             <Field label="Zahlweise" htmlFor="pf-pay">
                                 <select id="pf-pay" value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)} className="input">
                                     <option value="monthly">Monatlich</option>
@@ -1597,7 +1552,7 @@ export const Production = () => {
                             </div>
                             <dl className="grid grid-cols-2 gap-x-4 gap-y-3 border-t border-brand-100 pt-4 text-sm dark:border-brand-900">
                                 <div>
-                                    <dt className="text-xs text-gray-500">{category === 'life' ? 'Satz (Promille)' : ['KV Voll', 'KV Zusatz'].includes(subCategory) ? 'Monatsbeiträge' : 'Satz (Prozent)'}</dt>
+                                    <dt className="text-xs text-gray-500">{formMethod === 'promille_sum' ? 'Satz (Promille)' : formMethod === 'monthly_multiple' ? 'Monatsbeiträge' : formMethod === 'fixed' ? 'Fester Betrag (€)' : 'Satz (Prozent)'}</dt>
                                     <dd className="tabular font-medium text-gray-900 dark:text-white">{commissionRate || 0}</dd>
                                 </div>
                                 <div>

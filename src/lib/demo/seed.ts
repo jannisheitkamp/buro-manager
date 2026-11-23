@@ -2,6 +2,9 @@
 // Erfundene Beispieldaten für die Demo. Alle Personen, Kunden und Nummern sind ausgedacht.
 // Die Daten werden relativ zum heutigen Tag erzeugt, damit die Demo immer aktuell wirkt.
 
+import { SEED_PRODUCTS } from '@/lib/products';
+import { GAP_RULE_SEED } from '@/lib/gaps';
+
 export type DemoDb = Record<string, Record<string, any>[]>;
 
 export const DEMO_USER_ID = '00000000-0000-4000-8000-000000000001';
@@ -367,6 +370,17 @@ export function createSeed(): DemoDb {
         address: `${pick(streets)} ${Math.floor(between(1, 80))}, 44135 Dortmund`,
         household: null,
         notes: null,
+        customer_type: 'person',
+        contact_person: null,
+        industry: null,
+        employees: null,
+        // Lebenslage für einen Teil der Kunden
+        occupation: i % 3 === 0 ? null : ['employee', 'self_employed', 'employee', 'civil_servant', 'retired'][i % 5],
+        marital_status: i % 3 === 0 ? null : ['married', 'single', 'partnership'][i % 3],
+        children: i % 3 === 0 ? null : i % 4,
+        housing: i % 3 === 0 ? null : ['rent', 'own_house', 'own_flat'][i % 3],
+        vehicles: i % 3 === 0 ? [] : i % 4 === 1 ? ['car', 'motorcycle'] : ['car'],
+        pets: i % 6 === 1 ? ['dog'] : i % 6 === 4 ? ['cat'] : [],
       };
       byKey.set(k, c);
       customerRows.push(c);
@@ -407,6 +421,17 @@ export function createSeed(): DemoDb {
     })),
   );
 
+  // Eine Firma als Kunde
+  customerRows.push({
+    id: crypto.randomUUID(), created_at: at(-120, 10), created_by: ME, customer_type: 'company',
+    last_name: 'Tischlerei Hoffmann GmbH', first_name: null, birth_date: null, phone: '0231 4455667', email: 'info@tischlerei-hoffmann.example',
+    address: 'Werkstraße 12, 44147 Dortmund', household: null, notes: null, contact_person: 'Peter Hoffmann', industry: 'Handwerk', employees: 8,
+    occupation: null, marital_status: null, children: null, housing: null, vehicles: [], pets: [],
+  });
+
+  const insurance_products = SEED_PRODUCTS.map((p) => ({ ...p, id: crypto.randomUUID(), active: true, created_by: null, created_at: at(-400, 9) }));
+  const gap_rules = GAP_RULE_SEED.map((r) => ({ ...r, id: crypto.randomUUID(), active: true }));
+
   // Rückrufe mit bekanntem Kunden verknüpfen
   callbacks.forEach((cb: any) => {
     const c = customerRows.find((x) => `${x.first_name} ${x.last_name}` === cb.customer_name);
@@ -423,6 +448,8 @@ export function createSeed(): DemoDb {
     customers: customerRows,
     contract_documents,
     customer_contracts,
+    insurance_products,
+    gap_rules,
     production_entries: production,
     user_commission_settings: commission_settings,
     courtage_payouts,

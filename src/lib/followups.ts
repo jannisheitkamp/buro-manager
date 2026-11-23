@@ -3,7 +3,7 @@
 // Andere Sachverträge: Ablauf zum Jahrestag des Vertragsbeginns, Kündigungsfrist 3 Monate vorher.
 
 import { addMonths, addYears, differenceInCalendarDays, format, startOfDay } from 'date-fns';
-import { COURTAGE_SUBCATEGORIES } from '@/lib/courtage';
+import { isCourtage } from '@/lib/courtage';
 
 /** Ab so vielen Tagen vor der Frist wird erinnert */
 export const REMIND_DAYS = 28;
@@ -39,7 +39,7 @@ const isKfz = (e: Entry) => e.sub_category === 'KFZ' || e.category === 'car';
 /** Nächste Frist (heute oder später) für einen Vertrag, sonst null */
 export function nextDeadline<E extends Entry>(e: E, today = new Date()): Deadline<E> | null {
   if (e.status === 'cancelled' || !e.start_date) return null;
-  if (!isKfz(e) && !(e.sub_category && COURTAGE_SUBCATEGORIES.includes(e.sub_category))) return null;
+  if (!isKfz(e) && !isCourtage(e.sub_category)) return null;
   const t = startOfDay(today);
   const start = startOfDay(new Date(`${e.start_date}T00:00:00`));
 
