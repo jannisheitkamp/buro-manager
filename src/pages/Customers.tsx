@@ -542,7 +542,9 @@ export const Customers = () => {
                           {c.notes && <p className="whitespace-pre-line text-gray-600 dark:text-gray-300 sm:col-span-2">{c.notes}</p>}
                         </dl>
                         <div className="flex flex-wrap gap-1.5">
-                          <Button size="sm" variant="secondary" icon={Pencil} onClick={() => openForm(c)}>Bearbeiten</Button>
+                          {(isAdmin || c.created_by === user?.id || r.entries.some(mineEntry)) && (
+                            <Button size="sm" variant="secondary" icon={Pencil} onClick={() => openForm(c)}>Bearbeiten</Button>
+                          )}
                           <Button size="sm" variant="secondary" icon={Phone} onClick={() => { setCallbackFor(c); setCallbackTopic(''); }}>Rückruf</Button>
                           {isAdmin && <Button size="sm" variant="ghost" icon={GitMerge} onClick={() => { setMergeFor(c); setMergeDrop(''); }}>Zusammenführen</Button>}
                         </div>
