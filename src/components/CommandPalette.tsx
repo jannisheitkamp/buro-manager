@@ -74,7 +74,8 @@ export const CommandPalette = () => {
       supabase.from('customers').select('id, last_name, first_name, phone, email, birth_date'),
       supabase.from('production_entries').select('id, customer_id, policy_number, sub_category, category, customer_name, customer_firstname').not('policy_number', 'is', null),
       supabase.from('leads').select('id, customer_name, phone, product, status'),
-    ]).then(([c, e, l]) => {
+      supabase.from('customer_contracts').select('id, customer_id, policy_number, sub_category, insurer').not('policy_number', 'is', null),
+    ]).then(([c, e, l, x2]) => {
       if (cancelled) return;
       const name = (last: string, first?: string | null) => `${last}${first ? `, ${first}` : ''}`;
       const items: Item[] = [
@@ -98,6 +99,18 @@ export const CommandPalette = () => {
             meta: `${x.sub_category || x.category} · ${name(x.customer_name, x.customer_firstname)}`,
             haystack: x.policy_number!.toLowerCase().replace(/\s/g, ''),
           })),
+        ...(x2.data || []).map((x) => {
+          const cu = (c.data || []).find((k) => k.id === x.customer_id);
+          return {
+            kind: 'record' as const,
+            id: `x-${x.id}`,
+            name: x.policy_number!,
+            href: `/customers?c=${x.customer_id}`,
+            icon: FileText,
+            meta: [`${x.sub_category} (Bestand)`, x.insurer, cu ? name(cu.last_name, cu.first_name) : null].filter(Boolean).join(' · '),
+            haystack: x.policy_number!.toLowerCase().replace(/\s/g, ''),
+          };
+        }),
         ...(l.data || []).map((x) => ({
           kind: 'record' as const,
           id: `l-${x.id}`,

@@ -12,6 +12,7 @@ import { Modal } from '@/components/Modal';
 import { ContractDocuments } from '@/components/ContractDocuments';
 import { CATEGORY_COLORS } from '@/lib/chartTheme';
 import { deadlineTopic, upcomingDeadlines, REMIND_DAYS, type Deadline } from '@/lib/followups';
+import { INSURANCE_TYPES } from '@/utils/constants';
 import { cn } from '@/utils/cn';
 
 type Entry = {
@@ -47,7 +48,24 @@ export type Customer = {
   notes: string | null;
 };
 
-type OpenCallback = { id: string; customer_id: string; topic: string | null; priority: string; status: string; created_at: string };
+/** Bestandsvertrag: lag schon vor der Produktion vor, zählt nicht zur Provision */
+type Existing = {
+  id: string;
+  customer_id: string;
+  category: string;
+  sub_category: string;
+  insurer: string | null;
+  policy_number: string | null;
+  start_date: string | null;
+  premium: number | null;
+  notes: string | null;
+  handled_until: string | null;
+  created_by: string;
+};
+/** Bestandsvertrag in Vertragsform, damit Fristen ihn mitberechnen */
+type DeadlineEntry = Entry & { existing?: Existing };
+
+type OpenCallback ={ id: string; customer_id: string; topic: string | null; priority: string; status: string; created_at: string };
 type Followup = { entry_id: string; due_date: string; state: 'callback' | 'dismissed' };
 
 /** Was ein gut versorgter Privatkunde typischerweise hat */
@@ -57,6 +75,7 @@ const BIRTHDAY_DAYS = 14;
 
 const nf0 = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 });
 const eur0 = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
+const eur2 = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' });
 
 const fullName = (c: Pick<Customer, 'last_name' | 'first_name'>) => `${c.last_name}${c.first_name ? `, ${c.first_name}` : ''}`;
 const entryName = (e: Entry) => `${e.customer_name}${e.customer_firstname ? `, ${e.customer_firstname}` : ''}`;
@@ -72,7 +91,11 @@ function nextBirthday(birth: string, today = new Date()) {
   return { date: next, days: differenceInCalendarDays(next, t), age: differenceInYears(next, b) };
 }
 
-const EMPTY_FORM = { last_name: '', first_name: '', birth_date: '', phone: '', email: '', address: '', household: '', notes: '' };
+const PRODUCTS = INSURANCE_TYPES.flatMap((t) => t.subcategories.map((sub) => ({ sub, category: t.id })));
+const EMPTY_EXISTING = { sub_category: 'PHV', insurer: '', policy_number: '', start_date: '', premium: '', notes: '' };
+type ExistingForm = typeof EMPTY_EXISTING;
+
+const EMPTY_FORM ={ last_name: '', first_name: '', birth_date: '', phone: '', email: '', address: '', household: '', notes: '' };
 type FormState = typeof EMPTY_FORM;
 
 export const Customers = () => {
@@ -97,9 +120,12 @@ export const Customers = () => {
   const [callbackTopic, setCallbackTopic] = useState('');
   const [mergeFor, setMergeFor] = useState<Customer | null>(null);
   const [mergeDrop, setMergeDrop] = useState('');
+  const [existing, setExisting] = useState<Existing[]>([]);
+  const [existingFor, setExistingFor] = useState<{ customer: Customer; contract: Existing | null } | null>(null);
+  const [existingForm, setExistingForm] = useState<ExistingForm>(EMPTY_EXISTING);
 
   const load = useCallback(async () => {
-    const [{ data: c, error }, { data: e }, { data: cb }, { data: f }] = await Promise.all([
+    const [{ data: c, error }, { data: e }, { data: cb }, { data: f }, { data: x }] = await Promise.all([
       supabase.from('customers').select('*').order('last_name'),
       supabase
         .from('production_entries')
@@ -107,7 +133,9 @@ export const Customers = () => {
         .order('submission_date', { ascending: false }),
       supabase.from('callbacks').select('id, customer_id, topic, priority, status, created_at').not('customer_id', 'is', null).neq('status', 'done'),
       supabase.from('contract_followups').select('entry_id, due_date, state'),
+      supabase.from('customer_contracts').select('*').order('created_at'),
     ]);
+    setExisting((x as Existing[]) || []);
     if (error) toast.error('Kunden konnten nicht geladen werden.');
     setCustomers((c as Customer[]) || []);
     setEntries((e as Entry[]) || []);
@@ -146,19 +174,24 @@ export const Customers = () => {
       if (!byCustomer.has(e.customer_id)) byCustomer.set(e.customer_id, []);
       byCustomer.get(e.customer_id)!.push(e);
     });
+    const existingBy = new Map<string, Existing[]>();
+    existing.forEach((x) => existingBy.set(x.customer_id, [...(existingBy.get(x.customer_id) || []), x]));
+    const mineId = (id: string | null) => !!id && (id === user?.id || (!!boss && id === boss));
     return customers
       .map((c) => {
         const all = byCustomer.get(c.id) || [];
         const active = all.filter((e) => e.status !== 'cancelled');
-        const has = new Set(active.map(product));
+        const prior = existingBy.get(c.id) || [];
+        const has = new Set([...active.map(product), ...prior.map((x) => x.sub_category)]);
         return {
           customer: c,
           name: fullName(c),
           entries: all,
           active,
-          mine: all.some(mineEntry) || (all.length === 0 && (c.created_by === user?.id || (!!boss && c.created_by === boss))),
+          existing: prior,
+          mine: all.some(mineEntry) || (all.length === 0 && (mineId(c.created_by) || prior.some((x) => mineId(x.created_by)))),
           cancelled: all.length - active.length,
-          gaps: active.length ? CORE_PRODUCTS.filter((p) => !has.has(p)) : [],
+          gaps: active.length || prior.length ? CORE_PRODUCTS.filter((p) => !has.has(p)) : [],
           lv: active.reduce((a, e) => a + Number(e.life_values || 0), 0),
           commission: active.reduce((a, e) => a + Number(e.commission_amount || 0), 0),
           birthday: c.birth_date ? nextBirthday(c.birth_date) : null,
@@ -167,10 +200,45 @@ export const Customers = () => {
       })
       .filter((r) => scope === 'team' || r.mine)
       .sort((a, b) => a.name.localeCompare(b.name, 'de'));
-  }, [customers, entries, callbacks, scope, mineEntry, user?.id, boss]);
+  }, [customers, entries, existing, callbacks, scope, mineEntry, user?.id, boss]);
+
+  // Bestandsverträge der angezeigten Kunden bekommen ebenfalls Fristen
+  const existingAsEntries = useMemo<DeadlineEntry[]>(
+    () =>
+      rows.flatMap((r) =>
+        r.existing.map((x) => ({
+          id: x.id,
+          user_id: x.created_by,
+          managed_by: null,
+          customer_id: x.customer_id,
+          status: 'policed' as const,
+          category: x.category,
+          sub_category: x.sub_category,
+          start_date: x.start_date,
+          submission_date: x.start_date || '',
+          customer_name: r.customer.last_name,
+          customer_firstname: r.customer.first_name,
+          policy_number: x.policy_number,
+          commission_amount: null,
+          life_values: null,
+          cancelled_at: null,
+          cancel_reason: null,
+          existing: x,
+        })),
+      ),
+    [rows],
+  );
 
   const handled = useMemo(() => new Set(followups.map((f) => `${f.entry_id}|${f.due_date}`)), [followups]);
-  const deadlines = useMemo(() => upcomingDeadlines(scopedEntries).filter((d) => !handled.has(d.key)), [scopedEntries, handled]);
+  const deadlines = useMemo(
+    () =>
+      upcomingDeadlines<DeadlineEntry>([...scopedEntries, ...existingAsEntries]).filter((d) => {
+        const x = d.entry.existing;
+        if (x) return !(x.handled_until && x.handled_until >= format(d.deadline, 'yyyy-MM-dd'));
+        return !handled.has(d.key);
+      }),
+    [scopedEntries, existingAsEntries, handled],
+  );
   const due = deadlines.filter((d) => d.due);
   const kfzDue = deadlines.filter((d) => d.kind === 'kfz');
   const withGaps = rows.filter((r) => r.gaps.length > 0);
@@ -184,7 +252,8 @@ export const Customers = () => {
     return (
       r.name.toLowerCase().includes(q) ||
       [c.phone, c.email, c.household, c.address].some((v) => v?.toLowerCase().includes(q)) ||
-      r.entries.some((e) => e.policy_number?.toLowerCase().includes(q))
+      [...r.entries, ...r.existing].some((e) => e.policy_number?.toLowerCase().includes(q)) ||
+      r.existing.some((x) => x.insurer?.toLowerCase().includes(q))
     );
   });
 
@@ -193,7 +262,15 @@ export const Customers = () => {
 
   /* ---------------- Aktionen ---------------- */
 
-  const createDeadlineCallback = async (d: Deadline<Entry>) => {
+  /** Frist als erledigt merken: Produktion über contract_followups, Bestand direkt am Vertrag */
+  const markHandled = (d: Deadline<DeadlineEntry>, state: 'callback' | 'dismissed', callbackId?: string) => {
+    const due = format(d.deadline, 'yyyy-MM-dd');
+    return d.entry.existing
+      ? supabase.from('customer_contracts').update({ handled_until: due }).eq('id', d.entry.existing.id)
+      : supabase.from('contract_followups').insert({ entry_id: d.entry.id, due_date: due, state, callback_id: callbackId });
+  };
+
+  const createDeadlineCallback = async (d: Deadline<DeadlineEntry>) => {
     if (!user) return;
     setBusy(d.key);
     const c = customers.find((x) => x.id === d.entry.customer_id);
@@ -211,9 +288,7 @@ export const Customers = () => {
       })
       .select('id')
       .single();
-    if (!error) {
-      await supabase.from('contract_followups').insert({ entry_id: d.entry.id, due_date: format(d.deadline, 'yyyy-MM-dd'), state: 'callback', callback_id: cb?.id });
-    }
+    if (!error) await markHandled(d, 'callback', cb?.id);
     setBusy(null);
     if (error) toast.error('Rückruf konnte nicht angelegt werden.');
     else {
@@ -222,9 +297,9 @@ export const Customers = () => {
     }
   };
 
-  const dismiss = async (d: Deadline<Entry>) => {
+  const dismiss = async (d: Deadline<DeadlineEntry>) => {
     setBusy(d.key);
-    const { error } = await supabase.from('contract_followups').insert({ entry_id: d.entry.id, due_date: format(d.deadline, 'yyyy-MM-dd'), state: 'dismissed' });
+    const { error } = await markHandled(d, 'dismissed');
     setBusy(null);
     if (error) toast.error('Konnte nicht ausgeblendet werden.');
     else load();
@@ -286,6 +361,60 @@ export const Customers = () => {
     load();
   };
 
+  const openExisting = (customer: Customer, contract: Existing | null) => {
+    setExistingFor({ customer, contract });
+    setExistingForm(
+      contract
+        ? {
+            sub_category: contract.sub_category,
+            insurer: contract.insurer || '',
+            policy_number: contract.policy_number || '',
+            start_date: contract.start_date || '',
+            premium: contract.premium != null ? String(contract.premium).replace('.', ',') : '',
+            notes: contract.notes || '',
+          }
+        : EMPTY_EXISTING,
+    );
+  };
+
+  const saveExisting = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!existingFor || !user) return;
+    const f = existingForm;
+    const premium = f.premium.trim() ? Number(f.premium.replace(/\./g, '').replace(',', '.')) : null;
+    if (premium != null && Number.isNaN(premium)) return toast.error('Beitrag bitte als Zahl eingeben.');
+    const payload = {
+      sub_category: f.sub_category,
+      category: PRODUCTS.find((p) => p.sub === f.sub_category)?.category || 'other',
+      insurer: f.insurer.trim() || null,
+      policy_number: f.policy_number.trim() || null,
+      start_date: f.start_date || null,
+      premium,
+      notes: f.notes.trim() || null,
+    };
+    setSaving(true);
+    const { error } = existingFor.contract
+      ? await supabase.from('customer_contracts').update(payload).eq('id', existingFor.contract.id)
+      : await supabase.from('customer_contracts').insert({ ...payload, customer_id: existingFor.customer.id, created_by: user.id });
+    setSaving(false);
+    if (error) return toast.error('Vertrag konnte nicht gespeichert werden.');
+    toast.success(existingFor.contract ? 'Gespeichert' : 'Bestandsvertrag hinzugefügt');
+    setExistingFor(null);
+    load();
+  };
+
+  const deleteExisting = async () => {
+    const x = existingFor?.contract;
+    if (!x) return;
+    setSaving(true);
+    const { error } = await supabase.from('customer_contracts').delete().eq('id', x.id);
+    setSaving(false);
+    if (error) return toast.error('Vertrag konnte nicht gelöscht werden.');
+    toast.success('Bestandsvertrag entfernt');
+    setExistingFor(null);
+    load();
+  };
+
   const merge = async () => {
     if (!mergeFor || !mergeDrop) return;
     setBusy('merge');
@@ -310,6 +439,7 @@ export const Customers = () => {
           return s(a) - s(b) || fullName(a).localeCompare(fullName(b), 'de');
         })
     : [];
+  const setX = (k: keyof ExistingForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => setExistingForm((f) => ({ ...f, [k]: e.target.value }));
   const set = (k: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
   return (
@@ -382,6 +512,7 @@ export const Customers = () => {
                     <p className="flex flex-wrap items-center gap-2">
                       <span className="text-[15px] font-semibold text-gray-900 dark:text-white">{entryName(d.entry)}</span>
                       <Tag color={CATEGORY_COLORS[d.entry.category] || '#9AA39C'}>{product(d.entry)}</Tag>
+                      {d.entry.existing && <span className="text-2xs text-gray-500">Bestand{d.entry.existing.insurer ? `, ${d.entry.existing.insurer}` : ''}</span>}
                       {d.due && <StatusPill tone={d.daysLeft <= 7 ? 'red' : 'amber'} pulse={d.daysLeft <= 7}>{d.daysLeft === 0 ? 'heute' : `noch ${d.daysLeft} ${d.daysLeft === 1 ? 'Tag' : 'Tage'}`}</StatusPill>}
                     </p>
                     <p className="mt-0.5 text-xs text-gray-500">
@@ -463,6 +594,7 @@ export const Customers = () => {
               const c = r.customer;
               const isOpen = open === c.id;
               const household = isOpen ? householdOf(c) : [];
+              const canEdit = isAdmin || c.created_by === user?.id || (!!boss && c.created_by === boss) || r.entries.some(mineEntry);
               return (
                 <li key={c.id} id={`customer-${c.id}`} className="scroll-mt-20">
                   <button
@@ -482,7 +614,10 @@ export const Customers = () => {
                         {r.active.map((e) => (
                           <Tag key={e.id} color={CATEGORY_COLORS[e.category] || '#9AA39C'}>{product(e)}</Tag>
                         ))}
-                        {r.entries.length === 0 && <span className="text-xs text-gray-400">noch kein Vertrag</span>}
+                        {r.existing.map((x) => (
+                          <Tag key={x.id} color={CATEGORY_COLORS[x.category] || '#9AA39C'} className="!bg-transparent ring-1 ring-inset ring-gray-300 dark:ring-gray-600">{x.sub_category}</Tag>
+                        ))}
+                        {r.entries.length === 0 && r.existing.length === 0 && <span className="text-xs text-gray-400">noch kein Vertrag</span>}
                         {r.gaps.length > 0 && (
                           <span className="inline-flex items-center rounded-md border border-dashed border-amber-400 px-1.5 py-0.5 text-xs font-medium text-amber-700 dark:border-amber-600 dark:text-amber-300">
                             fehlt: {r.gaps.join(', ')}
@@ -547,9 +682,8 @@ export const Customers = () => {
                           {c.notes && <p className="whitespace-pre-line text-gray-600 dark:text-gray-300 sm:col-span-2">{c.notes}</p>}
                         </dl>
                         <div className="flex flex-wrap gap-1.5">
-                          {(isAdmin || c.created_by === user?.id || (!!boss && c.created_by === boss) || r.entries.some(mineEntry)) && (
-                            <Button size="sm" variant="secondary" icon={Pencil} onClick={() => openForm(c)}>Bearbeiten</Button>
-                          )}
+                          {canEdit && <Button size="sm" variant="secondary" icon={Pencil} onClick={() => openForm(c)}>Bearbeiten</Button>}
+                          {canEdit && <Button size="sm" variant="secondary" icon={Plus} onClick={() => openExisting(c, null)}>Bestandsvertrag</Button>}
                           <Button size="sm" variant="secondary" icon={Phone} onClick={() => { setCallbackFor(c); setCallbackTopic(''); }}>Rückruf</Button>
                           {isAdmin && <Button size="sm" variant="ghost" icon={GitMerge} onClick={() => { setMergeFor(c); setMergeDrop(''); }}>Zusammenführen</Button>}
                         </div>
@@ -624,6 +758,43 @@ export const Customers = () => {
                           </table>
                         </div>
                       )}
+
+                      {/* Bestandsverträge */}
+                      {r.existing.length > 0 && (
+                        <div className="overflow-x-auto">
+                          <p className="mb-1.5 text-xs font-semibold text-gray-500">Bestandsverträge <span className="font-normal">(zählen nicht zur Produktion)</span></p>
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="text-left text-xs text-gray-500 [&>th]:pb-2 [&>th]:font-medium">
+                                <th>Vertrag</th>
+                                <th>Gesellschaft</th>
+                                <th>Schein-Nr.</th>
+                                <th>Beginn</th>
+                                <th className="text-right">Beitrag</th>
+                                <th className="w-10"><span className="sr-only">Bearbeiten</span></th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {r.existing.map((x) => (
+                                <tr key={x.id} className="[&>td]:py-1.5">
+                                  <td><Tag color={CATEGORY_COLORS[x.category] || '#9AA39C'}>{x.sub_category}</Tag></td>
+                                  <td className="text-gray-700 dark:text-gray-200">{x.insurer || '–'}</td>
+                                  <td className="font-mono text-xs text-gray-600 dark:text-gray-300">{x.policy_number || '–'}</td>
+                                  <td className="text-gray-600 dark:text-gray-300">{x.start_date ? format(day(x.start_date), 'dd.MM.yy') : '–'}</td>
+                                  <td className="tabular text-right text-gray-700 dark:text-gray-200">{x.premium != null ? eur2.format(Number(x.premium)) : '–'}</td>
+                                  <td className="text-right">
+                                    {canEdit && (
+                                      <button type="button" onClick={() => openExisting(c, x)} className="btn-icon p-1.5" title="Bestandsvertrag bearbeiten" aria-label={`${x.sub_category} bearbeiten`}>
+                                        <Pencil className="h-4 w-4" />
+                                      </button>
+                                    )}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
                     </div>
                   )}
                 </li>
@@ -655,6 +826,43 @@ export const Customers = () => {
           <div className="flex justify-end gap-2">
             <Button type="button" variant="ghost" onClick={() => setEditing(null)}>Abbrechen</Button>
             <Button type="submit" loading={saving}>{editing === 'new' ? 'Anlegen' : 'Speichern'}</Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Bestandsvertrag */}
+      <Modal
+        isOpen={!!existingFor}
+        onClose={() => setExistingFor(null)}
+        title={existingFor?.contract ? 'Bestandsvertrag bearbeiten' : 'Bestandsvertrag hinzufügen'}
+        description={existingFor ? `${fullName(existingFor.customer)} · zählt für Lücken und Fristen, nicht für Produktion und Provision` : undefined}
+      >
+        <form onSubmit={saveExisting} className="space-y-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field label="Sparte" htmlFor="ex-sub">
+              <select id="ex-sub" value={existingForm.sub_category} onChange={setX('sub_category')} className="input">
+                {INSURANCE_TYPES.map((t) => (
+                  <optgroup key={t.id} label={t.label}>
+                    {t.subcategories.map((s) => <option key={s} value={s}>{s}</option>)}
+                  </optgroup>
+                ))}
+              </select>
+            </Field>
+            <Field label="Gesellschaft" htmlFor="ex-ins"><input id="ex-ins" value={existingForm.insurer} onChange={setX('insurer')} className="input" placeholder="z. B. Allianz" list="ex-insurers" /></Field>
+            <datalist id="ex-insurers">
+              {Array.from(new Set(existing.map((x) => x.insurer).filter(Boolean))).map((i) => <option key={i!} value={i!} />)}
+            </datalist>
+            <Field label="Schein-Nr." htmlFor="ex-pol"><input id="ex-pol" value={existingForm.policy_number} onChange={setX('policy_number')} className="input" /></Field>
+            <Field label="Beginn" htmlFor="ex-start" hint="Für die Kündigungsfrist"><input id="ex-start" type="date" value={existingForm.start_date} onChange={setX('start_date')} className="input" /></Field>
+            <Field label="Beitrag (€)" htmlFor="ex-prem"><input id="ex-prem" inputMode="decimal" value={existingForm.premium} onChange={setX('premium')} className="input" placeholder="z. B. 12,50" /></Field>
+            <Field label="Notizen" htmlFor="ex-notes" className="sm:col-span-2"><textarea id="ex-notes" rows={2} value={existingForm.notes} onChange={setX('notes')} className="input resize-none" /></Field>
+          </div>
+          <div className="flex items-center justify-between gap-2">
+            {existingFor?.contract ? <Button type="button" variant="ghost" onClick={deleteExisting} disabled={saving} className="text-red-600">Entfernen</Button> : <span />}
+            <div className="flex gap-2">
+              <Button type="button" variant="ghost" onClick={() => setExistingFor(null)}>Abbrechen</Button>
+              <Button type="submit" loading={saving}>{existingFor?.contract ? 'Speichern' : 'Hinzufügen'}</Button>
+            </div>
           </div>
         </form>
       </Modal>
