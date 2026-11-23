@@ -130,7 +130,12 @@ export const Customers = () => {
     setTimeout(() => document.getElementById(`customer-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
   }, [searchParams, loading, setSearchParams]);
 
-  const mineEntry = useCallback((e: Entry) => e.user_id === user?.id || e.managed_by === user?.id, [user?.id]);
+  // Azubis: Kunden des Chefs zählen wie eigene
+  const boss = profile?.is_vocational_student ? profile.boss_id || null : null;
+  const mineEntry = useCallback(
+    (e: Entry) => [user?.id, boss].some((id) => id && (e.user_id === id || e.managed_by === id)),
+    [user?.id, boss],
+  );
   const scopedEntries = useMemo(() => (scope === 'mine' ? entries.filter(mineEntry) : entries), [entries, scope, mineEntry]);
 
   // Kunden mit ihren Verträgen und Lücken
@@ -151,7 +156,7 @@ export const Customers = () => {
           name: fullName(c),
           entries: all,
           active,
-          mine: all.some(mineEntry) || (all.length === 0 && c.created_by === user?.id),
+          mine: all.some(mineEntry) || (all.length === 0 && (c.created_by === user?.id || (!!boss && c.created_by === boss))),
           cancelled: all.length - active.length,
           gaps: active.length ? CORE_PRODUCTS.filter((p) => !has.has(p)) : [],
           lv: active.reduce((a, e) => a + Number(e.life_values || 0), 0),
@@ -162,7 +167,7 @@ export const Customers = () => {
       })
       .filter((r) => scope === 'team' || r.mine)
       .sort((a, b) => a.name.localeCompare(b.name, 'de'));
-  }, [customers, entries, callbacks, scope, mineEntry, user?.id]);
+  }, [customers, entries, callbacks, scope, mineEntry, user?.id, boss]);
 
   const handled = useMemo(() => new Set(followups.map((f) => `${f.entry_id}|${f.due_date}`)), [followups]);
   const deadlines = useMemo(() => upcomingDeadlines(scopedEntries).filter((d) => !handled.has(d.key)), [scopedEntries, handled]);
@@ -542,7 +547,7 @@ export const Customers = () => {
                           {c.notes && <p className="whitespace-pre-line text-gray-600 dark:text-gray-300 sm:col-span-2">{c.notes}</p>}
                         </dl>
                         <div className="flex flex-wrap gap-1.5">
-                          {(isAdmin || c.created_by === user?.id || r.entries.some(mineEntry)) && (
+                          {(isAdmin || c.created_by === user?.id || (!!boss && c.created_by === boss) || r.entries.some(mineEntry)) && (
                             <Button size="sm" variant="secondary" icon={Pencil} onClick={() => openForm(c)}>Bearbeiten</Button>
                           )}
                           <Button size="sm" variant="secondary" icon={Phone} onClick={() => { setCallbackFor(c); setCallbackTopic(''); }}>Rückruf</Button>

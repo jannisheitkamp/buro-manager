@@ -30,6 +30,8 @@ export const ProfilePage = () => {
     const [avatarUrl, setAvatarUrl] = useState('');
     const [isVocationalStudent, setIsVocationalStudent] = useState(false);
     const [vocationalSchoolDays, setVocationalSchoolDays] = useState<{ dayOfWeek: number, type: 'full' | 'half' }[]>([]);
+    const [bossId, setBossId] = useState('');
+    const [colleagues, setColleagues] = useState<{ id: string; full_name: string | null }[]>([]);
     
     // Password State
     const [password, setPassword] = useState('');
@@ -67,6 +69,10 @@ export const ProfilePage = () => {
             setAvatarUrl(profile.avatar_url || '');
             setIsVocationalStudent(profile.is_vocational_student || false);
             setVocationalSchoolDays(profile.vocational_school_days || []);
+            setBossId(profile.boss_id || '');
+            supabase.from('profiles').select('id, full_name, is_approved').order('full_name').then(({ data }) =>
+                setColleagues((data || []).filter((p) => p.id !== profile.id && p.is_approved !== false)),
+            );
             fetchUserRates();
             fetchBadges();
         }
@@ -189,6 +195,7 @@ export const ProfilePage = () => {
                     ...(isAdmin ? { total_vacation_days: totalVacationDays } : {}),
                     is_vocational_student: isVocationalStudent, // Save
                     vocational_school_days: vocationalSchoolDays, // Save
+                    boss_id: isVocationalStudent ? bossId || null : null,
                     avatar_url: avatarUrl 
                 })
                 .eq('id', user.id);
@@ -504,6 +511,22 @@ export const ProfilePage = () => {
                                     <span className="text-sm font-bold text-gray-900 dark:text-white">Ich besuche eine Berufsschule</span>
                                 </label>
                                 
+                                {isVocationalStudent && (
+                                    <div className="mb-3 bg-gray-50 dark:bg-gray-900/50 p-4 rounded-xl">
+                                        <label htmlFor="pf-boss" className="block text-sm font-bold text-gray-900 dark:text-white">Mein Chef</label>
+                                        <p className="mt-0.5 mb-2 text-xs text-gray-500">Du darfst die Kunden deines Chefs bearbeiten und siehst sie unter „Meine“.</p>
+                                        <select
+                                            id="pf-boss"
+                                            value={bossId}
+                                            onChange={e => setBossId(e.target.value)}
+                                            className="w-full rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 px-4 py-2.5 text-sm"
+                                        >
+                                            <option value="">Kein Chef ausgewählt</option>
+                                            {colleagues.map(c => <option key={c.id} value={c.id}>{c.full_name}</option>)}
+                                        </select>
+                                    </div>
+                                )}
+
                                 {isVocationalStudent && (
                                     <div className="space-y-3 bg-gray-50 dark:bg-gray-900/50 p-4 rounded-xl">
                                         <p className="text-xs text-gray-500 mb-2 leading-relaxed">

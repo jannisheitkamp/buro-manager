@@ -17,6 +17,8 @@ export type Profile = {
   roles: string[];
   /** Vorgesetzte: dürfen Abwesenheiten genehmigen */
   supervisor_ids?: string[];
+  /** Azubis: Chef, dessen Kunden sie bearbeiten dürfen */
+  boss_id?: string | null;
   address?: string | null;
   is_approved?: boolean;
   phone?: string | null;
