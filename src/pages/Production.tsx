@@ -1,12 +1,12 @@
-import { useEffect, useState } from 'react';
-import { openStoredFile } from '@/lib/storage';
+import { useEffect, useMemo, useState } from 'react';
+import { ContractDocuments, DOC_KINDS, uploadContractDocument, type DocKind } from '@/components/ContractDocuments';
 import { supabase } from '@/lib/supabase';
 import { useStore } from '@/store/useStore';
 import { useLocation } from 'react-router-dom';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { Menu as MenuRoot, MenuButton, MenuItem, MenuItems } from '@headlessui/react';
-import { Plus, Search, FileText, Trash2, Download, Pencil, FileDown, Trophy, LayoutGrid, Sparkles, Loader2, UploadCloud, FileSpreadsheet, ChevronDown, CalendarRange, Hourglass, ListChecks, X, CalendarClock, Check } from 'lucide-react';
+import { Plus, Search, FileText, Trash2, Pencil, FileDown, Trophy, LayoutGrid, Sparkles, Loader2, UploadCloud, FileSpreadsheet, ChevronDown, CalendarRange, Hourglass, ListChecks, X, CalendarClock, Check } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { Modal } from '@/components/Modal';
 import { ConfirmModal } from '@/components/ConfirmModal';
@@ -83,17 +83,10 @@ export const Production = () => {
   const [markingCourtage, setMarkingCourtage] = useState(false);
   const [courtagePayouts, setCourtagePayouts] = useState<CourtagePayout[]>([]);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [documentUrl, setDocumentUrl] = useState<string | null>(null);
+  const [newDocKind, setNewDocKind] = useState<DocKind>('antrag');
+  const [docCounts, setDocCounts] = useState<Map<string, number>>(new Map());
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
-  const openProductionDoc = (pathOrUrl: string) => {
-      if (!pathOrUrl) return;
-      if (/^https?:\/\//.test(pathOrUrl) && !pathOrUrl.includes('/storage/v1/object/')) {
-          window.open(pathOrUrl, '_blank', 'noopener,noreferrer');
-          return;
-      }
-      openStoredFile('production_docs', pathOrUrl);
-  };
 
   // Dropzone for PDF Analysis
   const onDrop = async (acceptedFiles: File[]) => {
@@ -380,6 +373,10 @@ export const Production = () => {
     }
     const { data: payouts } = await supabase.from('courtage_payouts').select('entry_id, year, received_date');
     setCourtagePayouts(payouts || []);
+    const { data: docs } = await supabase.from('contract_documents').select('entry_id');
+    const counts = new Map<string, number>();
+    (docs || []).forEach((d: { entry_id: string }) => counts.set(d.entry_id, (counts.get(d.entry_id) || 0) + 1));
+    setDocCounts(counts);
     setLoading(false);
   };
 
@@ -404,30 +401,6 @@ export const Production = () => {
     setSubmitting(true);
 
     try {
-        let finalDocumentUrl = documentUrl;
-
-        // Upload file if selected
-        if (selectedFile) {
-            try {
-                const fileExt = selectedFile.name.split('.').pop();
-                const safeExt = fileExt ? fileExt : 'bin';
-                const fileName = `${user.id}/${crypto.randomUUID()}.${safeExt}`;
-
-                const { error: uploadError } = await supabase.storage
-                    .from('production_docs')
-                    .upload(fileName, selectedFile, { upsert: true });
-
-                if (uploadError) {
-                    toast.error(`Dokument Upload fehlgeschlagen: ${uploadError.message}`);
-                } else {
-                    finalDocumentUrl = fileName;
-                }
-            } catch (e) {
-                const msg = (e as Error)?.message || 'Unbekannter Fehler';
-                toast.error(`Dokument Upload fehlgeschlagen: ${msg}`);
-            }
-        }
-
         const basePayload = {
             managed_by: managedBy || closedBy || user.id, // Can be another user
             submission_date: submissionDate,
@@ -454,7 +427,6 @@ export const Production = () => {
             notes,
             life_values: lifeValues,
             life_value_factor: lifeValueFactor,
-            document_url: finalDocumentUrl
         };
 
         if (editingId) {
@@ -463,35 +435,26 @@ export const Production = () => {
                 .from('production_entries')
                 .update(basePayload)
                 .eq('id', editingId);
-            if (error) {
-                if (error.message?.toLowerCase().includes('document_url') && error.message?.toLowerCase().includes('column')) {
-                    toast.error('Dokumente sind in der DB noch nicht aktiviert. Bitte SQL Migration ausführen.');
-                    const { error: retryError } = await supabase
-                        .from('production_entries')
-                        .update({ ...basePayload, document_url: undefined })
-                        .eq('id', editingId);
-                    if (retryError) throw retryError;
-                } else {
-                    throw error;
-                }
-            }
+            if (error) throw error;
             toast.success('Vertrag aktualisiert!');
         } else {
-            const { error } = await supabase
+            const { data: created, error } = await supabase
                 .from('production_entries')
-                .insert({ ...basePayload, user_id: user.id });
+                .insert({ ...basePayload, user_id: user.id })
+                .select('id')
+                .single();
 
             if (error) {
-                if (error.message?.toLowerCase().includes('document_url') && error.message?.toLowerCase().includes('column')) {
-                    toast.error('Dokumente sind in der DB noch nicht aktiviert. Bitte SQL Migration ausführen.');
-                    const { error: retryError } = await supabase
-                        .from('production_entries')
-                        .insert({ ...basePayload, document_url: undefined, user_id: user.id });
-                    if (retryError) throw retryError;
-                } else if (error.message?.toLowerCase().includes('row-level security')) {
+                if (error.message?.toLowerCase().includes('row-level security')) {
                     throw new Error('Keine Berechtigung (RLS): Du kannst nur Verträge für deinen User speichern.');
-                } else {
-                    throw error;
+                }
+                throw error;
+            }
+            if (selectedFile && created?.id) {
+                try {
+                    await uploadContractDocument(created.id, user.id, selectedFile, newDocKind);
+                } catch (e) {
+                    toast.error(`Dokument Upload fehlgeschlagen: ${(e as Error)?.message || 'Unbekannter Fehler'}`);
                 }
             }
             toast.success('Vertrag erfasst!');
@@ -532,7 +495,7 @@ export const Production = () => {
       // Lebenswerte und Faktor berechnet der Effekt neu; hier auf 0 setzen würde den Faktor bis zur nächsten Eingabe auf 0 lassen
       setManualLvFactor(null);
       setSelectedFile(null);
-      setDocumentUrl(null);
+      setNewDocKind('antrag');
       // Reset category to defaults if needed
   };
 
@@ -563,12 +526,24 @@ export const Production = () => {
       setLifeValueFactor(entry.life_value_factor || 0);
       // Gespeicherten Faktor übernehmen, damit eine frühere Handeingabe nicht verloren geht
       setManualLvFactor(entry.life_value_factor ?? null);
-      setDocumentUrl(entry.document_url || null);
       setSelectedFile(null);
       
 
       setIsModalOpen(true);
   };
+
+  // Vorschläge für den Kundennamen: alle bekannten Kunden aus den Verträgen
+  const customerOptions = useMemo(() => {
+      const map = new Map<string, { label: string; last: string; first: string }>();
+      entries.forEach((e: { customer_name?: string | null; customer_firstname?: string | null }) => {
+          const last = (e.customer_name || '').trim();
+          if (!last) return;
+          const first = (e.customer_firstname || '').trim();
+          const label = first ? `${last}, ${first}` : last;
+          if (!map.has(label.toLowerCase())) map.set(label.toLowerCase(), { label, last, first });
+      });
+      return [...map.values()].sort((a, b) => a.label.localeCompare(b.label, 'de'));
+  }, [entries]);
 
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
@@ -576,11 +551,12 @@ export const Production = () => {
 
   const confirmDelete = async () => {
       if (!deleteId) return;
-      const doc = entries.find((e) => e.id === deleteId)?.document_url;
+      const { data: docs } = await supabase.from('contract_documents').select('file_path').eq('entry_id', deleteId);
+      const files = (docs || []).map((d: { file_path: string }) => d.file_path).filter((f: string) => !f.startsWith('http'));
       const { error } = await supabase.from('production_entries').delete().eq('id', deleteId);
       if (error) toast.error('Vertrag konnte nicht gelöscht werden.');
       else {
-          if (doc && !doc.startsWith('http')) await supabase.storage.from('production_docs').remove([doc]);
+          if (files.length) await supabase.storage.from('production_docs').remove(files);
           toast.success('Vertrag gelöscht');
           fetchEntries();
       }
@@ -736,6 +712,14 @@ export const Production = () => {
   const goalExpected = selectedYear === thisYear
       ? (Date.now() - new Date(thisYear, 0, 1).getTime()) / (new Date(thisYear + 1, 0, 1).getTime() - new Date(thisYear, 0, 1).getTime())
       : selectedYear !== 'all' && selectedYear < thisYear ? 1 : null;
+
+  // Hochrechnung bis Jahresende (laufendes Jahr, frühestens ab einem Monat Laufzeit sinnvoll)
+  const forecast = selectedYear === thisYear && goalExpected !== null
+      ? (() => {
+          const share = Math.max(goalExpected, 1 / 12);
+          return { commission: totalCommission / share, lifeValues: shownLifeValues / share, remainingMonths: 12 - new Date().getMonth() };
+      })()
+      : null;
 
   // Jahresziel Lebenswerte (eigenes Profil), nur für ein einzelnes Jahr
   const myGoalProfile = profiles.find(p => p.id === user?.id);
@@ -1163,6 +1147,7 @@ export const Production = () => {
                         months={heroMonths}
                         contractCount={activeEntries.length}
                         cancelledCount={cancelledCount}
+                        forecast={forecast}
                     />
                     <CourtagePanel
                         year={courtageYearSel}
@@ -1270,9 +1255,10 @@ export const Production = () => {
                                                                 </span>
                                                                 <span className="font-mono">{entry.policy_number || 'ohne Nr.'}</span>
                                                                 <span>{format(new Date(entry.submission_date), 'dd.MM.yy')}</span>
-                                                                {entry.document_url && (
-                                                                    <button type="button" onClick={() => openProductionDoc(entry.document_url)} className="rounded p-0.5 text-brand-600 hover:bg-brand-50 dark:text-brand-300 dark:hover:bg-brand-900/40" title="Dokument öffnen" aria-label="Dokument öffnen">
+                                                                {(docCounts.get(entry.id) || 0) > 0 && (
+                                                                    <button type="button" onClick={() => handleEdit(entry)} className="inline-flex items-center gap-0.5 rounded p-0.5 text-brand-600 hover:bg-brand-50 dark:text-brand-300 dark:hover:bg-brand-900/40" title="Dokumente ansehen" aria-label={`${docCounts.get(entry.id)} Dokumente ansehen`}>
                                                                         <FileText className="h-3.5 w-3.5" />
+                                                                        {(docCounts.get(entry.id) || 0) > 1 && <span className="tabular text-2xs font-semibold">{docCounts.get(entry.id)}</span>}
                                                                     </button>
                                                                 )}
                                                             </span>
@@ -1474,7 +1460,17 @@ export const Production = () => {
                         </fieldset>
 
                         <div className="grid grid-cols-2 gap-4">
-                            <Field label="Nachname" htmlFor="pf-name"><input id="pf-name" required type="text" value={customerName} onChange={e => setCustomerName(e.target.value)} className="input" /></Field>
+                            <Field label="Nachname" htmlFor="pf-name" hint={!editingId ? 'Bestehende Kunden werden vorgeschlagen' : undefined}>
+                                <input id="pf-name" required type="text" list="pf-customers" autoComplete="off" value={customerName} onChange={e => {
+                                    const v = e.target.value;
+                                    const match = customerOptions.find(o => o.label === v);
+                                    if (match) { setCustomerName(match.last); setCustomerFirstname(match.first); }
+                                    else setCustomerName(v);
+                                }} className="input" />
+                                <datalist id="pf-customers">
+                                    {customerOptions.map(o => <option key={o.label} value={o.label} />)}
+                                </datalist>
+                            </Field>
                             <Field label="Vorname" htmlFor="pf-first"><input id="pf-first" type="text" value={customerFirstname} onChange={e => setCustomerFirstname(e.target.value)} className="input" /></Field>
                             <Field label="Versicherungsschein-Nr." htmlFor="pf-policy"><input id="pf-policy" type="text" value={policyNumber} onChange={e => setPolicyNumber(e.target.value)} className="input font-mono" /></Field>
                             <Field label="Status" htmlFor="pf-status">
@@ -1558,12 +1554,17 @@ export const Production = () => {
                                 <Field label="Vertragsbeginn" htmlFor="pf-start"><input id="pf-start" type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="input" /></Field>
                                 <Field label="Policiert am" htmlFor="pf-policed"><input id="pf-policed" type="date" value={policingDate} onChange={e => setPolicingDate(e.target.value)} className="input" /></Field>
                                 <Field label="Provision erhalten am" htmlFor="pf-received"><input id="pf-received" type="date" value={commissionReceivedDate} onChange={e => setCommissionReceivedDate(e.target.value)} className="input" /></Field>
-                                <Field label="Dokument (Antrag, Protokoll)" htmlFor="pf-file">
-                                    <div className="flex items-center gap-2">
+                                {editingId ? (
+                                    <Field label="Dokumente" className="sm:col-span-2">
+                                        <ContractDocuments entryId={editingId} />
+                                    </Field>
+                                ) : (
+                                <Field label="Dokument (Police, Antrag, Protokoll)" htmlFor="pf-file" className="sm:col-span-2">
+                                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                                        <select value={newDocKind} onChange={e => setNewDocKind(e.target.value as DocKind)} className="input sm:w-48" aria-label="Art des Dokuments">
+                                            {DOC_KINDS.map(k => <option key={k.value} value={k.value}>{k.label}</option>)}
+                                        </select>
                                         <input id="pf-file" type="file" onChange={e => setSelectedFile(e.target.files?.[0] || null)} className="block w-full text-xs text-gray-500 file:mr-3 file:rounded-md file:border-0 file:bg-gray-100 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-gray-700 hover:file:bg-gray-200 dark:file:bg-gray-700 dark:file:text-gray-200" />
-                                        {documentUrl && !selectedFile && (
-                                            <button type="button" onClick={() => openProductionDoc(documentUrl)} className="btn-ghost btn-sm shrink-0"><Download className="h-3.5 w-3.5" /> Öffnen</button>
-                                        )}
                                     </div>
                                     {selectedFile && (
                                         <button type="button" onClick={handleAIAnalysis} disabled={isAnalyzing} className="btn-secondary btn-sm mt-2">
@@ -1572,6 +1573,7 @@ export const Production = () => {
                                         </button>
                                     )}
                                 </Field>
+                                )}
                                 <Field label="Bemerkungen" htmlFor="pf-notes" className="sm:col-span-2">
                                     <textarea id="pf-notes" value={notes} onChange={e => setNotes(e.target.value)} rows={3} className="input resize-none" />
                                 </Field>

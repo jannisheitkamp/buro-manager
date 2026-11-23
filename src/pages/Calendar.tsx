@@ -359,20 +359,10 @@ export const Calendar = () => {
   // --- End Vacation Stats Logic ---
 
   const isAdmin = profile?.roles?.includes('admin');
-  const myRoles = profile?.roles || [];
-
   const checkCanModerate = (targetProfile?: Profile) => {
     if (!targetProfile) return false;
     if (isAdmin) return true;
-    
-    const targetRoles = targetProfile.roles || [];
-
-    // Custom permission logic based on roles
-    if (myRoles.includes('tim') && targetRoles.includes('jannis')) return true;
-    if (myRoles.includes('morris') && targetRoles.includes('flori')) return true;
-    if (myRoles.includes('vaupel') && (targetRoles.includes('marcio') || targetRoles.includes('lucas'))) return true;
-
-    return false;
+    return !!user && targetProfile.id !== user.id && (targetProfile.supervisor_ids || []).includes(user.id);
   };
 
   const handleDelete = async () => {

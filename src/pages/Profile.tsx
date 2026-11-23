@@ -30,6 +30,8 @@ export const ProfilePage = () => {
     const [avatarUrl, setAvatarUrl] = useState('');
     const [isVocationalStudent, setIsVocationalStudent] = useState(false);
     const [vocationalSchoolDays, setVocationalSchoolDays] = useState<{ dayOfWeek: number, type: 'full' | 'half' }[]>([]);
+    const [bossId, setBossId] = useState('');
+    const [colleagues, setColleagues] = useState<{ id: string; full_name: string | null }[]>([]);
     
     // Password State
     const [password, setPassword] = useState('');
@@ -67,6 +69,10 @@ export const ProfilePage = () => {
             setAvatarUrl(profile.avatar_url || '');
             setIsVocationalStudent(profile.is_vocational_student || false);
             setVocationalSchoolDays(profile.vocational_school_days || []);
+            setBossId(profile.boss_id || '');
+            supabase.from('profiles').select('id, full_name, is_approved').order('full_name').then(({ data }) =>
+                setColleagues((data || []).filter((p) => p.id !== profile.id && p.is_approved !== false)),
+            );
             fetchUserRates();
             fetchBadges();
         }
@@ -187,7 +193,8 @@ export const ProfilePage = () => {
                     yearly_goal: yearlyGoal, // Save
                     // Jahresurlaub legt nur ein Admin fest (die Datenbank ignoriert es sonst ohnehin)
                     ...(isAdmin ? { total_vacation_days: totalVacationDays } : {}),
-                    is_vocational_student: isVocationalStudent, // Save
+                    // Azubi-Status und Chef legt nur ein Admin fest
+                    ...(isAdmin ? { is_vocational_student: isVocationalStudent, boss_id: isVocationalStudent ? bossId || null : null } : {}),
                     vocational_school_days: vocationalSchoolDays, // Save
                     avatar_url: avatarUrl 
                 })
@@ -494,16 +501,35 @@ export const ProfilePage = () => {
                             </div>
 
                             <div className="pt-4 border-t border-gray-100 dark:border-gray-700">
-                                <label className="flex items-center gap-3 cursor-pointer mb-4">
+                                <label className={`flex items-center gap-3 mb-4 ${isAdmin ? 'cursor-pointer' : 'cursor-not-allowed'}`} title={isAdmin ? undefined : 'Wird von einem Admin festgelegt'}>
                                     <input 
                                         type="checkbox" 
                                         checked={isVocationalStudent}
+                                        disabled={!isAdmin}
                                         onChange={e => setIsVocationalStudent(e.target.checked)}
-                                        className="w-5 h-5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-600"
+                                        className="w-5 h-5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-600 disabled:opacity-60"
                                     />
                                     <span className="text-sm font-bold text-gray-900 dark:text-white">Ich besuche eine Berufsschule</span>
+                                    {!isAdmin && <span className="text-xs font-normal text-gray-500">legt ein Admin fest</span>}
                                 </label>
                                 
+                                {isVocationalStudent && (
+                                    <div className="mb-3 bg-gray-50 dark:bg-gray-900/50 p-4 rounded-xl">
+                                        <label htmlFor="pf-boss" className="block text-sm font-bold text-gray-900 dark:text-white">Mein Chef</label>
+                                        <p className="mt-0.5 mb-2 text-xs text-gray-500">Du darfst die Kunden deines Chefs bearbeiten und siehst sie unter „Meine“.{!isAdmin && ' Festgelegt von einem Admin.'}</p>
+                                        <select
+                                            id="pf-boss"
+                                            disabled={!isAdmin}
+                                            value={bossId}
+                                            onChange={e => setBossId(e.target.value)}
+                                            className="w-full rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 px-4 py-2.5 text-sm disabled:opacity-70"
+                                        >
+                                            <option value="">Kein Chef festgelegt</option>
+                                            {colleagues.map(c => <option key={c.id} value={c.id}>{c.full_name}</option>)}
+                                        </select>
+                                    </div>
+                                )}
+
                                 {isVocationalStudent && (
                                     <div className="space-y-3 bg-gray-50 dark:bg-gray-900/50 p-4 rounded-xl">
                                         <p className="text-xs text-gray-500 mb-2 leading-relaxed">

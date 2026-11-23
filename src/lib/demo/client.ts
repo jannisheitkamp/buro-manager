@@ -207,6 +207,7 @@ class Query implements PromiseLike<Result> {
         if (keyOf(t).includes('id') && !v.id) v.id = uuid();
         if (!('created_at' in v)) v.created_at = new Date().toISOString();
         if (t === 'absences') applyAbsenceRules(v);
+        if (t === 'production_entries') linkCustomer(v);
         const key = keyOf(t);
         const existing = rows.find((r) => key.every((k) => String(r[k]) === String(v[k])));
         if (existing) {
@@ -221,8 +222,16 @@ class Query implements PromiseLike<Result> {
     } else if (this.mode === 'update') {
       affected = rows.filter((r) => this.match_(r));
       affected.forEach((r) => {
+        const before = { name: r.customer_name, first: r.customer_firstname };
         Object.assign(r, this.payload);
         if (t === 'absences') applyAbsenceRules(r);
+        if (t === 'production_entries' && (before.name !== r.customer_name || before.first !== r.customer_firstname)) {
+          r.customer_id = null;
+          linkCustomer(r);
+        }
+        if (t === 'customers') {
+          table('production_entries').filter((e) => e.customer_id === r.id).forEach((e) => { e.customer_name = r.last_name; e.customer_firstname = r.first_name; });
+        }
       });
     } else if (this.mode === 'delete') {
       affected = rows.filter((r) => this.match_(r));
@@ -300,6 +309,19 @@ const channel = () => {
   return ch;
 };
 
+// Wie der Datenbank-Trigger: Vertrag ohne Kunde bekommt einen passenden oder neuen Kunden
+const nameKey = (last?: string | null, first?: string | null) => `${(last || '').trim().toLowerCase()}|${(first || '').trim().toLowerCase()}`;
+function linkCustomer(e: Row) {
+  if (e.customer_id || !e.customer_name?.trim()) return;
+  const k = nameKey(e.customer_name, e.customer_firstname);
+  let c = table('customers').find((x) => nameKey(x.last_name, x.first_name) === k);
+  if (!c) {
+    c = { id: uuid(), created_at: new Date().toISOString(), created_by: DEMO_USER_ID, last_name: e.customer_name.trim(), first_name: e.customer_firstname?.trim() || null, birth_date: null, phone: null, email: null, address: null, household: null, notes: null };
+    table('customers').push(c);
+  }
+  e.customer_id = c.id;
+}
+
 const PIXEL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
 
 export const createDemoClient = (): any => {
@@ -308,6 +330,17 @@ export const createDemoClient = (): any => {
   from: (name: string) => new Query(name),
   rpc: (fn: string, args?: Row) => {
     if (fn === 'team_absences') return new Query('absences');
+    if (fn === 'merge_customers') {
+      const keep = table('customers').find((x) => x.id === args?.p_keep);
+      const drop = table('customers').find((x) => x.id === args?.p_drop);
+      if (keep && drop && keep !== drop) {
+        for (const f of ['birth_date', 'phone', 'email', 'address', 'household', 'notes']) keep[f] = keep[f] ?? drop[f];
+        table('production_entries').filter((e) => e.customer_id === drop.id).forEach((e) => { e.customer_id = keep.id; e.customer_name = keep.last_name; e.customer_firstname = keep.first_name; });
+        table('callbacks').filter((c) => c.customer_id === drop.id).forEach((c) => { c.customer_id = keep.id; });
+        db.customers = table('customers').filter((x) => x !== drop);
+      }
+      return Promise.resolve({ data: null, error: null });
+    }
     if (fn === 'get_my_webhook_secret') return Promise.resolve({ data: 'demo-geheimnis', error: null });
     if (fn === 'respond_reception_swap') {
       const s = table('reception_swaps').find((x) => x.id === args?.p_swap_id);
