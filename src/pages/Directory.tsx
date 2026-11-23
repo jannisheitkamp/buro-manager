@@ -57,6 +57,8 @@ export const Directory = () => {
   const [editingProfile, setEditingProfile] = useState<Profile | null>(null);
   const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
   const [selectedSupervisors, setSelectedSupervisors] = useState<string[]>([]);
+  const [isTrainee, setIsTrainee] = useState(false);
+  const [bossId, setBossId] = useState('');
   const [newGroup, setNewGroup] = useState('');
   const [view, setView] = useState<'all' | 'pending'>('all');
   const [selectedUser, setSelectedUser] = useState<(Profile & { status?: UserStatus }) | null>(null);
@@ -125,6 +127,8 @@ export const Directory = () => {
     setEditingProfile(profile);
     setSelectedRoles(profile.roles || []);
     setSelectedSupervisors(profile.supervisor_ids || []);
+    setIsTrainee(!!profile.is_vocational_student);
+    setBossId(profile.boss_id || '');
     setNewGroup('');
   };
 
@@ -134,7 +138,7 @@ export const Directory = () => {
     try {
       const { error } = await supabase
         .from('profiles')
-        .update({ roles: selectedRoles, supervisor_ids: selectedSupervisors })
+        .update({ roles: selectedRoles, supervisor_ids: selectedSupervisors, is_vocational_student: isTrainee, boss_id: isTrainee ? bossId || null : null })
         .eq('id', editingProfile.id);
 
       if (error) throw error;
@@ -474,7 +478,7 @@ export const Directory = () => {
       <Modal
         isOpen={!!editingProfile}
         onClose={() => setEditingProfile(null)}
-        title="Rollen & Vorgesetzte"
+        title="Rollen, Vorgesetzte & Azubi"
       >
         <div className="space-y-6">
             <div className="flex items-center gap-3 p-4 bg-gray-50 dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700">
@@ -562,6 +566,25 @@ export const Directory = () => {
                         );
                     })}
                 </div>
+            </div>
+
+            <div>
+                <label className="flex items-center gap-3 cursor-pointer">
+                    <input type="checkbox" checked={isTrainee} onChange={e => setIsTrainee(e.target.checked)} className="w-5 h-5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-600" />
+                    <span className="text-sm font-semibold text-gray-900 dark:text-white">Azubi (Berufsschule)</span>
+                </label>
+                {isTrainee && (
+                    <div className="mt-3">
+                        <label htmlFor="dir-boss" className="text-xs font-semibold uppercase tracking-wide text-gray-500">Chef</label>
+                        <p className="text-xs text-gray-500 mt-1 mb-2">Der Azubi darf die Kunden dieser Person bearbeiten.</p>
+                        <select id="dir-boss" value={bossId} onChange={e => setBossId(e.target.value)} className="input">
+                            <option value="">Kein Chef</option>
+                            {profiles.filter(p => p.id !== editingProfile?.id && p.is_approved !== false).map(p => (
+                                <option key={p.id} value={p.id}>{p.full_name || p.email}</option>
+                            ))}
+                        </select>
+                    </div>
+                )}
             </div>
 
             <div className="flex justify-end gap-3 pt-2">
