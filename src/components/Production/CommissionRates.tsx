@@ -87,7 +87,7 @@ export const CommissionRates = ({ myRates, onSaved }: Props) => {
     setSaving(true);
     const { error } = edit.product
       ? await supabase.from('insurance_products').update(payload).eq('id', edit.product.id)
-      : await supabase.from('insurance_products').insert({ ...payload, active: true, created_by: user.id, ...(isAdmin ? {} : { default_rate: rate }) });
+      : await supabase.from('insurance_products').insert({ ...payload, active: true, created_by: user.id });
     setSaving(false);
     if (error) return toast.error(error.code === '23505' ? 'Dieses Produkt gibt es schon.' : 'Produkt konnte nicht gespeichert werden.');
     toast.success(edit.product ? 'Produkt gespeichert' : 'Produkt angelegt, für alle sichtbar');
@@ -217,24 +217,29 @@ export const CommissionRates = ({ myRates, onSaved }: Props) => {
                   {METHODS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
                 </select>
               </Field>
-              {(isAdmin || !edit.product) && (
-                <Field label={`Team-Standard (${methodOf(edit.calc_method).unit})`} htmlFor="pe-rate" hint={isAdmin ? undefined : 'Ein Admin kann ihn später anpassen'}>
+              {isAdmin && (
+                <Field label={`Team-Standard (${methodOf(edit.calc_method).unit})`} htmlFor="pe-rate">
                   <input id="pe-rate" inputMode="decimal" value={edit.default_rate} onChange={(e) => setEdit({ ...edit, default_rate: e.target.value })} className="input tabular" />
                 </Field>
               )}
+              {isAdmin && (
               <Field label="Faktor Lebenswerte" htmlFor="pe-lv">
                 <input id="pe-lv" inputMode="decimal" value={edit.lv_factor} onChange={(e) => setEdit({ ...edit, lv_factor: e.target.value })} className="input tabular" />
               </Field>
+              )}
+              {isAdmin && (
               <Field label="Schließt Lücke" htmlFor="pe-gap" hint="z. B. Grundfähigkeit schließt die Lücke Arbeitskraft (BU)">
                 <select id="pe-gap" value={edit.gap_group} onChange={(e) => setEdit({ ...edit, gap_group: e.target.value })} className="input">
                   <option value="">keine</option>
                   {Object.entries(GAP_GROUP_LABELS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
                 </select>
               </Field>
+              )}
               <Field label="Suchbegriffe" htmlFor="pe-alias" hint="Weitere Wörter, unter denen man es findet">
                 <input id="pe-alias" value={edit.aliases} onChange={(e) => setEdit({ ...edit, aliases: e.target.value })} className="input" />
               </Field>
             </div>
+            {!isAdmin && <p className="text-xs text-gray-500">Team-Standard und Lebenswerte-Faktor kommen vom Bereich, ein Admin kann sie anpassen. Deinen eigenen Satz trägst du danach in der Liste ein.</p>}
             {edit.product && isAdmin && (
               <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
                 <input type="checkbox" checked={!edit.active} onChange={(e) => setEdit({ ...edit, active: !e.target.checked })} className="rounded" />
