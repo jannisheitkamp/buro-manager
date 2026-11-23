@@ -8,8 +8,8 @@ export const DEMO_USER_ID = '00000000-0000-4000-8000-000000000001';
 
 const TEAM = [
   { id: DEMO_USER_ID, first: 'Alex', last: 'Berger', roles: ['admin', 'employee'], ext: '21' },
-  { id: '00000000-0000-4000-8000-000000000002', first: 'Mia', last: 'Schulte', roles: ['employee'], ext: '22' },
-  { id: '00000000-0000-4000-8000-000000000003', first: 'Jonas', last: 'Keller', roles: ['employee'], ext: '23' },
+  { id: '00000000-0000-4000-8000-000000000002', first: 'Mia', last: 'Schulte', roles: ['employee', 'gruppe_vertrieb'], ext: '22' },
+  { id: '00000000-0000-4000-8000-000000000003', first: 'Jonas', last: 'Keller', roles: ['employee', 'gruppe_vertrieb'], ext: '23' },
   { id: '00000000-0000-4000-8000-000000000004', first: 'Lena', last: 'Hoffmann', roles: ['employee'], ext: '24' },
   { id: '00000000-0000-4000-8000-000000000005', first: 'Tom', last: 'Richter', roles: ['selbststaendig'], ext: '25' },
   { id: '00000000-0000-4000-8000-000000000006', first: 'Sara', last: 'Yilmaz', roles: ['employee'], ext: '26' },
@@ -112,6 +112,7 @@ export function createSeed(): DemoDb {
     avatar_url: null,
     created_at: new Date(Y - 1, 2 + i, 3).toISOString(),
     roles: t.roles,
+    supervisor_ids: t.id === ME ? [] : [ME],
     address: null,
     is_approved: true,
     agency_number: String(100200300 + i * 111),
@@ -341,8 +342,66 @@ export function createSeed(): DemoDb {
     { badge_name: '100 Verträge', badge_icon: '🏆', badge_color: 'amber', description: '100 Verträge erfasst', awarded_at: at(-90, 9) },
   ].map((b) => ({ id: crypto.randomUUID(), user_id: ME, ...b }));
 
+  // Kunden aus den Verträgen, mit ein paar Stammdaten
+  const customerRows: any[] = [];
+  const byKey = new Map<string, any>();
+  const streets = ['Lindenweg', 'Hauptstraße', 'Am Markt', 'Schulstraße', 'Gartenstraße', 'Bahnhofstraße'];
+  for (const e of production) {
+    const k = `${e.customer_name.toLowerCase()}|${(e.customer_firstname || '').toLowerCase()}`;
+    let c = byKey.get(k);
+    if (!c) {
+      const i = customerRows.length;
+      // Geburtstag: einige in den nächsten Tagen, der Rest übers Jahr verteilt
+      const soon = i % 7 === 2 ? [0, 3, 9][Math.floor(i / 7) % 3] : null;
+      const birth = soon !== null ? addDays(soon) : new Date(Y, Math.floor(between(0, 12)), Math.floor(between(1, 28)));
+      birth.setFullYear(Y - Math.floor(between(24, 68)));
+      c = {
+        id: crypto.randomUUID(),
+        created_at: e.created_at,
+        created_by: e.user_id,
+        last_name: e.customer_name,
+        first_name: e.customer_firstname,
+        birth_date: ymd(birth),
+        phone: i % 4 === 3 ? null : `0231 ${Math.floor(between(1000000, 9999999))}`,
+        email: i % 3 === 0 ? `${e.customer_firstname.toLowerCase()}.${e.customer_name.toLowerCase()}@example.com`.replace(/[äöüß]/g, (m: string) => ({ ä: 'ae', ö: 'oe', ü: 'ue', ß: 'ss' })[m] as string) : null,
+        address: `${pick(streets)} ${Math.floor(between(1, 80))}, 44135 Dortmund`,
+        household: null,
+        notes: null,
+      };
+      byKey.set(k, c);
+      customerRows.push(c);
+    }
+    e.customer_id = c.id;
+  }
+  // Ein Haushalt mit zwei Personen gleichen Nachnamens
+  const families = new Map<string, any[]>();
+  customerRows.forEach((c) => families.set(c.last_name, [...(families.get(c.last_name) || []), c]));
+  const family = [...families.values()].find((f) => f.length > 1);
+  if (family) family.forEach((c: any) => (c.household = `Familie ${c.last_name}`));
+
+  const contract_documents = production
+    .filter((e) => e.status === 'policed')
+    .slice(0, 12)
+    .flatMap((e, i) => [
+      { id: crypto.randomUUID(), entry_id: e.id, file_path: `${e.user_id}/police-${i}.pdf`, file_name: `Police_${e.policy_number}.pdf`, kind: 'police', uploaded_by: e.user_id, created_at: e.created_at },
+      ...(i % 3 === 0 ? [{ id: crypto.randomUUID(), entry_id: e.id, file_path: `${e.user_id}/antrag-${i}.pdf`, file_name: `Antrag_${e.customer_name}.pdf`, kind: 'antrag', uploaded_by: e.user_id, created_at: e.created_at }] : []),
+    ]);
+
+  // Rückrufe mit bekanntem Kunden verknüpfen
+  callbacks.forEach((cb: any) => {
+    const c = customerRows.find((x) => `${x.first_name} ${x.last_name}` === cb.customer_name);
+    cb.customer_id = c?.id ?? null;
+  });
+
+  if (customerRows[1]) {
+    const c = customerRows[1];
+    callbacks.push({ id: crypto.randomUUID(), customer_name: `${c.first_name} ${c.last_name}`, customer_id: c.id, phone: c.phone, topic: 'Jahresgespräch vereinbaren', priority: 'normal', status: 'open', assigned_to: ME, created_by: ME, created_at: at(-1, 11) } as any);
+  }
+
   return {
     profiles,
+    customers: customerRows,
+    contract_documents,
     production_entries: production,
     user_commission_settings: commission_settings,
     courtage_payouts,

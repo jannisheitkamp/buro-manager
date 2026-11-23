@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Avatar, PageHeader, IconButton, Segmented, EmptyState } from '@/components/ui';
 import { CountUp, HeroPanel } from '@/components/ui/hero';
 import { useSearchParams } from 'react-router-dom';
-import { IS_DEMO, supabase } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 import { PROFILE_COLUMNS } from '@/lib/profiles';
 import { Profile, UserStatus } from '@/types';
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -14,23 +14,11 @@ import { cn } from '@/utils/cn';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
 
-// Roles configuration
-const ROLES = IS_DEMO
-  ? ['admin', 'employee', 'selbststaendig']
-  : [
-      'admin',
-      'employee',
-      'gruppe_vaupel',
-      'gruppe_kalies',
-      'selbststaendig',
-      'tim',
-      'morris',
-      'vaupel',
-      'jannis',
-      'flori',
-      'marcio',
-      'lucas',
-    ];
+// Feste Rollen; Gruppen (gruppe_...) legt der Admin selbst an
+const BASE_ROLES = ['admin', 'employee', 'selbststaendig'];
+const ROLE_LABELS: Record<string, string> = { admin: 'Admin', employee: 'Mitarbeiter', selbststaendig: 'Selbstständig' };
+const slugGroup = (name: string) =>
+  'gruppe_' + name.trim().toLowerCase().replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss').replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
 
 const STATUS_ICONS = {
     'office': Briefcase,
@@ -68,6 +56,8 @@ export const Directory = () => {
   const [loading, setLoading] = useState(true);
   const [editingProfile, setEditingProfile] = useState<Profile | null>(null);
   const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
+  const [selectedSupervisors, setSelectedSupervisors] = useState<string[]>([]);
+  const [newGroup, setNewGroup] = useState('');
   const [view, setView] = useState<'all' | 'pending'>('all');
   const [selectedUser, setSelectedUser] = useState<(Profile & { status?: UserStatus }) | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -134,6 +124,8 @@ export const Directory = () => {
   const handleEditRole = (profile: Profile) => {
     setEditingProfile(profile);
     setSelectedRoles(profile.roles || []);
+    setSelectedSupervisors(profile.supervisor_ids || []);
+    setNewGroup('');
   };
 
   const saveRoles = async () => {
@@ -142,14 +134,14 @@ export const Directory = () => {
     try {
       const { error } = await supabase
         .from('profiles')
-        .update({ roles: selectedRoles })
+        .update({ roles: selectedRoles, supervisor_ids: selectedSupervisors })
         .eq('id', editingProfile.id);
 
       if (error) throw error;
 
       setEditingProfile(null);
       fetchProfiles();
-      toast.success('Rollen erfolgreich gespeichert.');
+      toast.success('Gespeichert.');
     } catch (error) {
       console.error('Error updating roles:', error);
       toast.error('Fehler beim Speichern der Rollen.');
@@ -197,9 +189,21 @@ export const Directory = () => {
     );
   };
 
-  const formatRole = (role: string) => {
-    return role.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+  const formatRole = (role: string) =>
+    ROLE_LABELS[role] || role.replace(/^gruppe_/, 'Gruppe ').replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+
+  const groupRoles = Array.from(new Set([...profiles.flatMap(p => p.roles || []), ...selectedRoles].filter(r => r.startsWith('gruppe_')))).sort();
+  const roleOptions = [...BASE_ROLES, ...groupRoles];
+
+  const addGroup = () => {
+    const slug = slugGroup(newGroup);
+    if (slug === 'gruppe_') return;
+    setSelectedRoles(prev => (prev.includes(slug) ? prev : [...prev, slug]));
+    setNewGroup('');
   };
+
+  const toggleSupervisor = (id: string) =>
+    setSelectedSupervisors(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]));
 
   const pendingCount = profiles.filter(p => !p.is_approved).length;
   
@@ -247,7 +251,7 @@ export const Directory = () => {
                     <li key={p.id}>
                       <button type="button" onClick={() => setSelectedUser(p)} className="flex items-center gap-2.5 rounded-2xl bg-white/5 py-1.5 pl-1.5 pr-3.5 ring-1 ring-white/10 transition-colors hover:bg-white/10">
                         <span className="relative">
-                          <Avatar name={p.full_name} src={p.avatar_url} size="sm" />
+                          <Avatar name={p.full_name} src={p.avatar_url} size="xs" />
                           <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-emerald-400 ring-2 ring-brand-900" />
                         </span>
                         <span className="text-left">
@@ -470,7 +474,7 @@ export const Directory = () => {
       <Modal
         isOpen={!!editingProfile}
         onClose={() => setEditingProfile(null)}
-        title="Rollen bearbeiten"
+        title="Rollen & Vorgesetzte"
       >
         <div className="space-y-6">
             <div className="flex items-center gap-3 p-4 bg-gray-50 dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700">
@@ -481,8 +485,9 @@ export const Directory = () => {
                 </div>
             </div>
 
-            <div className="space-y-2 max-h-[400px] overflow-y-auto p-1">
-                {ROLES.map(role => (
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Rollen & Gruppen</p>
+            <div className="space-y-2 max-h-[400px] overflow-y-auto p-1 -mt-4">
+                {roleOptions.map(role => (
                     <label 
                         key={role} 
                         className={cn(
@@ -517,6 +522,46 @@ export const Directory = () => {
                         />
                     </label>
                 ))}
+            </div>
+
+            <div className="flex gap-2 -mt-2">
+                <input
+                    value={newGroup}
+                    onChange={e => setNewGroup(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addGroup(); } }}
+                    placeholder="Neue Gruppe, z. B. Team Nord"
+                    className="flex-1 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
+                />
+                <button onClick={addGroup} disabled={!newGroup.trim()} className="px-4 py-2 rounded-xl text-sm font-semibold bg-gray-100 dark:bg-gray-700 disabled:opacity-50">
+                    Hinzufügen
+                </button>
+            </div>
+
+            <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Vorgesetzte</p>
+                <p className="text-xs text-gray-500 mt-1 mb-2">Dürfen Abwesenheiten dieser Person genehmigen und bekommen ihre Anträge.</p>
+                <div className="flex flex-wrap gap-2">
+                    {profiles.filter(p => p.id !== editingProfile?.id).map(p => {
+                        const on = selectedSupervisors.includes(p.id);
+                        return (
+                            <button
+                                key={p.id}
+                                type="button"
+                                onClick={() => toggleSupervisor(p.id)}
+                                aria-pressed={on}
+                                className={cn(
+                                    "flex items-center gap-2 rounded-full border pl-1 pr-3 py-1 text-sm transition-colors",
+                                    on ? "bg-indigo-50 border-indigo-200 text-indigo-700 dark:bg-indigo-900/20 dark:border-indigo-800 dark:text-indigo-300"
+                                       : "border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+                                )}
+                            >
+                                <Avatar name={p.full_name} src={p.avatar_url} size="xs" />
+                                {p.full_name?.split(' ')[0] || p.email}
+                                {on && <CheckCircle className="w-3.5 h-3.5" />}
+                            </button>
+                        );
+                    })}
+                </div>
             </div>
 
             <div className="flex justify-end gap-3 pt-2">

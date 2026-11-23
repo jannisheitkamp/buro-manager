@@ -15,6 +15,8 @@ export type Profile = {
   total_vacation_days?: number | null; // New: Vacation days per year
   avatar_url: string | null;
   roles: string[];
+  /** Vorgesetzte: dürfen Abwesenheiten genehmigen */
+  supervisor_ids?: string[];
   address?: string | null;
   is_approved?: boolean;
   phone?: string | null;

@@ -20,12 +20,14 @@ type Props = {
   months: HeroMonth[];
   contractCount: number;
   cancelledCount: number;
+  /** Hochrechnung bis Jahresende, nur im laufenden Jahr */
+  forecast?: { commission: number; lifeValues: number; remainingMonths: number } | null;
 };
 
 /** Kopf der Produktionsseite: Jahresprovision, Lebenswerte gegen Ziel und der Verlauf über die Monate. */
 export const ProductionHero = ({
   periodLabel, totalCommission, totalLifeValues, lifeValuesGoal, goalExpected, lifeValuesNote, months,
-  contractCount, cancelledCount,
+  contractCount, cancelledCount, forecast,
 }: Props) => {
   const [mode, setMode] = useState<'commission' | 'lifeValues'>('commission');
   const mounted = useMounted();
@@ -77,6 +79,8 @@ export const ProductionHero = ({
           {lifeValuesNote && <p className="mt-1 text-xs text-brand-200/70">{lifeValuesNote}</p>}
         </div>
       </div>
+
+      {forecast && <Forecast forecast={forecast} lifeValues={totalLifeValues} goal={lifeValuesGoal} />}
 
       {/* Monatsverlauf */}
       <div className="border-t border-white/10 px-6 pb-5 pt-4 sm:px-8">
@@ -131,5 +135,48 @@ export const ProductionHero = ({
         </ol>
       </div>
     </HeroPanel>
+  );
+};
+
+/** Hochrechnung: Wo landet das Jahr, wenn es so weiterläuft? */
+const Forecast = ({ forecast, lifeValues, goal }: { forecast: NonNullable<Props['forecast']>; lifeValues: number; goal: number }) => {
+  const pct = goal ? Math.round((forecast.lifeValues / goal) * 100) : null;
+  const missing = Math.max(goal - lifeValues, 0);
+  const perMonth = forecast.remainingMonths > 0 ? missing / forecast.remainingMonths : missing;
+  const reached = goal > 0 && missing === 0;
+  const onTrack = pct !== null && pct >= 100;
+  return (
+    <div className="border-t border-white/10 px-6 py-4 sm:px-8">
+      <p className="text-xs text-brand-200">Hochrechnung bis 31.12., wenn es so weiterläuft</p>
+      <dl className="mt-2 grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4">
+        <div>
+          <dt className="text-2xs uppercase tracking-wide text-brand-200/80">Provision</dt>
+          <dd className="tabular font-display text-xl font-semibold text-white">{eur0.format(forecast.commission)}</dd>
+        </div>
+        <div>
+          <dt className="text-2xs uppercase tracking-wide text-brand-200/80">Lebenswerte</dt>
+          <dd className="tabular font-display text-xl font-semibold text-white">{num.format(forecast.lifeValues)}</dd>
+        </div>
+        {pct !== null && (
+          <>
+            <div>
+              <dt className="text-2xs uppercase tracking-wide text-brand-200/80">Jahresziel</dt>
+              <dd className={cn('tabular font-display text-xl font-semibold', onTrack ? 'text-emerald-300' : 'text-amber-300')}>{pct} %</dd>
+            </div>
+            <div>
+              <dt className="text-2xs uppercase tracking-wide text-brand-200/80">{reached ? 'Ziel' : 'Noch nötig'}</dt>
+              <dd className="tabular font-display text-xl font-semibold text-white">
+                {reached ? 'erreicht' : <>{num.format(perMonth)} <span className="font-sans text-xs font-normal text-brand-200">LW / Monat</span></>}
+              </dd>
+              {!reached && (
+                <dd className="text-2xs text-brand-200/80">
+                  {num.format(missing)} LW in {forecast.remainingMonths} {forecast.remainingMonths === 1 ? 'Monat' : 'Monaten'}
+                </dd>
+              )}
+            </div>
+          </>
+        )}
+      </dl>
+    </div>
   );
 };
