@@ -2,7 +2,7 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { addYears, differenceInCalendarDays, differenceInYears, format, startOfDay } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { BellRing, Cake, ChevronDown, EyeOff, FileText, GitMerge, Mail, MapPin, Pencil, Phone, Plus, Search, Users } from 'lucide-react';
+import { BellRing, Briefcase, Building2, Cake, ChevronDown, EyeOff, FileText, GitMerge, Mail, MapPin, Pencil, Phone, Plus, Search, SlidersHorizontal, Users } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { supabase } from '@/lib/supabase';
 import { useStore } from '@/store/useStore';
@@ -12,7 +12,10 @@ import { Modal } from '@/components/Modal';
 import { ContractDocuments } from '@/components/ContractDocuments';
 import { CATEGORY_COLORS } from '@/lib/chartTheme';
 import { deadlineTopic, upcomingDeadlines, REMIND_DAYS, type Deadline } from '@/lib/followups';
-import { INSURANCE_TYPES } from '@/utils/constants';
+import { productByName, useProducts } from '@/lib/products';
+import { ProductPicker } from '@/components/ProductPicker';
+import { GapRulesEditor } from '@/components/GapRulesEditor';
+import { customerGaps, HOUSING, MARITAL, OCCUPATIONS, PETS, VEHICLES, type GapRule } from '@/lib/gaps';
 import { cn } from '@/utils/cn';
 
 type Entry = {
@@ -46,6 +49,16 @@ export type Customer = {
   address: string | null;
   household: string | null;
   notes: string | null;
+  customer_type: 'person' | 'company';
+  contact_person: string | null;
+  industry: string | null;
+  employees: number | null;
+  occupation: string | null;
+  marital_status: string | null;
+  children: number | null;
+  housing: string | null;
+  vehicles: string[] | null;
+  pets: string[] | null;
 };
 
 /** Bestandsvertrag: lag schon vor der Produktion vor, zählt nicht zur Provision */
@@ -68,8 +81,6 @@ type DeadlineEntry = Entry & { existing?: Existing };
 type OpenCallback ={ id: string; customer_id: string; topic: string | null; priority: string; status: string; created_at: string };
 type Followup = { entry_id: string; due_date: string; state: 'callback' | 'dismissed' };
 
-/** Was ein gut versorgter Privatkunde typischerweise hat */
-const CORE_PRODUCTS = ['PHV', 'HR', 'Rechtsschutz', 'UNF', 'BU'];
 /** So viele Tage im Voraus werden Geburtstage angezeigt */
 const BIRTHDAY_DAYS = 14;
 
@@ -91,12 +102,34 @@ function nextBirthday(birth: string, today = new Date()) {
   return { date: next, days: differenceInCalendarDays(next, t), age: differenceInYears(next, b) };
 }
 
-const PRODUCTS = INSURANCE_TYPES.flatMap((t) => t.subcategories.map((sub) => ({ sub, category: t.id })));
 const EMPTY_EXISTING = { sub_category: 'PHV', insurer: '', policy_number: '', start_date: '', premium: '', notes: '' };
 type ExistingForm = typeof EMPTY_EXISTING;
 
-const EMPTY_FORM ={ last_name: '', first_name: '', birth_date: '', phone: '', email: '', address: '', household: '', notes: '' };
+const EMPTY_FORM = {
+  customer_type: 'person' as 'person' | 'company',
+  last_name: '', first_name: '', birth_date: '', phone: '', email: '', address: '', household: '', notes: '',
+  contact_person: '', industry: '', employees: '', occupation: '', marital_status: '', children: '', housing: '',
+  vehicles: [] as string[], pets: [] as string[],
+};
 type FormState = typeof EMPTY_FORM;
+type TextKey = Exclude<keyof FormState, 'customer_type' | 'vehicles' | 'pets'>;
+
+/** Hat der Kunde Angaben zur Lebenslage? Dann zeigen wir Lücken auch ohne Vertrag. */
+const hasLifestyle = (c: Customer) =>
+  c.customer_type === 'company' || !!(c.occupation || c.marital_status || c.housing || c.children || c.vehicles?.length || c.pets?.length);
+
+const labelOf = (list: readonly { id: string; label: string }[], id: string | null | undefined) => list.find((x) => x.id === id)?.label;
+/** Lebenslage in einer Zeile, z. B. „Angestellt · Verheiratet · 2 Kinder · Eigenes Haus · Auto, Hund“ */
+const lifestyleText = (c: Customer) =>
+  [
+    labelOf(OCCUPATIONS, c.occupation),
+    labelOf(MARITAL, c.marital_status),
+    c.children ? `${c.children} ${c.children === 1 ? 'Kind' : 'Kinder'}` : null,
+    labelOf(HOUSING, c.housing),
+    [...(c.vehicles || []).map((v) => labelOf(VEHICLES, v)), ...(c.pets || []).map((v) => labelOf(PETS, v))].filter(Boolean).join(', ') || null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
 
 export const Customers = () => {
   const { user, profile } = useStore();
@@ -123,6 +156,9 @@ export const Customers = () => {
   const [existing, setExisting] = useState<Existing[]>([]);
   const [existingFor, setExistingFor] = useState<{ customer: Customer; contract: Existing | null } | null>(null);
   const [existingForm, setExistingForm] = useState<ExistingForm>(EMPTY_EXISTING);
+  const [rules, setRules] = useState<GapRule[]>([]);
+  const [rulesOpen, setRulesOpen] = useState(false);
+  const { products } = useProducts();
 
   const load = useCallback(async () => {
     const [{ data: c, error }, { data: e }, { data: cb }, { data: f }, { data: x }] = await Promise.all([
@@ -135,6 +171,8 @@ export const Customers = () => {
       supabase.from('contract_followups').select('entry_id, due_date, state'),
       supabase.from('customer_contracts').select('*').order('created_at'),
     ]);
+    const { data: gr } = await supabase.from('gap_rules').select('*').order('sort');
+    setRules((gr as GapRule[]) || []);
     setExisting((x as Existing[]) || []);
     if (error) toast.error('Kunden konnten nicht geladen werden.');
     setCustomers((c as Customer[]) || []);
@@ -182,7 +220,8 @@ export const Customers = () => {
         const all = byCustomer.get(c.id) || [];
         const active = all.filter((e) => e.status !== 'cancelled');
         const prior = existingBy.get(c.id) || [];
-        const has = new Set([...active.map(product), ...prior.map((x) => x.sub_category)]);
+        // Lücken nach Lebenslage: Gruppen, die ein aktiver Vertrag abdeckt
+        const covered = new Set([...active.map(product), ...prior.map((x) => x.sub_category)].map((n) => productByName(n)?.gap_group).filter((g): g is string => !!g));
         return {
           customer: c,
           name: fullName(c),
@@ -191,7 +230,7 @@ export const Customers = () => {
           existing: prior,
           mine: all.some(mineEntry) || (all.length === 0 && (mineId(c.created_by) || prior.some((x) => mineId(x.created_by)))),
           cancelled: all.length - active.length,
-          gaps: active.length || prior.length ? CORE_PRODUCTS.filter((p) => !has.has(p)) : [],
+          gaps: active.length || prior.length || hasLifestyle(c) ? customerGaps(rules, c, covered) : [],
           lv: active.reduce((a, e) => a + Number(e.life_values || 0), 0),
           commission: active.reduce((a, e) => a + Number(e.commission_amount || 0), 0),
           birthday: c.birth_date ? nextBirthday(c.birth_date) : null,
@@ -200,7 +239,9 @@ export const Customers = () => {
       })
       .filter((r) => scope === 'team' || r.mine)
       .sort((a, b) => a.name.localeCompare(b.name, 'de'));
-  }, [customers, entries, existing, callbacks, scope, mineEntry, user?.id, boss]);
+    // products: productByName liest den geladenen Katalog
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customers, entries, existing, callbacks, scope, mineEntry, user?.id, boss, rules, products]);
 
   // Bestandsverträge der angezeigten Kunden bekommen ebenfalls Fristen
   const existingAsEntries = useMemo<DeadlineEntry[]>(
@@ -251,7 +292,7 @@ export const Customers = () => {
     const c = r.customer;
     return (
       r.name.toLowerCase().includes(q) ||
-      [c.phone, c.email, c.household, c.address].some((v) => v?.toLowerCase().includes(q)) ||
+      [c.phone, c.email, c.household, c.address, c.contact_person, c.industry].some((v) => v?.toLowerCase().includes(q)) ||
       [...r.entries, ...r.existing].some((e) => e.policy_number?.toLowerCase().includes(q)) ||
       r.existing.some((x) => x.insurer?.toLowerCase().includes(q))
     );
@@ -307,27 +348,57 @@ export const Customers = () => {
 
   const openForm = (c: Customer | 'new') => {
     setEditing(c);
-    setForm(
-      c === 'new'
-        ? EMPTY_FORM
-        : {
-            last_name: c.last_name,
-            first_name: c.first_name || '',
-            birth_date: c.birth_date || '',
-            phone: c.phone || '',
-            email: c.email || '',
-            address: c.address || '',
-            household: c.household || '',
-            notes: c.notes || '',
-          },
-    );
+    if (c === 'new') return setForm(EMPTY_FORM);
+    const str = (v: string | number | null | undefined) => (v == null ? '' : String(v));
+    setForm({
+      customer_type: c.customer_type || 'person',
+      last_name: c.last_name,
+      first_name: str(c.first_name),
+      birth_date: str(c.birth_date),
+      phone: str(c.phone),
+      email: str(c.email),
+      address: str(c.address),
+      household: str(c.household),
+      notes: str(c.notes),
+      contact_person: str(c.contact_person),
+      industry: str(c.industry),
+      employees: str(c.employees),
+      occupation: str(c.occupation),
+      marital_status: str(c.marital_status),
+      children: str(c.children),
+      housing: str(c.housing),
+      vehicles: c.vehicles || [],
+      pets: c.pets || [],
+    });
   };
 
   const saveForm = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editing || !form.last_name.trim()) return;
     setSaving(true);
-    const payload = Object.fromEntries(Object.entries(form).map(([k, v]) => [k, v.trim() || null])) as Record<keyof FormState, string | null>;
+    const t = (v: string) => v.trim() || null;
+    const n = (v: string) => (v.trim() === '' ? null : Math.max(0, Math.round(Number(v))) || 0);
+    const company = form.customer_type === 'company';
+    const payload = {
+      customer_type: form.customer_type,
+      last_name: form.last_name.trim(),
+      first_name: company ? null : t(form.first_name),
+      birth_date: company ? null : t(form.birth_date),
+      phone: t(form.phone),
+      email: t(form.email),
+      address: t(form.address),
+      household: company ? null : t(form.household),
+      notes: t(form.notes),
+      contact_person: company ? t(form.contact_person) : null,
+      industry: company ? t(form.industry) : null,
+      employees: company ? n(form.employees) : null,
+      occupation: company ? null : t(form.occupation),
+      marital_status: company ? null : t(form.marital_status),
+      children: company ? null : n(form.children),
+      housing: company ? null : t(form.housing),
+      vehicles: company ? [] : form.vehicles,
+      pets: company ? [] : form.pets,
+    };
     const { data, error } =
       editing === 'new'
         ? await supabase.from('customers').insert({ ...payload, created_by: user?.id }).select('id').single()
@@ -385,7 +456,7 @@ export const Customers = () => {
     if (premium != null && Number.isNaN(premium)) return toast.error('Beitrag bitte als Zahl eingeben.');
     const payload = {
       sub_category: f.sub_category,
-      category: PRODUCTS.find((p) => p.sub === f.sub_category)?.category || 'other',
+      category: productByName(f.sub_category)?.area || 'other',
       insurer: f.insurer.trim() || null,
       policy_number: f.policy_number.trim() || null,
       start_date: f.start_date || null,
@@ -440,7 +511,8 @@ export const Customers = () => {
         })
     : [];
   const setX = (k: keyof ExistingForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => setExistingForm((f) => ({ ...f, [k]: e.target.value }));
-  const set = (k: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const set = (k: TextKey) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const toggle = (k: 'vehicles' | 'pets', v: string) => setForm((f) => ({ ...f, [k]: f[k].includes(v) ? f[k].filter((x) => x !== v) : [...f[k], v] }));
 
   return (
     <div className="space-y-6">
@@ -457,6 +529,7 @@ export const Customers = () => {
                 { value: 'team', label: 'Ganzes Team' },
               ]}
             />
+            {isAdmin && <Button variant="secondary" icon={SlidersHorizontal} onClick={() => setRulesOpen(true)}>Lückenregeln</Button>}
             <Button icon={Plus} onClick={() => openForm('new')}>Neuer Kunde</Button>
           </div>
         }
@@ -485,7 +558,7 @@ export const Customers = () => {
         <HeroDivider />
         <dl className="grid grid-cols-2 gap-6 px-6 py-5 sm:grid-cols-4 sm:px-8">
           <HeroStat label="Kunden" value={rows.length} />
-          <HeroStat label="Mit Lücken" value={withGaps.length} accent={withGaps.length > 0} hint="fehlt PHV, HR, RS, UNF oder BU" />
+          <HeroStat label="Mit Lücken" value={withGaps.length} accent={withGaps.length > 0} hint="nach Lebenslage und Lückenregeln" />
           <HeroStat label="Fristen in 60 Tagen" value={deadlines.length} />
           <HeroStat label={`Geburtstage in ${BIRTHDAY_DAYS} Tagen`} value={birthdays.length} accent={birthdays.some((b) => b.birthday!.days === 0)} />
         </dl>
@@ -606,6 +679,7 @@ export const Customers = () => {
                     <span className="min-w-0 flex-1">
                       <span className="flex flex-wrap items-center gap-2">
                         <span className="truncate text-[15px] font-semibold text-gray-900 dark:text-white">{r.name}</span>
+                        {c.customer_type === 'company' && <Building2 className="h-3.5 w-3.5 text-gray-400" aria-label="Firma" />}
                         {r.birthday && r.birthday.days <= BIRTHDAY_DAYS && <Cake className="h-3.5 w-3.5 text-amber-500" aria-label="Geburtstag bald" />}
                         {r.callbacks.length > 0 && <StatusPill tone="sky">{r.callbacks.length} Rückruf{r.callbacks.length > 1 ? 'e' : ''}</StatusPill>}
                         {r.cancelled > 0 && <span className="text-2xs text-gray-400">{r.cancelled} storniert</span>}
@@ -639,11 +713,22 @@ export const Customers = () => {
                       {/* Stammdaten */}
                       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                         <dl className="grid flex-1 grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+                          {c.customer_type === 'company' ? (
+                            <div className="flex items-center gap-2">
+                              <Building2 className="h-4 w-4 shrink-0 text-gray-400" />
+                              <dt className="sr-only">Firma</dt>
+                              <dd className="text-gray-700 dark:text-gray-200">
+                                {[c.industry, c.employees != null ? `${c.employees} Mitarbeiter` : null].filter(Boolean).join(' · ') || 'Firma'}
+                                {c.contact_person && <span className="text-gray-500"> · Ansprechpartner {c.contact_person}</span>}
+                              </dd>
+                            </div>
+                          ) : (
                           <div className="flex items-center gap-2">
                             <Cake className="h-4 w-4 shrink-0 text-gray-400" />
                             <dt className="sr-only">Geburtstag</dt>
                             <dd className="text-gray-700 dark:text-gray-200">{c.birth_date ? `${format(day(c.birth_date), 'dd.MM.yyyy')} (${differenceInYears(new Date(), day(c.birth_date))} Jahre)` : <span className="text-gray-400">kein Geburtstag</span>}</dd>
                           </div>
+                          )}
                           <div className="flex items-center gap-2">
                             <Phone className="h-4 w-4 shrink-0 text-gray-400" />
                             <dt className="sr-only">Telefon</dt>
@@ -677,6 +762,13 @@ export const Customers = () => {
                                   </span>
                                 )}
                               </dd>
+                            </div>
+                          )}
+                          {c.customer_type !== 'company' && lifestyleText(c) && (
+                            <div className="flex items-start gap-2 sm:col-span-2">
+                              <Briefcase className="mt-0.5 h-4 w-4 shrink-0 text-gray-400" />
+                              <dt className="sr-only">Lebenslage</dt>
+                              <dd className="text-gray-700 dark:text-gray-200">{lifestyleText(c)}</dd>
                             </div>
                           )}
                           {c.notes && <p className="whitespace-pre-line text-gray-600 dark:text-gray-300 sm:col-span-2">{c.notes}</p>}
@@ -808,15 +900,70 @@ export const Customers = () => {
       <Modal isOpen={!!editing} onClose={() => setEditing(null)} title={editing === 'new' ? 'Neuer Kunde' : 'Kunde bearbeiten'} size="lg">
         <form onSubmit={saveForm} className="space-y-4">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field label="Nachname" htmlFor="cf-last"><input id="cf-last" required value={form.last_name} onChange={set('last_name')} className="input" /></Field>
-            <Field label="Vorname" htmlFor="cf-first"><input id="cf-first" value={form.first_name} onChange={set('first_name')} className="input" /></Field>
-            <Field label="Geburtstag" htmlFor="cf-birth"><input id="cf-birth" type="date" value={form.birth_date} onChange={set('birth_date')} className="input" /></Field>
-            <Field label="Telefon" htmlFor="cf-phone"><input id="cf-phone" type="tel" value={form.phone} onChange={set('phone')} className="input" /></Field>
-            <Field label="E-Mail" htmlFor="cf-mail"><input id="cf-mail" type="email" value={form.email} onChange={set('email')} className="input" /></Field>
-            <Field label="Haushalt" htmlFor="cf-house" hint="Gleicher Name verbindet Familienmitglieder, z. B. Familie Müller"><input id="cf-house" value={form.household} onChange={set('household')} className="input" list="cf-households" /></Field>
-            <datalist id="cf-households">
-              {Array.from(new Set(customers.map((c) => c.household).filter(Boolean))).map((h) => <option key={h!} value={h!} />)}
-            </datalist>
+            <div className="sm:col-span-2">
+              <Segmented
+                value={form.customer_type}
+                onChange={(v) => setForm((f) => ({ ...f, customer_type: v as 'person' | 'company' }))}
+                options={[
+                  { value: 'person', label: 'Privatkunde' },
+                  { value: 'company', label: 'Firma' },
+                ]}
+              />
+            </div>
+            {form.customer_type === 'company' ? (
+              <>
+                <Field label="Firmenname" htmlFor="cf-last" className="sm:col-span-2"><input id="cf-last" required value={form.last_name} onChange={set('last_name')} className="input" /></Field>
+                <Field label="Ansprechpartner" htmlFor="cf-contact"><input id="cf-contact" value={form.contact_person} onChange={set('contact_person')} className="input" /></Field>
+                <Field label="Branche" htmlFor="cf-industry"><input id="cf-industry" value={form.industry} onChange={set('industry')} className="input" placeholder="z. B. Handwerk, Gastronomie" /></Field>
+                <Field label="Mitarbeiter" htmlFor="cf-emp" hint="Ab 1 Mitarbeiter: bAV und bKV als Lücke"><input id="cf-emp" type="number" min={0} value={form.employees} onChange={set('employees')} className="input tabular" /></Field>
+                <Field label="Telefon" htmlFor="cf-phone"><input id="cf-phone" type="tel" value={form.phone} onChange={set('phone')} className="input" /></Field>
+                <Field label="E-Mail" htmlFor="cf-mail"><input id="cf-mail" type="email" value={form.email} onChange={set('email')} className="input" /></Field>
+              </>
+            ) : (
+              <>
+                <Field label="Nachname" htmlFor="cf-last"><input id="cf-last" required value={form.last_name} onChange={set('last_name')} className="input" /></Field>
+                <Field label="Vorname" htmlFor="cf-first"><input id="cf-first" value={form.first_name} onChange={set('first_name')} className="input" /></Field>
+                <Field label="Geburtstag" htmlFor="cf-birth"><input id="cf-birth" type="date" value={form.birth_date} onChange={set('birth_date')} className="input" /></Field>
+                <Field label="Telefon" htmlFor="cf-phone"><input id="cf-phone" type="tel" value={form.phone} onChange={set('phone')} className="input" /></Field>
+                <Field label="E-Mail" htmlFor="cf-mail"><input id="cf-mail" type="email" value={form.email} onChange={set('email')} className="input" /></Field>
+                <Field label="Haushalt" htmlFor="cf-house" hint="Gleicher Name verbindet Familienmitglieder, z. B. Familie Müller"><input id="cf-house" value={form.household} onChange={set('household')} className="input" list="cf-households" /></Field>
+                <datalist id="cf-households">
+                  {Array.from(new Set(customers.map((c) => c.household).filter(Boolean))).map((h) => <option key={h!} value={h!} />)}
+                </datalist>
+                <fieldset className="space-y-3 rounded-xl border border-gray-200 p-4 dark:border-gray-700 sm:col-span-2">
+                  <legend className="px-1 text-sm font-semibold text-gray-700 dark:text-gray-200">Lebenslage <span className="font-normal text-gray-400">(für passende Lücken)</span></legend>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <Field label="Beruf" htmlFor="cf-occ">
+                      <select id="cf-occ" value={form.occupation} onChange={set('occupation')} className="input">
+                        <option value="">unbekannt</option>
+                        {OCCUPATIONS.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+                      </select>
+                    </Field>
+                    <Field label="Familienstand" htmlFor="cf-mar">
+                      <select id="cf-mar" value={form.marital_status} onChange={set('marital_status')} className="input">
+                        <option value="">unbekannt</option>
+                        {MARITAL.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+                      </select>
+                    </Field>
+                    <Field label="Kinder" htmlFor="cf-kids"><input id="cf-kids" type="number" min={0} value={form.children} onChange={set('children')} className="input tabular" /></Field>
+                    <Field label="Wohnen" htmlFor="cf-housing">
+                      <select id="cf-housing" value={form.housing} onChange={set('housing')} className="input">
+                        <option value="">unbekannt</option>
+                        {HOUSING.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+                      </select>
+                    </Field>
+                  </div>
+                  <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-gray-700 dark:text-gray-200">
+                    {VEHICLES.map((v) => (
+                      <label key={v.id} className="flex items-center gap-2"><input type="checkbox" checked={form.vehicles.includes(v.id)} onChange={() => toggle('vehicles', v.id)} className="rounded" /> {v.label}</label>
+                    ))}
+                    {PETS.map((v) => (
+                      <label key={v.id} className="flex items-center gap-2"><input type="checkbox" checked={form.pets.includes(v.id)} onChange={() => toggle('pets', v.id)} className="rounded" /> {v.label}</label>
+                    ))}
+                  </div>
+                </fieldset>
+              </>
+            )}
             <Field label="Adresse" htmlFor="cf-addr" className="sm:col-span-2"><input id="cf-addr" value={form.address} onChange={set('address')} className="input" placeholder="Straße, PLZ Ort" /></Field>
             <Field label="Notizen" htmlFor="cf-notes" className="sm:col-span-2"><textarea id="cf-notes" rows={3} value={form.notes} onChange={set('notes')} className="input resize-none" /></Field>
           </div>
@@ -839,14 +986,8 @@ export const Customers = () => {
       >
         <form onSubmit={saveExisting} className="space-y-4">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field label="Sparte" htmlFor="ex-sub">
-              <select id="ex-sub" value={existingForm.sub_category} onChange={setX('sub_category')} className="input">
-                {INSURANCE_TYPES.map((t) => (
-                  <optgroup key={t.id} label={t.label}>
-                    {t.subcategories.map((s) => <option key={s} value={s}>{s}</option>)}
-                  </optgroup>
-                ))}
-              </select>
+            <Field label="Versicherung / Produkt" htmlFor="ex-sub" className="sm:col-span-2">
+              <ProductPicker id="ex-sub" value={existingForm.sub_category} onChange={(p) => setExistingForm((f) => ({ ...f, sub_category: p.name }))} />
             </Field>
             <Field label="Gesellschaft" htmlFor="ex-ins"><input id="ex-ins" value={existingForm.insurer} onChange={setX('insurer')} className="input" placeholder="z. B. Allianz" list="ex-insurers" /></Field>
             <datalist id="ex-insurers">
@@ -880,6 +1021,8 @@ export const Customers = () => {
           </div>
         </div>
       </Modal>
+
+      {isAdmin && <GapRulesEditor isOpen={rulesOpen} onClose={() => setRulesOpen(false)} rules={rules} onChanged={load} />}
 
       {/* Zusammenführen */}
       <Modal isOpen={!!mergeFor} onClose={() => setMergeFor(null)} title="Kunden zusammenführen" description={mergeFor ? `${fullName(mergeFor)} bleibt bestehen.` : undefined}>

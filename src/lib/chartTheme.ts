@@ -1,3 +1,5 @@
+import { AREAS } from '@/lib/products';
+
 // Gemeinsame Farben für alle Diagramme
 export const CHART = {
   primary: '#146A68',
@@ -7,15 +9,8 @@ export const CHART = {
   tick: '#9AA39C',
 };
 
-// Sparten-Farben: ruhig, gut unterscheidbar, hell wie dunkel lesbar
-export const CATEGORY_COLORS: Record<string, string> = {
-  life: '#146A68',
-  health: '#C2577A',
-  property: '#F2A541',
-  car: '#5B8DB8',
-  legal: '#7A9A5B',
-  other: '#9AA39C',
-};
+// Bereichs-Farben: ruhig, gut unterscheidbar, hell wie dunkel lesbar
+export const CATEGORY_COLORS: Record<string, string> = Object.fromEntries(AREAS.map((a) => [a.id, a.color]));
 
 export const tooltipStyle = {
   borderRadius: 8,

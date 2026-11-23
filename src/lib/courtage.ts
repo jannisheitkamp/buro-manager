@@ -1,12 +1,12 @@
 // Sach-Courtage: wird je Rate (Zahlweise) verdient und gesammelt zum 31.12. ausgezahlt.
 // Sachverträge laufen weiter, also gibt es auch in den Folgejahren Courtage, bis zum Storno.
 
-// Sparten mit laufender Courtage je Zahlweise (keine Stornohaftung)
-export const COURTAGE_SUBCATEGORIES = ['PHV', 'HR', 'UNF', 'Sach', 'KFZ', 'Rechtsschutz', 'Sonstige'];
+import { isCourtageProduct } from '@/lib/products';
 
 const MONTHS_PER_RATE: Record<string, number> = { monthly: 1, quarterly: 3, half_yearly: 6, yearly: 12 };
 
-export const isCourtage = (subCategory?: string | null) => !!subCategory && COURTAGE_SUBCATEGORIES.includes(subCategory);
+/** Produkte mit laufender Courtage je Zahlweise (keine Stornohaftung), laut Produktkatalog */
+export const isCourtage = (subCategory?: string | null) => isCourtageProduct(subCategory);
 
 /** Monate (0 = Januar), in denen ab Vertragsbeginn bis Dezember eine Rate fällig wird. Ohne Beginn: ganzes Jahr. */
 export function courtageRateMonths(startDate: string | null | undefined, paymentMethod: string | null | undefined): number[] {

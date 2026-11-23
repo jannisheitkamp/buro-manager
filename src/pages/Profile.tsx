@@ -9,6 +9,7 @@ import { useStore } from '@/store/useStore';
 import { motion } from 'framer-motion';
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { User, Lock, Save, Briefcase, Mail, Key, Shield, Upload, DollarSign, Command, Copy, Check, Target, Palmtree, Trophy } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { cn } from '@/utils/cn';
 
@@ -37,22 +38,6 @@ export const ProfilePage = () => {
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
 
-    // Commission Rates State
-    const [rates, setRates] = useState({
-        'Leben': 8.0,
-        'BU': 8.0,
-        'KV Voll': 3.0,
-        'KV Zusatz': 3.0,
-        'Reise-KV': 10.0,
-        'PHV': 7.5,
-        'HR': 7.5,
-        'UNF': 7.5,
-        'Sach': 7.5,
-        'KFZ': 3.0,
-        'Rechtsschutz': 5.0,
-        'Sonstige': 5.0
-    });
-
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [badges, setBadges] = useState<any[]>([]);
 
@@ -73,7 +58,6 @@ export const ProfilePage = () => {
             supabase.from('profiles').select('id, full_name, is_approved').order('full_name').then(({ data }) =>
                 setColleagues((data || []).filter((p) => p.id !== profile.id && p.is_approved !== false)),
             );
-            fetchUserRates();
             fetchBadges();
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -83,24 +67,6 @@ export const ProfilePage = () => {
         if (!user) return;
         const { data } = await supabase.from('user_badges').select('*').eq('user_id', user.id).order('awarded_at', { ascending: false });
         if (data) setBadges(data);
-    };
-
-    const fetchUserRates = async () => {
-        if (!user) return;
-        const { data } = await supabase.from('user_commission_settings').select('*').eq('user_id', user.id);
-        
-        if (data && data.length > 0) {
-            const newRates: Record<string, number> = { ...rates };
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            data.forEach((row: any) => {
-                // eslint-disable-next-line no-prototype-builtins
-                if (row.sub_category && newRates.hasOwnProperty(row.sub_category)) {
-                    newRates[row.sub_category] = Number(row.rate_value);
-                }
-            });
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            setRates(newRates as any);
-        }
     };
 
     const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -245,33 +211,6 @@ export const ProfilePage = () => {
         }
     };
 
-    const handleSaveRates = async () => {
-        if (!user) return;
-        setLoading(true);
-        try {
-            // Delete old settings (simple way to update all)
-            await supabase.from('user_commission_settings').delete().eq('user_id', user.id);
-            
-            // Insert new
-            const inserts = Object.entries(rates).map(([key, val]) => ({
-                user_id: user.id,
-                sub_category: key,
-                rate_value: val,
-                updated_at: new Date().toISOString()
-            }));
-
-            const { error } = await supabase.from('user_commission_settings').insert(inserts);
-            if (error) throw error;
-            
-            toast.success('Provisionssätze gespeichert');
-        } catch (err) {
-            console.error(err);
-            toast.error('Fehler beim Speichern');
-        } finally {
-            setLoading(false);
-        }
-    };
-
     const getPasswordStrength = () => {
         if (!password) return 0;
         if (password.length < 6) return 1;
@@ -315,7 +254,7 @@ export const ProfilePage = () => {
 
     return (
         <div className="mx-auto max-w-4xl space-y-6">
-            <PageHeader title="Mein Profil" description="Persönliche Daten, Ziele, Provisionssätze und Sicherheit." />
+            <PageHeader title="Mein Profil" description="Persönliche Daten, Ziele und Sicherheit." />
 
             <HeroPanel aria-label="Dein Profil">
                 <div className="flex flex-col gap-6 p-6 sm:flex-row sm:items-center sm:p-8">
@@ -671,54 +610,14 @@ export const ProfilePage = () => {
                     transition={{ delay: 0.2 }}
                     className="lg:col-span-2 card p-6 h-fit"
                 >
-                    <div className="flex items-center justify-between mb-6">
-                        <div>
-                            <h2 className="font-bold text-lg flex items-center gap-2">
-                                <DollarSign className="w-5 h-5 text-gray-400" />
-                                Meine Provisionssätze
-                            </h2>
-                            <p className="text-sm text-gray-500 mt-1">
-                                Automatische Vorbelegung für neue Verträge.
-                            </p>
-                        </div>
-                        <button 
-                            onClick={handleSaveRates}
-                            disabled={loading}
-                            className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl font-bold text-sm shadow-sm transition-all flex items-center gap-2"
-                        >
-                            <Save className="w-4 h-4" /> Speichern
-                        </button>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-6">
-                        {Object.entries(rates).map(([key, value]) => (
-                            <div key={key} className="flex items-center justify-between p-3 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-900/50 transition-colors border border-transparent hover:border-gray-100 dark:hover:border-gray-700">
-                                <div className="flex items-center gap-3">
-                                    <div className={cn(
-                                        "w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold",
-                                        ['Leben', 'BU'].includes(key) ? "bg-green-100 text-green-700" :
-                                        ['KV Voll', 'KV Zusatz', 'Reise-KV'].includes(key) ? "bg-blue-100 text-blue-700" :
-                                        "bg-orange-100 text-orange-700"
-                                    )}>
-                                        {key.substring(0, 2).toUpperCase()}
-                                    </div>
-                                    <span className="font-medium text-gray-700 dark:text-gray-300">{key}</span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <input 
-                                        type="number" 
-                                        step="0.1"
-                                        value={value}
-                                        onChange={(e) => setRates(prev => ({ ...prev, [key]: Number(e.target.value) }))}
-                                        className="w-20 text-right font-mono font-bold bg-gray-50 dark:bg-gray-900 border-none rounded-lg focus:ring-2 focus:ring-indigo-500/20 py-1.5"
-                                    />
-                                    <span className="text-xs font-medium text-gray-400 w-6">
-                                        {key === 'Leben' || key === 'BU' ? '‰' : (key === 'KV Voll' || key === 'KV Zusatz' ? 'MB' : '%')}
-                                    </span>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
+                    <h2 className="font-bold text-lg flex items-center gap-2">
+                        <DollarSign className="w-5 h-5 text-gray-400" />
+                        Meine Provisionssätze
+                    </h2>
+                    <p className="text-sm text-gray-500 mt-1">
+                        Alle Produkte mit Team-Standard und deinem eigenen Satz findest du jetzt in der Produktion.
+                    </p>
+                    <Link to="/production?tab=rates" className="btn-secondary mt-4 inline-flex">Provisionssätze öffnen</Link>
                 </motion.div>
 
                 <ConnectivitySettings />
