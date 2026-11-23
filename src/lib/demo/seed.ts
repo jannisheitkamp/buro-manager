@@ -387,6 +387,26 @@ export function createSeed(): DemoDb {
       ...(i % 3 === 0 ? [{ id: crypto.randomUUID(), entry_id: e.id, file_path: `${e.user_id}/antrag-${i}.pdf`, file_name: `Antrag_${e.customer_name}.pdf`, kind: 'antrag', uploaded_by: e.user_id, created_at: e.created_at }] : []),
     ]);
 
+  // Bestandsverträge: Verträge, die Kunden schon vorher hatten
+  const insurers = ['Allianz', 'HUK-Coburg', 'ERGO', 'AXA', 'R+V'];
+  const existingProducts: [string, string, number][] = [['PHV', 'property', 6.9], ['HR', 'property', 11.4], ['KFZ', 'car', 48.2], ['Rechtsschutz', 'legal', 24.5], ['BU', 'life', 62]];
+  const customer_contracts = customerRows.slice(0, 8).flatMap((c: any, i: number) =>
+    existingProducts.filter((_, j) => (i + j) % 3 === 0).map(([sub, category, premium], j) => ({
+      id: crypto.randomUUID(),
+      customer_id: c.id,
+      category,
+      sub_category: sub,
+      insurer: insurers[(i + j) % insurers.length],
+      policy_number: `${sub.slice(0, 2).toUpperCase()}-${100000 + i * 37 + j}`,
+      start_date: ymd(new Date(2019 + (i % 5), (i * 2 + j) % 12, 1)),
+      premium,
+      notes: null,
+      handled_until: null,
+      created_by: c.created_by,
+      created_at: c.created_at,
+    })),
+  );
+
   // Rückrufe mit bekanntem Kunden verknüpfen
   callbacks.forEach((cb: any) => {
     const c = customerRows.find((x) => `${x.first_name} ${x.last_name}` === cb.customer_name);
@@ -402,6 +422,7 @@ export function createSeed(): DemoDb {
     profiles,
     customers: customerRows,
     contract_documents,
+    customer_contracts,
     production_entries: production,
     user_commission_settings: commission_settings,
     courtage_payouts,

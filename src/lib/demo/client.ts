@@ -337,6 +337,7 @@ export const createDemoClient = (): any => {
         for (const f of ['birth_date', 'phone', 'email', 'address', 'household', 'notes']) keep[f] = keep[f] ?? drop[f];
         table('production_entries').filter((e) => e.customer_id === drop.id).forEach((e) => { e.customer_id = keep.id; e.customer_name = keep.last_name; e.customer_firstname = keep.first_name; });
         table('callbacks').filter((c) => c.customer_id === drop.id).forEach((c) => { c.customer_id = keep.id; });
+        table('customer_contracts').filter((c) => c.customer_id === drop.id).forEach((c) => { c.customer_id = keep.id; });
         db.customers = table('customers').filter((x) => x !== drop);
       }
       return Promise.resolve({ data: null, error: null });
