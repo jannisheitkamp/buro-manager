@@ -129,6 +129,8 @@ export function CustomerImportModal({
       insurer: c.insurer,
       policy_number: c.policy_number,
       start_date: c.start_date,
+      end_date: c.end_date,
+      main_due: c.main_due,
       premium: c.premium,
       notes: c.notes,
     });

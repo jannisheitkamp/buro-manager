@@ -186,6 +186,8 @@ export function CustomerDetail({
             <th>Gesellschaft</th>
             <th>Schein-Nr.</th>
             <th>Beginn</th>
+            <th>Ablauf</th>
+            <th>Fällig</th>
             <th className="text-right">Beitrag</th>
             <th className="w-10"><span className="sr-only">Bearbeiten</span></th>
           </tr>
@@ -197,6 +199,8 @@ export function CustomerDetail({
               <td className="text-gray-700 dark:text-gray-200">{x.insurer || '–'}</td>
               <td className="font-mono text-xs text-gray-600 dark:text-gray-300">{x.policy_number || '–'}</td>
               <td className="text-gray-600 dark:text-gray-300">{x.start_date ? format(day(x.start_date), 'dd.MM.yy') : '–'}</td>
+              <td className="text-gray-600 dark:text-gray-300">{x.end_date ? format(day(x.end_date), 'dd.MM.yy') : '–'}</td>
+              <td className="text-gray-600 dark:text-gray-300">{x.main_due ? format(day(x.main_due), 'dd.MM.') : '–'}</td>
               <td className="tabular text-right text-gray-700 dark:text-gray-200">{x.premium != null ? eur2.format(Number(x.premium)) : '–'}</td>
               <td className="text-right">
                 {canEdit && (

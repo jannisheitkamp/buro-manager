@@ -152,7 +152,7 @@ describe('Agentur-Export', () => {
   const base = { Anrede: 'Frau', Vorname: 'Erika', Nachname: 'Musterfrau', Strasse: 'Musterweg 1', LKZ: 'D', PLZ: '12345', Ort: 'Musterstadt', Geburtsdatum: '01.02.1990', Mobil: '0170 0000000', 'Privat/Gewerbe': 'Privatvertrag' };
   const text = [
     H.join('\t'),
-    row({ ...base, Vertragsnummer: '111', Sparte: 'Haftpflicht', Vertragsstatus: 'Aktiv', Versicherungsunternehmen: 'Muster Versicherung AG', 'Beginn Vertrag': '01.01.2024', 'Beitrag netto/EUR': '6,23', 'Beitrag brutto/EUR': '7,41', Zahlweise: 'monatlich' }).join('\t'),
+    row({ ...base, Vertragsnummer: '111', Sparte: 'Haftpflicht', Vertragsstatus: 'Aktiv', Versicherungsunternehmen: 'Muster Versicherung AG', 'Beginn Vertrag': '01.01.2024', 'Ablauf Vertrag': '01.01.2027', 'Hauptfälligkeit': '01.01.', 'Beitrag netto/EUR': '6,23', 'Beitrag brutto/EUR': '7,41', Zahlweise: 'monatlich' }).join('\t'),
     row({ ...base, Vertragsnummer: '222', Sparte: 'Hausrat', Vertragsstatus: 'Storniert', Stornodatum: '2026.03.26', 'Beginn Vertrag': '12.08.2025' }).join('\t'),
     row({ Anrede: 'Firma', Nachname: 'Muster GmbH', Telefon: '0231 000', Vertragsnummer: '333', Sparte: 'Haftpflicht', 'Privat/Gewerbe': 'Gewerbevertrag', Vertragsstatus: 'Aktiv' }).join('\t'),
   ].join('\n');
@@ -171,6 +171,8 @@ describe('Agentur-Export', () => {
     expect(col('insurer')).toBe('Versicherungsunternehmen');
     expect(col('policy_number')).toBe('Vertragsnummer');
     expect(col('start_date')).toBe('Beginn Vertrag');
+    expect(col('end_date')).toBe('Ablauf Vertrag');
+    expect(col('main_due')).toBe('Hauptfälligkeit');
     expect(col('premium')).toBe('Beitrag brutto/EUR');
     expect(col('payment')).toBe('Zahlweise');
     expect(col('contract_status')).toBe('Vertragsstatus');
@@ -182,7 +184,7 @@ describe('Agentur-Export', () => {
   it('liest Werte, „-“ als leer, Mobil als Ersatz, Storno nicht als Bestand', () => {
     const [a, b, c] = readRows(table, m);
     expect(a.customer).toMatchObject({ customer_type: 'person', last_name: 'Musterfrau', first_name: 'Erika', birth_date: '1990-02-01', phone: '0170 0000000', email: null, address: 'Musterweg 1, 12345 Musterstadt' });
-    expect(a.contract).toMatchObject({ product: 'Haftpflicht', insurer: 'Muster Versicherung AG', policy_number: '111', start_date: '2024-01-01', premium: 7.41, notes: 'Zahlweise: monatlich' });
+    expect(a.contract).toMatchObject({ product: 'Haftpflicht', insurer: 'Muster Versicherung AG', policy_number: '111', start_date: '2024-01-01', end_date: '2027-01-01', main_due: '2000-01-01', premium: 7.41, notes: 'Zahlweise: monatlich' });
     expect(a.problems).toEqual([]);
     expect(b.contract).toBeNull();
     expect(b.inactiveContract).toBe('Hausrat, storniert 26.03.2026');
