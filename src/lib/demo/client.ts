@@ -208,6 +208,8 @@ class Query implements PromiseLike<Result> {
         if (!('created_at' in v)) v.created_at = new Date().toISOString();
         if (t === 'absences') applyAbsenceRules(v);
         if (t === 'production_entries') linkCustomer(v);
+        // Wie die berechnete Spalte in der Datenbank
+        if (t === 'customers') v.name_key = nameKey(v.last_name, v.first_name);
         const key = keyOf(t);
         const existing = rows.find((r) => key.every((k) => String(r[k]) === String(v[k])));
         if (existing) {
@@ -341,6 +343,27 @@ export const createDemoClient = (): any => {
         db.customers = table('customers').filter((x) => x !== drop);
       }
       return Promise.resolve({ data: null, error: null });
+    }
+    if (fn === 'merge_products') {
+      const keep = table('insurance_products').find((x) => x.id === args?.p_keep);
+      const drop = table('insurance_products').find((x) => x.id === args?.p_drop);
+      if (keep && drop && keep !== drop) {
+        table('production_entries').filter((e) => e.sub_category === drop.name).forEach((e) => { e.sub_category = keep.name; e.category = keep.area; });
+        table('customer_contracts').filter((e) => e.sub_category === drop.name).forEach((e) => { e.sub_category = keep.name; e.category = keep.area; });
+        table('leads').filter((l) => l.product === drop.name).forEach((l) => { l.product = keep.name; });
+        keep.aliases = [keep.aliases, drop.name, drop.aliases].filter(Boolean).join(' ');
+        db.insurance_products = table('insurance_products').filter((x) => x !== drop);
+      }
+      return Promise.resolve({ data: null, error: null });
+    }
+    if (fn === 'product_usage') {
+      const data = table('insurance_products').map((p) => ({
+        name: p.name,
+        entries: table('production_entries').filter((e) => e.sub_category === p.name).length,
+        contracts: table('customer_contracts').filter((e) => e.sub_category === p.name).length,
+        leads: table('leads').filter((l) => l.product === p.name).length,
+      }));
+      return Promise.resolve({ data, error: null });
     }
     if (fn === 'get_my_webhook_secret') return Promise.resolve({ data: 'demo-geheimnis', error: null });
     if (fn === 'respond_reception_swap') {

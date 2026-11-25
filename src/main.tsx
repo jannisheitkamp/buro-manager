@@ -4,6 +4,8 @@ import App from './App'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { registerSW } from 'virtual:pwa-register'
 import './index.css'
+// früh mithören, ob der Browser die App installieren kann
+import './hooks/useInstallPrompt'
 
 registerSW({ immediate: true })
 

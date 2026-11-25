@@ -55,7 +55,7 @@ export const AIAssistant = () => {
         {
             id: '1',
             role: 'bot',
-            content: 'Frag mich in normalen Sätzen, zum Beispiel „Wie viele BU-Verträge hatte ich im Oktober?“, „Provision diesen Monat im Vergleich“, „Wer ist morgen am Empfang?“ oder „Wie viele Urlaubstage habe ich noch?“.',
+            content: 'Frag mich in normalen Sätzen, zum Beispiel „Wie viele BU-Verträge hatte ich im Oktober?“, „Wer hat keine Haftpflicht?“, „Geburtstage diese Woche“, „Wer ist morgen am Empfang?“ oder „Wie viele Urlaubstage habe ich noch?“.',
             timestamp: new Date()
         }
     ]);
@@ -92,6 +92,7 @@ export const AIAssistant = () => {
                     text:
                         'Frag einfach in normalen Sätzen, zum Beispiel:\n' +
                         '- Produktion: „Wie viele BU-Verträge hatte ich im Oktober?“, „Provision letzte Woche“, „Lebenswerte Q3 im Vergleich“, „Stornos dieses Jahr“\n' +
+                        '- Kunden: „Wer hat keine Haftpflicht?“, „Geburtstage diese Woche“, „Welche Fristen laufen ab?“, „Telefon von Müller“\n' +
                         '- Ziel: „Schaffe ich mein Monatsziel?“\n' +
                         '- Urlaub: „Wie viele Urlaubstage habe ich noch?“\n' +
                         '- Empfang: „Wer ist morgen am Empfang?“, „Empfang am Freitag“\n' +

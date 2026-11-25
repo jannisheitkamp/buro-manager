@@ -1,0 +1,6 @@
+﻿Nachname;Vorname;Geb.-Datum;Telefon;E-Mail;Straße;PLZ;Ort;Sparte;Gesellschaft;Vertragsnummer;Beginn;Beitrag
+Testmann;Tina;12.03.1984;0151 2222;tina@example.com;Lindenweg 3;48143;Münster;Privathaftpflicht;Allianz;PH-1;01.02.2020;5,90
+Testmann;Tina;;;;;;;Hausratversicherung;HUK;HR-7;01.04.2021;8,50
+Neumann;Nils;1.1.95;;kaputt;;;;Berufsunfähigkeitsversicherung;Alte Leipziger;BU-9;15.06.2022;72,00
+;;;;;;;;PHV;;;;
+Kleinert;Kai;;0170 1;;;;;Gartenzwergversicherung;;;;

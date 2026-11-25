@@ -54,7 +54,8 @@ export default defineConfig({
         theme_color: '#146A68',
         background_color: '#F5F6F3',
         display: 'standalone', // No browser UI
-        orientation: 'portrait',
+        // Querformat erlauben: Tablet und Rechner nutzen die App auch breit
+        orientation: 'any',
         scope: '/',
         start_url: '/',
         icons: [
