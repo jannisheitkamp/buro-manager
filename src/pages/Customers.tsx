@@ -50,7 +50,7 @@ export const Customers = () => {
   const [callbacks, setCallbacks] = useState<OpenCallback[]>([]);
   const [followups, setFollowups] = useState<Followup[]>([]);
   const [loading, setLoading] = useState(true);
-  const [scope, setScope] = useState<'mine' | 'team'>('mine');
+  const [teamScope, setScope] = useState<'mine' | 'team'>('mine');
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState<string | null>(null);
   const [view, setView] = useState<'akte' | 'gaps'>('akte');
@@ -63,7 +63,7 @@ export const Customers = () => {
   const [rules, setRules] = useState<GapRule[]>([]);
   const [rulesOpen, setRulesOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
-  const [people, setPeople] = useState<{ id: string; full_name: string }[]>([]);
+  const [people, setPeople] = useState<{ id: string; full_name: string; boss_id?: string | null; is_vocational_student?: boolean | null }[]>([]);
   const { products } = useProducts();
 
   const load = useCallback(async () => {
@@ -79,10 +79,10 @@ export const Customers = () => {
     ]);
     const [{ data: gr }, { data: pp }] = await Promise.all([
       supabase.from('gap_rules').select('*').order('sort'),
-      supabase.from('profiles').select('id, full_name'),
+      supabase.from('profiles').select('id, full_name, boss_id, is_vocational_student'),
     ]);
     setRules((gr as GapRule[]) || []);
-    setPeople((pp as { id: string; full_name: string }[]) || []);
+    setPeople((pp as typeof people) || []);
     setExisting((x as Existing[]) || []);
     if (error) toast.error('Kunden konnten nicht geladen werden.');
     setCustomers((c as Customer[]) || []);
@@ -100,18 +100,21 @@ export const Customers = () => {
   useEffect(() => {
     const id = searchParams.get('c');
     if (!id || loading) return;
-    setScope('team');
+    if (isAdmin) setScope('team');
     setOpen(id);
     setSearchParams({}, { replace: true });
     setTimeout(() => document.getElementById(`customer-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
-  }, [searchParams, loading, setSearchParams]);
+  }, [searchParams, loading, setSearchParams, isAdmin]);
 
-  // Azubis: Kunden des Chefs zählen wie eigene
+  // Eigene Kunden: meine, als Azubi die des Chefs, als Chef die meiner Azubis (wie my_circle in der Datenbank)
   const boss = profile?.is_vocational_student ? profile.boss_id || null : null;
-  const mineEntry = useCallback(
-    (e: Entry) => [user?.id, boss].some((id) => id && (e.user_id === id || e.managed_by === id)),
-    [user?.id, boss],
+  const circle = useMemo(
+    () => new Set([user?.id, boss, ...people.filter((p) => p.is_vocational_student && p.boss_id === user?.id).map((p) => p.id)].filter((id): id is string => !!id)),
+    [user?.id, boss, people],
   );
+  const mineEntry = useCallback((e: Entry) => circle.has(e.user_id) || (!!e.managed_by && circle.has(e.managed_by)), [circle]);
+  // Nur Admins sehen den ganzen Bestand
+  const scope = isAdmin ? teamScope : 'mine';
   const scopedEntries = useMemo(() => (scope === 'mine' ? entries.filter(mineEntry) : entries), [entries, scope, mineEntry]);
 
   // Kunden mit ihren Verträgen und Lücken
@@ -124,7 +127,7 @@ export const Customers = () => {
     });
     const existingBy = new Map<string, Existing[]>();
     existing.forEach((x) => existingBy.set(x.customer_id, [...(existingBy.get(x.customer_id) || []), x]));
-    const mineId = (id: string | null) => !!id && (id === user?.id || (!!boss && id === boss));
+    const mineId = (id: string | null) => !!id && circle.has(id);
     return customers
       .map((c) => {
         const all = byCustomer.get(c.id) || [];
@@ -159,7 +162,7 @@ export const Customers = () => {
       .sort((a, b) => a.name.localeCompare(b.name, 'de'));
     // products: productByName liest den geladenen Katalog
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [customers, entries, existing, callbacks, scope, mineEntry, user?.id, boss, rules, products]);
+  }, [customers, entries, existing, callbacks, scope, mineEntry, circle, rules, products]);
 
   // Bestandsverträge der angezeigten Kunden bekommen ebenfalls Fristen
   const existingAsEntries = useMemo<DeadlineEntry[]>(
@@ -174,6 +177,8 @@ export const Customers = () => {
           category: x.category,
           sub_category: x.sub_category,
           start_date: x.start_date,
+          end_date: x.end_date,
+          main_due: x.main_due,
           submission_date: x.start_date || '',
           customer_name: r.customer.last_name,
           customer_firstname: r.customer.first_name,
@@ -268,10 +273,10 @@ export const Customers = () => {
     (id: string) => {
       if (isAdmin) return true;
       const c = customers.find((x) => x.id === id);
-      const mineId = (x: string | null | undefined) => !!x && (x === user?.id || (!!boss && x === boss));
-      return !!c && (mineId(c.created_by) || entries.some((e) => e.customer_id === id && mineEntry(e)));
+      const mineId = (x: string | null | undefined) => !!x && circle.has(x);
+      return !!c && (mineId(c.created_by) || entries.some((e) => e.customer_id === id && mineEntry(e)) || existing.some((x) => x.customer_id === id && mineId(x.created_by)));
     },
-    [isAdmin, customers, entries, user?.id, boss, mineEntry],
+    [isAdmin, customers, entries, existing, circle, mineEntry],
   );
 
   const openCustomer = (id: string) => {
@@ -291,14 +296,16 @@ export const Customers = () => {
         description="Stammdaten, Verträge und Dokumente je Kunde, fehlende Absicherungen und anstehende Fristen."
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <Segmented
-              value={scope}
-              onChange={(v) => setScope(v as 'mine' | 'team')}
-              options={[
-                { value: 'mine', label: 'Meine' },
-                { value: 'team', label: 'Ganzes Team' },
-              ]}
-            />
+            {isAdmin && (
+              <Segmented
+                value={scope}
+                onChange={(v) => setScope(v as 'mine' | 'team')}
+                options={[
+                  { value: 'mine', label: 'Meine' },
+                  { value: 'team', label: 'Ganzes Team' },
+                ]}
+              />
+            )}
             {isAdmin && <Button variant="secondary" icon={SlidersHorizontal} onClick={() => setRulesOpen(true)}>Lückenregeln</Button>}
             <Button variant="secondary" icon={FileSpreadsheet} onClick={() => setImportOpen(true)}>Import</Button>
             <Button icon={Plus} onClick={() => setEditing('new')}>Neuer Kunde</Button>

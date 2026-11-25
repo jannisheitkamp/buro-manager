@@ -26,7 +26,7 @@ type C = {
   employees: number | null;
 };
 type E = { id: string; customer_id: string | null; user_id: string; managed_by: string | null; status: string; category: string; sub_category: string | null; start_date: string | null; customer_name: string; customer_firstname: string | null; policy_number: string | null };
-type X = { id: string; customer_id: string; created_by: string; category: string; sub_category: string; start_date: string | null; policy_number: string | null };
+type X = { id: string; customer_id: string; created_by: string; category: string; sub_category: string; start_date: string | null; end_date?: string | null; main_due?: string | null; policy_number: string | null };
 
 const MAX_NAMES = 8;
 const name = (c: Pick<C, 'last_name' | 'first_name'>) => `${c.last_name}${c.first_name ? `, ${c.first_name}` : ''}`;
@@ -62,7 +62,7 @@ async function loadData(): Promise<Data> {
   const [c, e, x, r] = await Promise.all([
     supabase.from('customers').select('id, created_by, last_name, first_name, birth_date, phone, email, customer_type, occupation, marital_status, children, housing, vehicles, pets, employees'),
     supabase.from('production_entries').select('id, customer_id, user_id, managed_by, status, category, sub_category, start_date, customer_name, customer_firstname, policy_number'),
-    supabase.from('customer_contracts').select('id, customer_id, created_by, category, sub_category, start_date, policy_number'),
+    supabase.from('customer_contracts').select('id, customer_id, created_by, category, sub_category, start_date, end_date, main_due, policy_number'),
     supabase.from('gap_rules').select('*'),
     loadProducts(),
   ]);

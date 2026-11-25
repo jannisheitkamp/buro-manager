@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { FileText, Loader2, Trash2, Upload } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { supabase } from '@/lib/supabase';
-import { openStoredFile } from '@/lib/storage';
+import { DOC_KINDS, kindLabel, uploadContractDocument, openContractDocument, type DocKind } from '@/lib/contractDocuments';
 import { useStore } from '@/store/useStore';
 import { cn } from '@/utils/cn';
 
@@ -14,37 +14,6 @@ export type ContractDocument = {
   kind: DocKind;
   uploaded_by: string;
   created_at: string;
-};
-
-export type DocKind = 'police' | 'antrag' | 'beratung' | 'sonstiges';
-
-export const DOC_KINDS: { value: DocKind; label: string }[] = [
-  { value: 'police', label: 'Police' },
-  { value: 'antrag', label: 'Antrag' },
-  { value: 'beratung', label: 'Beratungsprotokoll' },
-  { value: 'sonstiges', label: 'Sonstiges' },
-];
-const kindLabel = (k: DocKind) => DOC_KINDS.find((d) => d.value === k)?.label || k;
-
-/** Datei in den Speicher laden und dem Vertrag zuordnen */
-export async function uploadContractDocument(entryId: string, userId: string, file: File, kind: DocKind) {
-  const ext = file.name.split('.').pop() || 'bin';
-  const path = `${userId}/${crypto.randomUUID()}.${ext}`;
-  const { error: upErr } = await supabase.storage.from('production_docs').upload(path, file);
-  if (upErr) throw upErr;
-  const { error } = await supabase.from('contract_documents').insert({ entry_id: entryId, file_path: path, file_name: file.name, kind, uploaded_by: userId });
-  if (error) {
-    await supabase.storage.from('production_docs').remove([path]);
-    throw error;
-  }
-}
-
-export const openContractDocument = (pathOrUrl: string) => {
-  if (/^https?:\/\//.test(pathOrUrl) && !pathOrUrl.includes('/storage/v1/object/')) {
-    window.open(pathOrUrl, '_blank', 'noopener,noreferrer');
-    return;
-  }
-  openStoredFile('production_docs', pathOrUrl);
 };
 
 /** Dokumente eines Vertrags: ansehen, hochladen, löschen */

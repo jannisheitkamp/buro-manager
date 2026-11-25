@@ -122,6 +122,31 @@ describe('Kündigungsfristen', () => {
     expect(nextDeadline(entry({ start_date: null }))).toBeNull();
   });
 
+  it('Ablauf in der Zukunft: erste Frist 3 Monate vor Ablauf', () => {
+    const d = nextDeadline(entry({ start_date: '2024-03-01', end_date: '2029-03-01' }), new Date(2026, 10, 1))!;
+    expect(d.renewal).toEqual(new Date(2029, 2, 1));
+    expect(d.deadline).toEqual(new Date(2028, 11, 1));
+  });
+
+  it('Hauptfälligkeit statt Beginn, auch ohne Beginn', () => {
+    const d = nextDeadline(entry({ start_date: '2024-03-15', main_due: '2000-01-01' }), new Date(2026, 8, 1))!;
+    expect(d.renewal).toEqual(new Date(2027, 0, 1));
+    expect(d.deadline).toEqual(new Date(2026, 9, 1));
+    expect(nextDeadline(entry({ start_date: null, main_due: '2000-07-01' }), new Date(2026, 0, 10))!.renewal).toEqual(new Date(2026, 6, 1));
+  });
+
+  it('Ablauf vorbei: weiter jährlich ab Hauptfälligkeit', () => {
+    const d = nextDeadline(entry({ start_date: '2020-05-01', end_date: '2021-05-01', main_due: '2000-05-01' }), new Date(2026, 10, 1))!;
+    expect(d.renewal).toEqual(new Date(2027, 4, 1));
+  });
+
+  it('KFZ mit abweichender Hauptfälligkeit: ein Monat Frist', () => {
+    const d = nextDeadline(entry({ category: 'car', sub_category: 'KFZ', main_due: '2000-04-01' }), new Date(2026, 10, 1))!;
+    expect(d.kind).toBe('renewal');
+    expect(d.renewal).toEqual(new Date(2027, 3, 1));
+    expect(d.deadline).toEqual(new Date(2027, 1, 28));
+  });
+
   it('upcomingDeadlines zeigt nur die nächsten 60 Tage, sortiert', () => {
     const today = new Date(2026, 10, 1);
     const list = upcomingDeadlines([entry({ id: 'a', start_date: '2020-06-01' }), entry({ id: 'b' }), entry({ id: 'c', category: 'car', sub_category: 'KFZ' })], today);

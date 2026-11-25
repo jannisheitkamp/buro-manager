@@ -7,7 +7,7 @@ import { ProductPicker } from '@/components/ProductPicker';
 import { productByName } from '@/lib/products';
 import { fullName, parseEuro, type Customer, type Existing, type InputChange } from './shared';
 
-const EMPTY_EXISTING = { sub_category: 'PHV', insurer: '', policy_number: '', start_date: '', premium: '', notes: '' };
+const EMPTY_EXISTING = { sub_category: 'PHV', insurer: '', policy_number: '', start_date: '', end_date: '', main_due: '', premium: '', notes: '' };
 type ExistingForm = typeof EMPTY_EXISTING;
 
 /** Bestandsvertrag hinzufügen oder bearbeiten */
@@ -36,6 +36,8 @@ export function ExistingContractModal({
             insurer: x.insurer || '',
             policy_number: x.policy_number || '',
             start_date: x.start_date || '',
+            end_date: x.end_date || '',
+            main_due: x.main_due || '',
             premium: x.premium != null ? String(x.premium).replace('.', ',') : '',
             notes: x.notes || '',
           }
@@ -56,6 +58,8 @@ export function ExistingContractModal({
       insurer: form.insurer.trim() || null,
       policy_number: form.policy_number.trim() || null,
       start_date: form.start_date || null,
+      end_date: form.end_date || null,
+      main_due: form.main_due || null,
       premium,
       notes: form.notes.trim() || null,
     };
@@ -97,7 +101,9 @@ export function ExistingContractModal({
             {insurers.map((i) => <option key={i} value={i} />)}
           </datalist>
           <Field label="Schein-Nr." htmlFor="ex-pol"><input id="ex-pol" value={form.policy_number} onChange={setX('policy_number')} className="input" /></Field>
-          <Field label="Beginn" htmlFor="ex-start" hint="Für die Kündigungsfrist"><input id="ex-start" type="date" value={form.start_date} onChange={setX('start_date')} className="input" /></Field>
+          <Field label="Beginn" htmlFor="ex-start"><input id="ex-start" type="date" value={form.start_date} onChange={setX('start_date')} className="input" /></Field>
+          <Field label="Ablauf" htmlFor="ex-end" hint="Vorher keine Kündigung möglich"><input id="ex-end" type="date" value={form.end_date} onChange={setX('end_date')} className="input" /></Field>
+          <Field label="Hauptfälligkeit" htmlFor="ex-due" hint="Für die jährliche Kündigungsfrist"><input id="ex-due" type="date" value={form.main_due} onChange={setX('main_due')} className="input" /></Field>
           <Field label="Beitrag (€)" htmlFor="ex-prem"><input id="ex-prem" inputMode="decimal" value={form.premium} onChange={setX('premium')} className="input" placeholder="z. B. 12,50" /></Field>
           <Field label="Notizen" htmlFor="ex-notes" className="sm:col-span-2"><textarea id="ex-notes" rows={2} value={form.notes} onChange={setX('notes')} className="input resize-none" /></Field>
         </div>

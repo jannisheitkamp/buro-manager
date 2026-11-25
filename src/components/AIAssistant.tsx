@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Send, X, Bot, ArrowRight } from 'lucide-react';
-import { create } from 'zustand';
+import { useAssistant } from '@/store/overlays';
 import { smartAnswer, EXAMPLE_QUESTIONS } from '@/lib/assistantBrain';
 import { cn } from '@/utils/cn';
 import { useNavigate } from 'react-router-dom';
@@ -39,11 +39,6 @@ const normalize = (s: string) =>
         .replace(/[ß]/g, 'ss');
 
 const includesAny = (text: string, keywords: string[]) => keywords.some(k => text.includes(k));
-
-export const useAssistant = create<{ open: boolean; setOpen: (o: boolean) => void }>((set) => ({
-    open: false,
-    setOpen: (open) => set({ open }),
-}));
 
 export const AIAssistant = () => {
     const { user, profile } = useStore();

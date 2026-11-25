@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ContractDocuments, DOC_KINDS, uploadContractDocument, type DocKind } from '@/components/ContractDocuments';
+import { ContractDocuments } from '@/components/ContractDocuments';
+import { DOC_KINDS, uploadContractDocument, type DocKind } from '@/lib/contractDocuments';
 import { supabase } from '@/lib/supabase';
 import { useStore } from '@/store/useStore';
 import { useLocation } from 'react-router-dom';

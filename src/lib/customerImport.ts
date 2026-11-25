@@ -26,6 +26,8 @@ export const IMPORT_FIELDS = [
   { id: 'insurer', label: 'Gesellschaft', group: 'contract', synonyms: ['gesellschaft', 'versicherer', 'versicherungsunternehmen', 'versicherungsgesellschaft', 'anbieter', 'vu'] },
   { id: 'policy_number', label: 'Schein-Nr.', group: 'contract', synonyms: ['schein nr', 'scheinnummer', 'vertragsnummer', 'vertrags nr', 'policennummer', 'police', 'vsnr', 'vertrag nr', 'versicherungsnummer'] },
   { id: 'start_date', label: 'Vertragsbeginn', group: 'contract', synonyms: ['beginn', 'vertragsbeginn', 'versicherungsbeginn', 'beginn vertrag'] },
+  { id: 'end_date', label: 'Ablauf', group: 'contract', synonyms: ['ablauf vertrag', 'ablauf', 'vertragsablauf', 'ablaufdatum', 'vertragsende'] },
+  { id: 'main_due', label: 'Hauptfälligkeit', group: 'contract', synonyms: ['hauptfaelligkeit', 'faelligkeit'] },
   // brutto zuerst: das zahlt der Kunde
   { id: 'premium', label: 'Beitrag (€)', group: 'contract', synonyms: ['beitrag brutto eur', 'beitrag brutto', 'bruttobeitrag', 'zahlbeitrag', 'beitrag', 'praemie', 'monatsbeitrag', 'jahresbeitrag', 'betrag'] },
   { id: 'payment', label: 'Zahlweise', group: 'contract', synonyms: ['zahlweise', 'zahlungsweise'] },
@@ -137,6 +139,14 @@ export function parseDate(v: Cell): string | null {
   return null;
 }
 
+/** Hauptfälligkeit: volles Datum oder nur „01.01.“ / „1.4“ (Jahr egal, gespeichert als 2000) */
+export function parseDueDate(v: Cell): string | null {
+  const full = parseDate(v);
+  if (full) return full;
+  const m = typeof v === 'string' ? v.trim().match(/^(\d{1,2})\.(\d{1,2})\.?$/) : null;
+  return m ? iso(2000, Number(m[2]), Number(m[1])) : null;
+}
+
 /** Betrag aus „1.234,50 €“, „12,5“, „12.50“ oder Zahl */
 export function parseAmount(v: Cell): number | null {
   if (v == null || v === '') return null;
@@ -208,6 +218,8 @@ export type ContractFields = {
   insurer: string | null;
   policy_number: string | null;
   start_date: string | null;
+  end_date: string | null;
+  main_due: string | null;
   premium: number | null;
   notes: string | null;
 };
@@ -270,6 +282,8 @@ export function readRows(table: Table, mapping: Mapping): ImportRow[] {
     const rawStart = get(r, 'start_date');
     const start = parseDate(rawStart);
     if (product && rawStart != null && rawStart !== '' && !start) problems.push(`Beginn „${text(rawStart)}“ nicht erkannt`);
+    const end = parseDate(get(r, 'end_date'));
+    const due = parseDueDate(get(r, 'main_due'));
     const rawPremium = get(r, 'premium');
     const premium = parseAmount(rawPremium);
     if (product && rawPremium != null && rawPremium !== '' && premium == null) problems.push(`Beitrag „${text(rawPremium)}“ ist keine Zahl`);
@@ -296,6 +310,8 @@ export function readRows(table: Table, mapping: Mapping): ImportRow[] {
               insurer: text(get(r, 'insurer')) || null,
               policy_number: text(get(r, 'policy_number')) || null,
               start_date: start,
+              end_date: end,
+              main_due: due,
               premium,
               notes: payment ? `Zahlweise: ${payment}` : null,
             }

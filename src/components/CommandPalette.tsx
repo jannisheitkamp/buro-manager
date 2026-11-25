@@ -2,18 +2,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, CornerDownLeft, Contact, FileText, Target } from 'lucide-react';
 import { Dialog, DialogPanel, Combobox, ComboboxInput, ComboboxOptions, ComboboxOption } from '@headlessui/react';
-import { create } from 'zustand';
+import { useCommandPalette } from '@/store/overlays';
 import { supabase } from '@/lib/supabase';
 import { ALL_NAV_ITEMS } from '@/lib/navigation';
 import { useStore } from '@/store/useStore';
 import { Avatar } from '@/components/ui';
 import { cn } from '@/utils/cn';
 import type { LucideIcon } from 'lucide-react';
-
-export const useCommandPalette = create<{ open: boolean; setOpen: (o: boolean) => void }>((set) => ({
-  open: false,
-  setOpen: (open) => set({ open }),
-}));
 
 type Item =
   | { kind: 'page'; id: string; name: string; href: string; icon: LucideIcon; keywords: string }

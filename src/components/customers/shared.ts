@@ -54,6 +54,8 @@ export type Existing = {
   insurer: string | null;
   policy_number: string | null;
   start_date: string | null;
+  end_date: string | null;
+  main_due: string | null;
   premium: number | null;
   notes: string | null;
   handled_until: string | null;
