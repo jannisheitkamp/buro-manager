@@ -144,3 +144,63 @@ describe('planImport', () => {
     expect(plan.unknownProducts).toEqual(['Unbekanntes Ding']);
   });
 });
+
+// Agentur-Export (Tab-getrennt): Spalten wie im echten Export, Werte erfunden
+describe('Agentur-Export', () => {
+  const H = ['Anrede', 'Titel', 'Vorname', 'Nachname', 'Namenszusatz', 'Strasse', 'LKZ', 'PLZ', 'Ort', 'Personenstatus', 'Geburtsdatum', 'Telefon', 'Mobil', 'E-Mail', 'Kundennummer', 'Vertragsnummer', 'BA', 'KG', 'Sparte', 'Vertragsstatus', 'Stornodatum', 'Stornogrund', 'Kfz-Kennzeichen', 'Tarif', 'VP1 Name', 'VP1 Vorname', 'VP1 Geburtsdatum', 'VP2 Name', 'VP2 Vorname', 'VP2 Geburtsdatum', 'Versicherungsunternehmen', 'Beginn Vertrag', 'Ablauf Vertrag', 'Privat/Gewerbe', 'Hauptfälligkeit', 'Beitrag netto/EUR', 'Beitrag brutto/EUR', 'Zahlweise', 'Aktionsnummer/Aktionsplan', 'MAID', 'Betreuungsagentur', 'Betreuende Agenturname', 'Abschlussagentur', 'Abschlussagenturname', 'Inkassoagentur', 'Inkassoagenturname', 'Fremdnummer VP 1', 'Fremdnummer VP 2', 'Werbe-Kanal E-Mail_Status', 'Werbe-Kanal Telefon-Mobil_Status', 'Werbe-Kanal Brief-Post_Status'];
+  const row = (o: Record<string, string>) => H.map((h) => o[h] ?? '-');
+  const base = { Anrede: 'Frau', Vorname: 'Erika', Nachname: 'Musterfrau', Strasse: 'Musterweg 1', LKZ: 'D', PLZ: '12345', Ort: 'Musterstadt', Geburtsdatum: '01.02.1990', Mobil: '0170 0000000', 'Privat/Gewerbe': 'Privatvertrag' };
+  const text = [
+    H.join('\t'),
+    row({ ...base, Vertragsnummer: '111', Sparte: 'Haftpflicht', Vertragsstatus: 'Aktiv', Versicherungsunternehmen: 'Muster Versicherung AG', 'Beginn Vertrag': '01.01.2024', 'Beitrag netto/EUR': '6,23', 'Beitrag brutto/EUR': '7,41', Zahlweise: 'monatlich' }).join('\t'),
+    row({ ...base, Vertragsnummer: '222', Sparte: 'Hausrat', Vertragsstatus: 'Storniert', Stornodatum: '2026.03.26', 'Beginn Vertrag': '12.08.2025' }).join('\t'),
+    row({ Anrede: 'Firma', Nachname: 'Muster GmbH', Telefon: '0231 000', Vertragsnummer: '333', Sparte: 'Haftpflicht', 'Privat/Gewerbe': 'Gewerbevertrag', Vertragsstatus: 'Aktiv' }).join('\t'),
+  ].join('\n');
+  const table = toTable(parseCsv(text));
+  const m = guessMapping(table.headers);
+
+  it('erkennt die Spalten', () => {
+    const col = (f: keyof Mapping) => table.headers[m[f]];
+    expect(col('last_name')).toBe('Nachname');
+    expect(col('first_name')).toBe('Vorname');
+    expect(col('birth_date')).toBe('Geburtsdatum');
+    expect(col('phone')).toBe('Telefon');
+    expect(col('mobile')).toBe('Mobil');
+    expect(col('street')).toBe('Strasse');
+    expect(col('product')).toBe('Sparte');
+    expect(col('insurer')).toBe('Versicherungsunternehmen');
+    expect(col('policy_number')).toBe('Vertragsnummer');
+    expect(col('start_date')).toBe('Beginn Vertrag');
+    expect(col('premium')).toBe('Beitrag brutto/EUR');
+    expect(col('payment')).toBe('Zahlweise');
+    expect(col('contract_status')).toBe('Vertragsstatus');
+    expect(col('cancel_date')).toBe('Stornodatum');
+    expect(col('customer_type')).toBe('Privat/Gewerbe');
+    expect(m.full_name).toBe(-1);
+  });
+
+  it('liest Werte, „-“ als leer, Mobil als Ersatz, Storno nicht als Bestand', () => {
+    const [a, b, c] = readRows(table, m);
+    expect(a.customer).toMatchObject({ customer_type: 'person', last_name: 'Musterfrau', first_name: 'Erika', birth_date: '1990-02-01', phone: '0170 0000000', email: null, address: 'Musterweg 1, 12345 Musterstadt' });
+    expect(a.contract).toMatchObject({ product: 'Haftpflicht', insurer: 'Muster Versicherung AG', policy_number: '111', start_date: '2024-01-01', premium: 7.41, notes: 'Zahlweise: monatlich' });
+    expect(a.problems).toEqual([]);
+    expect(b.contract).toBeNull();
+    expect(b.inactiveContract).toBe('Hausrat, storniert 26.03.2026');
+    expect(c.customer.customer_type).toBe('company');
+    expect(c.contract?.product).toBe('Haftpflicht (Gewerbe)');
+  });
+
+  it('ordnet Sparten privat und gewerblich zu', () => {
+    expect(matchProduct('Haftpflicht', products)?.name).toBe('PHV');
+    expect(matchProduct('Haftpflicht (Gewerbe)', products)?.name).toBe('Betriebshaftpflicht');
+    expect(matchProduct('Kraftfahrt', products)?.name).toBe('KFZ');
+    expect(matchProduct('Hausrat', products)?.name).toBe('HR');
+  });
+
+  it('Plan: ein Kunde mit einem Vertrag, Storno als Hinweis', () => {
+    const plan = planImport(readRows(table, m), [], [], (v) => matchProduct(v, products)?.name || null, () => true);
+    expect(plan.create).toHaveLength(2);
+    expect(plan.create[0].contracts.map((x) => x.product)).toEqual(['PHV']);
+    expect(plan.warnings.map((w) => w.text)).toContain('Vertrag Hausrat, storniert 26.03.2026: nicht übernommen');
+  });
+});

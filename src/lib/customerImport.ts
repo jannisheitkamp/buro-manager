@@ -12,18 +12,25 @@ export const IMPORT_FIELDS = [
   { id: 'first_name', label: 'Vorname', group: 'customer', synonyms: ['vorname', 'first name', 'rufname'] },
   { id: 'full_name', label: 'Name komplett („Müller, Anna“)', group: 'customer', synonyms: ['kundenname', 'name komplett', 'vollstaendiger name', 'name vorname'] },
   { id: 'birth_date', label: 'Geburtsdatum', group: 'customer', synonyms: ['geburtsdatum', 'geboren', 'geb datum', 'geburtstag', 'birth', 'geb'] },
-  { id: 'phone', label: 'Telefon', group: 'customer', synonyms: ['telefon', 'tel', 'mobil', 'handy', 'telefonnummer', 'phone', 'rufnummer'] },
+  { id: 'phone', label: 'Telefon', group: 'customer', synonyms: ['telefon', 'tel', 'telefonnummer', 'phone', 'rufnummer', 'festnetz'] },
+  { id: 'mobile', label: 'Mobil (wenn Telefon leer)', group: 'customer', synonyms: ['mobil', 'handy', 'mobilnummer', 'mobiltelefon'] },
   { id: 'email', label: 'E-Mail', group: 'customer', synonyms: ['e mail', 'email', 'mail', 'e mail adresse'] },
   { id: 'street', label: 'Straße', group: 'customer', synonyms: ['strasse', 'str', 'anschrift', 'adresse', 'strasse hausnummer', 'street'] },
   { id: 'zip', label: 'PLZ', group: 'customer', synonyms: ['plz', 'postleitzahl', 'zip'] },
   { id: 'city', label: 'Ort', group: 'customer', synonyms: ['ort', 'stadt', 'wohnort', 'city'] },
   { id: 'household', label: 'Haushalt', group: 'customer', synonyms: ['haushalt', 'familie'] },
+  { id: 'customer_type', label: 'Privat / Gewerbe', group: 'customer', synonyms: ['privat gewerbe', 'kundenart', 'kundentyp', 'privat firma'] },
+  { id: 'salutation', label: 'Anrede („Firma“ = Firmenkunde)', group: 'customer', synonyms: ['anrede'] },
   { id: 'notes', label: 'Notizen', group: 'customer', synonyms: ['notiz', 'notizen', 'bemerkung', 'bemerkungen', 'kommentar'] },
-  { id: 'product', label: 'Versicherung / Sparte', group: 'contract', synonyms: ['sparte', 'produkt', 'versicherung', 'tarif', 'vertragsart', 'art', 'versicherungsart'] },
-  { id: 'insurer', label: 'Gesellschaft', group: 'contract', synonyms: ['gesellschaft', 'versicherer', 'anbieter', 'vu', 'versicherungsgesellschaft'] },
+  { id: 'product', label: 'Versicherung / Sparte', group: 'contract', synonyms: ['sparte', 'produkt', 'versicherungsart', 'vertragsart', 'versicherung', 'tarif'] },
+  { id: 'insurer', label: 'Gesellschaft', group: 'contract', synonyms: ['gesellschaft', 'versicherer', 'versicherungsunternehmen', 'versicherungsgesellschaft', 'anbieter', 'vu'] },
   { id: 'policy_number', label: 'Schein-Nr.', group: 'contract', synonyms: ['schein nr', 'scheinnummer', 'vertragsnummer', 'vertrags nr', 'policennummer', 'police', 'vsnr', 'vertrag nr', 'versicherungsnummer'] },
-  { id: 'start_date', label: 'Vertragsbeginn', group: 'contract', synonyms: ['beginn', 'vertragsbeginn', 'versicherungsbeginn', 'start', 'ab'] },
-  { id: 'premium', label: 'Beitrag (€)', group: 'contract', synonyms: ['beitrag', 'praemie', 'monatsbeitrag', 'jahresbeitrag', 'zahlbeitrag', 'betrag'] },
+  { id: 'start_date', label: 'Vertragsbeginn', group: 'contract', synonyms: ['beginn', 'vertragsbeginn', 'versicherungsbeginn', 'beginn vertrag'] },
+  // brutto zuerst: das zahlt der Kunde
+  { id: 'premium', label: 'Beitrag (€)', group: 'contract', synonyms: ['beitrag brutto eur', 'beitrag brutto', 'bruttobeitrag', 'zahlbeitrag', 'beitrag', 'praemie', 'monatsbeitrag', 'jahresbeitrag', 'betrag'] },
+  { id: 'payment', label: 'Zahlweise', group: 'contract', synonyms: ['zahlweise', 'zahlungsweise'] },
+  { id: 'contract_status', label: 'Vertragsstatus', group: 'contract', synonyms: ['vertragsstatus', 'status'] },
+  { id: 'cancel_date', label: 'Stornodatum', group: 'contract', synonyms: ['stornodatum', 'storno datum', 'kuendigungsdatum', 'storniert am'] },
 ] as const;
 export type FieldId = (typeof IMPORT_FIELDS)[number]['id'];
 /** Feld → Spaltenindex (oder -1 für „nicht importieren“) */
@@ -88,7 +95,9 @@ export function guessMapping(headers: string[]): Mapping {
   for (const exact of [true, false]) {
     for (const f of IMPORT_FIELDS) {
       if (m[f.id] !== undefined && m[f.id] >= 0) continue;
-      const idx = nh.findIndex((h, i) => !used.has(i) && f.synonyms.some((s) => (exact ? h === s : h.split(' ').includes(s) || h.startsWith(s))));
+      const hit = (s: string) => nh.findIndex((h, i) => !used.has(i) && (exact ? h === s : h.split(' ').includes(s) || h.startsWith(s)));
+      // Synonyme in ihrer Reihenfolge prüfen: das erste (beste) gewinnt, z. B. „beitrag brutto“ vor „beitrag“
+      const idx = f.synonyms.map(hit).find((i) => i >= 0) ?? -1;
       if (idx >= 0) {
         m[f.id] = idx;
         used.add(idx);
@@ -109,7 +118,7 @@ const iso = (y: number, mo: number, d: number) => {
   return `${y}-${pad(mo)}-${pad(d)}`;
 };
 
-/** Datum aus „31.12.1980“, „1980-12-31“, „31/12/80“, Excel-Seriennummer oder Date → yyyy-MM-dd */
+/** Datum aus „31.12.1980“, „1980-12-31“, „2026.03.26“, „31/12/80“, Excel-Seriennummer oder Date → yyyy-MM-dd */
 export function parseDate(v: Cell): string | null {
   if (v == null || v === '') return null;
   if (v instanceof Date) return Number.isNaN(v.getTime()) ? null : iso(v.getFullYear(), v.getMonth() + 1, v.getDate());
@@ -122,7 +131,7 @@ export function parseDate(v: Cell): string | null {
   const s = String(v).trim();
   let m = s.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})/);
   if (m) return iso(Number(m[3]), Number(m[2]), Number(m[1]));
-  m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  m = s.match(/^(\d{4})[./-](\d{1,2})[./-](\d{1,2})/);
   if (m) return iso(Number(m[1]), Number(m[2]), Number(m[3]));
   if (/^\d{5}$/.test(s)) return parseDate(Number(s));
   return null;
@@ -146,12 +155,33 @@ const text = (v: Cell) => {
   return String(v).trim();
 };
 
-/** Produkt im Katalog finden: exakter Name, Alias, dann Wortsuche */
+/**
+ * Sparten, wie Maklerprogramme und Gesellschaften sie exportieren → Produkt im Katalog.
+ * Gewerbliche Verträge bekommen die Gewerbe-Variante, wenn es eine gibt.
+ */
+const SPARTE_HINTS: { re: RegExp; privat: string; gewerbe?: string }[] = [
+  { re: /^(privat ?)?haftpflicht$|^phv$/, privat: 'PHV', gewerbe: 'Betriebshaftpflicht' },
+  { re: /^hausrat/, privat: 'HR' },
+  { re: /^unfall/, privat: 'UNF' },
+  { re: /^(kraftfahrt|kfz|kraftfahrzeug|auto)/, privat: 'KFZ' },
+  { re: /^(wohn)?gebaeude/, privat: 'Wohngebäudeversicherung' },
+  { re: /^rechtsschutz/, privat: 'Rechtsschutz', gewerbe: 'Firmenrechtsschutz' },
+  { re: /^(leben|lebensversicherung)$/, privat: 'Leben' },
+  { re: /^(kranken|krankenversicherung)$/, privat: 'KV Zusatz' },
+  { re: /^berufsunfaehig/, privat: 'BU' },
+];
+
+/** Produkt im Katalog finden: bekannte Sparten, exakter Name, Alias, dann Wortsuche */
 export function matchProduct(value: string, products: Product[]): Product | null {
-  const q = norm(value);
+  // Gewerbliche Verträge kommen aus readRows als „Haftpflicht (Gewerbe)“
+  const business = /\(gewerbe\)\s*$/i.test(value);
+  const q = norm(value.replace(/\(gewerbe\)\s*$/i, ''));
   if (!q) return null;
   const active = products.filter((p) => p.active);
+  const hint = SPARTE_HINTS.find((h) => h.re.test(q));
+  const hinted = hint && active.find((p) => p.name === ((business && hint.gewerbe) || hint.privat));
   return (
+    hinted ||
     active.find((p) => norm(p.name) === q) ||
     active.find((p) => (p.aliases || '').split(/[,;]| {2,}/).some((a) => norm(a) === q)) ||
     active.find((p) => norm(`${p.name} ${p.aliases || ''}`).split(' ').includes(q)) ||
@@ -163,6 +193,7 @@ export function matchProduct(value: string, products: Product[]): Product | null
 /* ---------------------------------------------------------------- Zeilen */
 
 export type CustomerFields = {
+  customer_type: 'person' | 'company';
   last_name: string;
   first_name: string | null;
   birth_date: string | null;
@@ -178,14 +209,31 @@ export type ContractFields = {
   policy_number: string | null;
   start_date: string | null;
   premium: number | null;
+  notes: string | null;
 };
-export type ImportRow = { line: number; key: string; customer: CustomerFields; contract: ContractFields | null; problems: string[] };
+export type ImportRow = {
+  line: number;
+  key: string;
+  customer: CustomerFields;
+  contract: ContractFields | null;
+  /** Vertrag in der Datei, aber storniert oder beendet: wird nicht übernommen */
+  inactiveContract: string | null;
+  problems: string[];
+};
+
+/** Platzhalter für „leer“ in Exporten */
+const EMPTY = new Set(['-', '–', '—', 'n/a', 'k.a.', 'unbekannt']);
+const INACTIVE = /storn|gekuendigt|kuendigung|beendet|abgelaufen|aufgehoben|erloschen|inaktiv|ruhend|annulliert|ausgelaufen/;
 
 export const nameKey = (last: string, first: string | null | undefined) => `${last.trim().toLowerCase()}|${(first || '').trim().toLowerCase()}`;
 
 /** Tabellenzeilen mit Zuordnung in Kunden- und Vertragsdaten übersetzen */
 export function readRows(table: Table, mapping: Mapping): ImportRow[] {
-  const get = (r: Cell[], f: FieldId) => (mapping[f] >= 0 ? r[mapping[f]] : null);
+  const get = (r: Cell[], f: FieldId) => {
+    const v = mapping[f] >= 0 ? r[mapping[f]] : null;
+    return typeof v === 'string' && EMPTY.has(v.trim().toLowerCase()) ? null : v;
+  };
+  const today = new Date().toISOString().slice(0, 10);
   return table.rows.map((r, i) => {
     const problems: string[] = [];
     let last = text(get(r, 'last_name'));
@@ -209,7 +257,13 @@ export function readRows(table: Table, mapping: Mapping): ImportRow[] {
     const email = text(get(r, 'email')) || null;
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) problems.push(`E-Mail „${email}“ sieht falsch aus`);
 
+    const business = /gewerb|firma|betrieb|geschaeft/.test(norm(text(get(r, 'customer_type')))) || /^firma/i.test(text(get(r, 'salutation')));
     const product = text(get(r, 'product'));
+    // Stornierte oder beendete Verträge nicht als Bestand übernehmen, sonst gilt die Lücke als geschlossen
+    const status = norm(text(get(r, 'contract_status')));
+    const cancelDate = parseDate(get(r, 'cancel_date'));
+    const inactive = !!product && (INACTIVE.test(status) || (!!cancelDate && cancelDate <= today));
+    const payment = text(get(r, 'payment'));
     const rawStart = get(r, 'start_date');
     const start = parseDate(rawStart);
     if (product && rawStart != null && rawStart !== '' && !start) problems.push(`Beginn „${text(rawStart)}“ nicht erkannt`);
@@ -221,18 +275,29 @@ export function readRows(table: Table, mapping: Mapping): ImportRow[] {
       line: i + 2,
       key: nameKey(last, first),
       customer: {
+        customer_type: business ? 'company' : 'person',
         last_name: last,
         first_name: first,
         birth_date: birth,
-        phone: text(get(r, 'phone')) || null,
+        phone: text(get(r, 'phone')) || text(get(r, 'mobile')) || null,
         email: email && !problems.some((p) => p.startsWith('E-Mail')) ? email : null,
         address,
         household: text(get(r, 'household')) || null,
         notes: text(get(r, 'notes')) || null,
       },
-      contract: product
-        ? { product, insurer: text(get(r, 'insurer')) || null, policy_number: text(get(r, 'policy_number')) || null, start_date: start, premium }
-        : null,
+      contract:
+        product && !inactive
+          ? {
+              // gleiche Sparte privat und gewerblich getrennt zuordnen lassen
+              product: business ? `${product} (Gewerbe)` : product,
+              insurer: text(get(r, 'insurer')) || null,
+              policy_number: text(get(r, 'policy_number')) || null,
+              start_date: start,
+              premium,
+              notes: payment ? `Zahlweise: ${payment}` : null,
+            }
+          : null,
+      inactiveContract: inactive ? `${product}${cancelDate ? `, storniert ${cancelDate.split('-').reverse().join('.')}` : `, ${text(get(r, 'contract_status'))}`}` : null,
       problems,
     };
   });
@@ -256,7 +321,7 @@ export type ImportPlan = {
   unknownProducts: string[];
 };
 
-const FILLABLE: (keyof CustomerFields)[] = ['birth_date', 'phone', 'email', 'address', 'household', 'notes'];
+const FILLABLE = ['birth_date', 'phone', 'email', 'address', 'household', 'notes'] as const;
 
 /**
  * Was beim Import passieren würde. Dubletten (gleicher Nach- und Vorname) werden ergänzt, nicht überschrieben.
@@ -284,6 +349,7 @@ export function planImport(
       continue;
     }
     r.problems.forEach((p) => warnings.push({ line: r.line, text: p }));
+    if (r.inactiveContract) warnings.push({ line: r.line, text: `Vertrag ${r.inactiveContract}: nicht übernommen` });
 
     let contract: ContractFields | null = null;
     if (r.contract) {

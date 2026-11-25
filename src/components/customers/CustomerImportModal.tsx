@@ -129,6 +129,7 @@ export function CustomerImportModal({
       policy_number: c.policy_number,
       start_date: c.start_date,
       premium: c.premium,
+      notes: c.notes,
     });
     let created = 0;
     let updated = 0;
@@ -139,7 +140,7 @@ export function CustomerImportModal({
     for (const part of chunks(plan.create)) {
       const { data, error } = await supabase
         .from('customers')
-        .insert(part.map((c) => ({ ...c.customer, customer_type: 'person', created_by: userId })))
+        .insert(part.map((c) => ({ ...c.customer, created_by: userId })))
         .select('id, name_key');
       if (error || !data) {
         failed += part.length;
