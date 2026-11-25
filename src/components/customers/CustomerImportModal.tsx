@@ -8,6 +8,7 @@ import { useProducts, productByName } from '@/lib/products';
 import {
   IMPORT_FIELDS,
   guessMapping,
+  importKey,
   matchProduct,
   parseCsv,
   planImport,
@@ -141,13 +142,13 @@ export function CustomerImportModal({
       const { data, error } = await supabase
         .from('customers')
         .insert(part.map((c) => ({ ...c.customer, created_by: userId })))
-        .select('id, name_key');
+        .select('id, name_key, birth_date');
       if (error || !data) {
         failed += part.length;
         continue;
       }
       created += data.length;
-      const idByKey = new Map((data as { id: string; name_key: string }[]).map((d) => [d.name_key, d.id]));
+      const idByKey = new Map((data as { id: string; name_key: string; birth_date: string | null }[]).map((d) => [importKey(d.name_key, d.birth_date), d.id]));
       part.forEach((c) => {
         const id = idByKey.get(c.key);
         if (id) c.contracts.forEach((x) => contracts.push(contractRow(id, x)));

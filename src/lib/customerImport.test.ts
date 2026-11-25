@@ -204,3 +204,46 @@ describe('Agentur-Export', () => {
     expect(plan.warnings.map((w) => w.text)).toContain('Vertrag Hausrat, storniert 26.03.2026: nicht übernommen');
   });
 });
+
+describe('Gleicher Name, andere Person', () => {
+  const t = toTable([
+    ['Nachname', 'Vorname', 'Geburtsdatum', 'Telefon', 'Sparte'],
+    ['Müller', 'Thomas', '01.01.1960', '0111', 'PHV'], // Vater, gibt es schon
+    ['Müller', 'Thomas', '02.02.1990', '0222', 'PHV'], // Sohn, neu
+    ['Müller', 'Thomas', '02.02.1990', '', 'HR'], // Sohn, zweiter Vertrag
+    ['Müller', 'Thomas', '', '', 'UNF'], // ohne Geburtsdatum: nicht eindeutig
+    ['Schulz', 'Eva', '03.03.1970', '0333', 'PHV'], // vorhanden ohne Geburtsdatum
+  ]);
+  const rows = readRows(t, mapping({ last_name: 0, first_name: 1, birth_date: 2, phone: 3, product: 4 }));
+  const known = [
+    { id: 'vater', last_name: 'Müller', first_name: 'Thomas', birth_date: '1960-01-01', phone: null },
+    { id: 'eva', last_name: 'Schulz', first_name: 'Eva', birth_date: null, phone: null },
+  ];
+  const plan = planImport(rows, known, [], (v) => matchProduct(v, products)?.name || null, () => true);
+
+  it('ergänzt den Vater und legt den Sohn neu an', () => {
+    expect(plan.update.find((u) => u.id === 'vater')?.patch).toEqual({ phone: '0111' });
+    expect(plan.create).toHaveLength(1);
+    expect(plan.create[0].customer).toMatchObject({ birth_date: '1990-02-02', phone: '0222' });
+    expect(plan.create[0].contracts.map((c) => c.product)).toEqual(['PHV', 'HR']);
+    expect(plan.create[0].key).toBe('müller|thomas|1990-02-02');
+    expect(plan.warnings.some((w) => w.text.includes('anderes Geburtsdatum'))).toBe(true);
+  });
+
+  it('überspringt Zeilen ohne Geburtsdatum, wenn der Name mehrdeutig ist', () => {
+    // Vater in der Datenbank, Sohn in der Datei: Zeile 5 lässt sich keinem sicher zuordnen
+    expect(plan.skipped.map((x) => x.line)).toEqual([5]);
+    expect(plan.update.find((u) => u.id === 'vater')?.contracts.map((c) => c.product)).toEqual(['PHV']);
+  });
+
+  it('füllt fehlendes Geburtsdatum beim vorhandenen Kunden', () => {
+    expect(plan.update.find((u) => u.id === 'eva')?.patch).toMatchObject({ birth_date: '1970-03-03', phone: '0333' });
+  });
+
+  it('mehrere gleichnamige Kunden ohne Geburtsdatum in der Zeile: überspringen', () => {
+    const two = [...known, { id: 'sohn', last_name: 'Müller', first_name: 'Thomas', birth_date: '1990-02-02', phone: null }];
+    const p = planImport(readRows(t, mapping({ last_name: 0, first_name: 1, birth_date: 2, phone: 3, product: 4 })), two, [], (v) => matchProduct(v, products)?.name || null, () => true);
+    expect(p.skipped.map((s) => s.line)).toEqual([5]);
+    expect(p.create).toHaveLength(0);
+  });
+});
