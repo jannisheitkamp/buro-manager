@@ -225,6 +225,9 @@ export type ImportRow = {
 const EMPTY = new Set(['-', '–', '—', 'n/a', 'k.a.', 'unbekannt']);
 const INACTIVE = /storn|gekuendigt|kuendigung|beendet|abgelaufen|aufgehoben|erloschen|inaktiv|ruhend|annulliert|ausgelaufen/;
 
+/** Schlüssel neuer Kunden: Name plus Geburtsdatum (passt zu name_key|birth_date aus der Datenbank) */
+export const importKey = (key: string, birth: string | null | undefined) => `${key}|${birth || ''}`;
+
 export const nameKey = (last: string, first: string | null | undefined) => `${last.trim().toLowerCase()}|${(first || '').trim().toLowerCase()}`;
 
 /** Tabellenzeilen mit Zuordnung in Kunden- und Vertragsdaten übersetzen */
@@ -334,14 +337,23 @@ export function planImport(
   productFor: (value: string) => string | null,
   canEdit: (customerId: string) => boolean,
 ): ImportPlan {
-  const byKey = new Map(known.map((c) => [nameKey(c.last_name, c.first_name), c]));
-  const create = new Map<string, ImportPlan['create'][number]>();
+  // Gleicher Name reicht nicht immer: Vater und Sohn heißen oft gleich. Das Geburtsdatum trennt sie,
+  // wenn es auf beiden Seiten bekannt ist; fehlt es auf einer Seite, zählt nur der Name.
+  const byKey = new Map<string, KnownCustomer[]>();
+  known.forEach((c) => {
+    const k = nameKey(c.last_name, c.first_name);
+    byKey.set(k, [...(byKey.get(k) || []), c]);
+  });
+  const fits = (a: string | null | undefined, b: string | null | undefined) => !a || !b || a === b;
+  const create = new Map<string, ImportPlan['create'][number][]>();
   const update = new Map<string, ImportPlan['update'][number]>();
   const skipped: ImportPlan['skipped'] = [];
   const warnings: ImportPlan['warnings'] = [];
   const unknown = new Set<string>();
   // Doppelte Verträge erkennen: gleicher Kunde + Produkt + Schein-Nr.
   const seen = new Set(knownContracts.map((x) => `${x.customer_id}|${x.sub_category}|${(x.policy_number || '').toLowerCase()}`));
+  // Geburtsdatum eines vorhandenen Kunden, auch wenn es erst durch diesen Import ergänzt wird
+  const birthOf = (c: KnownCustomer) => update.get(c.id)?.patch.birth_date || c.birth_date || null;
 
   for (const r of rows) {
     if (!r.customer.last_name) {
@@ -361,7 +373,19 @@ export function planImport(
       }
     }
 
-    const existing = byKey.get(r.key);
+    const birth = r.customer.birth_date;
+    const sameName = byKey.get(r.key) || [];
+    let existing: KnownCustomer | undefined;
+    if (birth) {
+      // erst gleiches Geburtsdatum, sonst ein Kunde ohne Geburtsdatum
+      existing = sameName.find((c) => birthOf(c) === birth) || sameName.find((c) => !birthOf(c));
+      if (!existing && sameName.length) warnings.push({ line: r.line, text: `${r.customer.last_name}${r.customer.first_name ? `, ${r.customer.first_name}` : ''}: gleicher Name, anderes Geburtsdatum, wird neu angelegt` });
+    } else if (sameName.length + (create.get(r.key)?.length || 0) > 1) {
+      // mehrdeutig: mehrere gleichnamige Kunden in Datenbank oder Datei
+      skipped.push({ line: r.line, reason: `mehrere Kunden heißen ${r.customer.last_name}${r.customer.first_name ? `, ${r.customer.first_name}` : ''}, Geburtsdatum fehlt` });
+      continue;
+    } else existing = sameName[0];
+
     if (existing) {
       if (!canEdit(existing.id)) {
         skipped.push({ line: r.line, reason: `${r.customer.last_name} gibt es schon, betreut von jemand anderem` });
@@ -381,24 +405,31 @@ export function planImport(
       }
       update.set(existing.id, u);
     } else {
-      const c = create.get(r.key) || { key: r.key, customer: { ...r.customer }, contracts: [] };
+      // neue Kunden aus der Datei: gleiche Regel untereinander
+      const list = create.get(r.key) || [];
+      let c = list.find((x) => x.customer.birth_date === birth && !!birth) || list.find((x) => fits(x.customer.birth_date, birth));
+      if (!c) {
+        c = { key: r.key, customer: { ...r.customer }, contracts: [] };
+        list.push(c);
+        create.set(r.key, list);
+      }
       // weitere Zeilen desselben Kunden ergänzen leere Felder
       for (const f of FILLABLE) if (!c.customer[f] && r.customer[f]) c.customer[f] = r.customer[f];
       if (contract) {
-        const k = `${r.key}|${contract.product}|${(contract.policy_number || '').toLowerCase()}`;
+        const k = `${r.key}|${c.customer.birth_date || list.indexOf(c)}|${contract.product}|${(contract.policy_number || '').toLowerCase()}`;
         if (!seen.has(k)) {
           seen.add(k);
           c.contracts.push(contract);
         }
       }
-      create.set(r.key, c);
     }
   }
 
   // Kunden ohne Änderung und ohne neue Verträge nicht anfassen
   const changed = [...update.values()].filter((u) => Object.keys(u.patch).length > 0 || u.contracts.length > 0);
   return {
-    create: [...create.values()],
+    // Schlüssel mit Geburtsdatum, damit gleichnamige neue Kunden nach dem Speichern auseinanderzuhalten sind
+    create: [...create.values()].flat().map((c) => ({ ...c, key: importKey(c.key, c.customer.birth_date) })),
     update: changed,
     unchanged: update.size - changed.length,
     skipped,
