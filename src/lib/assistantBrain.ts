@@ -20,6 +20,7 @@ import { supabase } from '@/lib/supabase';
 import { DEFAULT_RULES, isOfficeClosed, planAssignee, type ReceptionRule } from '@/lib/reception';
 import { getStatusConfig, isStatusFresh } from '@/lib/status';
 import { fetchCarryover, vacationDaysUsedInYear } from '@/lib/vacation';
+import { customerBrain } from '@/lib/assistantCustomers';
 
 export type BrainAnswer = { text: string; actions?: { label: string; href: string }[] };
 export type BrainContext = { userId: string; isAdmin: boolean; firstName?: string };
@@ -340,8 +341,11 @@ export const smartAnswer = async (normalized: string, ctx: BrainContext): Promis
   if (/urlaubstag|resturlaub|urlaub (habe|hab) ich|wie viel urlaub|wieviel urlaub/.test(t)) return vacationAnswer(ctx);
   if (/\bziel\b|monatsziel|schaffe ich|prognose|wie weit bin ich/.test(t)) return goalAnswer(ctx);
   if (/wer ist (im buero|da|hier|anwesend|im home ?office)|wer arbeitet|wer ist heute/.test(t) && !/krank|urlaub/.test(t)) return presenceAnswer();
+  // Kundenfragen vor der Produktion, sonst landet „Welche Verträge laufen ab?“ bei den Zahlen
+  const customer = await customerBrain(t, ctx);
+  if (customer) return customer;
   if (isProductionQuestion(t)) return productionAnswer(t, ctx);
   return null;
 };
 
-export const EXAMPLE_QUESTIONS = ['Wie viele BU-Verträge hatte ich im Oktober?', 'Provision diesen Monat im Vergleich', 'Schaffe ich mein Ziel?', 'Wer ist morgen am Empfang?', 'Wie viele Urlaubstage habe ich noch?'];
+export const EXAMPLE_QUESTIONS = ['Wie viele BU-Verträge hatte ich im Oktober?', 'Provision diesen Monat im Vergleich', 'Wer hat keine Haftpflicht?', 'Geburtstage diese Woche', 'Welche Fristen laufen ab?', 'Schaffe ich mein Ziel?', 'Wer ist morgen am Empfang?'];

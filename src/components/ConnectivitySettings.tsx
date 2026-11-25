@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { BellRing, CalendarPlus, Copy, RefreshCw, Smartphone } from 'lucide-react';
+import { BellRing, CalendarPlus, CheckCircle2, Copy, Download, RefreshCw, Smartphone } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { supabase, supabaseUrl } from '@/lib/supabase';
 import { useStore } from '@/store/useStore';
 import { usePush } from '@/hooks/usePush';
+import { useInstallPrompt } from '@/hooks/useInstallPrompt';
 import { Badge, Button, Card, CardHeader } from '@/components/ui';
 
 const FEED_BASE = `${supabaseUrl}/functions/v1/calendar-feed`;
@@ -12,6 +13,7 @@ const FEED_BASE = `${supabaseUrl}/functions/v1/calendar-feed`;
 export const ConnectivitySettings = () => {
   const userId = useStore((s) => s.user?.id);
   const { state: push, busy: pushBusy, toggle: togglePush } = usePush();
+  const { state: installState, install } = useInstallPrompt();
   const [token, setToken] = useState<string | null>(null);
   const [calendarAvailable, setCalendarAvailable] = useState(true);
   const [calBusy, setCalBusy] = useState(false);
@@ -46,7 +48,33 @@ export const ConnectivitySettings = () => {
   };
 
   return (
-    <div className="grid grid-cols-1 gap-6 lg:col-span-3 lg:grid-cols-2">
+    <div className="grid grid-cols-1 gap-6 lg:col-span-3 lg:grid-cols-3">
+      <Card>
+        <CardHeader title="Als App installieren" icon={Smartphone} description="Eigenes Symbol auf Handy oder Rechner, startet ohne Browserleiste. Kostenlos, ohne App Store." />
+        {installState === 'installed' && (
+          <p className="flex items-center gap-2 text-sm text-emerald-700 dark:text-emerald-300">
+            <CheckCircle2 className="h-4 w-4" /> Läuft bereits als App.
+          </p>
+        )}
+        {installState === 'available' && (
+          <Button
+            size="sm"
+            icon={Download}
+            onClick={async () => {
+              if (await install()) toast.success('Büro Manager wird installiert');
+            }}
+          >
+            Jetzt installieren
+          </Button>
+        )}
+        {installState === 'ios' && (
+          <p className="text-sm text-gray-600 dark:text-gray-300">In Safari unten auf „Teilen“ tippen, dann „Zum Home-Bildschirm“. Danach die App über das neue Symbol öffnen.</p>
+        )}
+        {installState === 'manual' && (
+          <p className="text-sm text-gray-600 dark:text-gray-300">In Chrome oder Edge oben in der Adressleiste auf das Installieren-Symbol klicken, oder im Menü „App installieren“ wählen. Auf Android: Menü „Zum Startbildschirm hinzufügen“.</p>
+        )}
+      </Card>
+
       <Card>
         <CardHeader title="Push aufs Handy" icon={BellRing} description="Rückrufe, Pakete, Tauschanfragen und Urlaubsentscheidungen auch bei geschlossener App." />
         {push === 'unsupported' && <p className="text-sm text-gray-500">Dieser Browser unterstützt keine Push-Nachrichten.</p>}

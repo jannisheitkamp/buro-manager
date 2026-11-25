@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { EyeOff, Pencil, Plus, Search } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Eye, EyeOff, GitMerge, Pencil, Plus, Search } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { supabase } from '@/lib/supabase';
 import { useStore } from '@/store/useStore';
@@ -32,6 +32,50 @@ export const CommissionRates = ({ myRates, onSaved }: Props) => {
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [edit, setEdit] = useState<EditState | null>(null);
   const [saving, setSaving] = useState(false);
+  const [mergeFrom, setMergeFrom] = useState<Product | null>(null);
+  const [mergeInto, setMergeInto] = useState('');
+  const [usage, setUsage] = useState<Record<string, number> | null>(null);
+
+  // Nutzung je Produkt (nur Admins, für das Aufräumen)
+  const loadUsage = useCallback(async () => {
+    if (!isAdmin) return;
+    const { data, error } = await supabase.rpc('product_usage');
+    if (error || !data) return setUsage(null);
+    const m: Record<string, number> = {};
+    (data as { name: string; entries: number; contracts: number; leads: number }[]).forEach((r) => (m[r.name] = Number(r.entries) + Number(r.contracts) + Number(r.leads)));
+    setUsage(m);
+  }, [isAdmin]);
+  useEffect(() => {
+    loadUsage();
+  }, [loadUsage]);
+
+  const toggleActive = async (p: Product) => {
+    const { error } = await supabase.from('insurance_products').update({ active: !p.active }).eq('id', p.id);
+    if (error) return toast.error('Konnte nicht geändert werden.');
+    toast.success(p.active ? `${p.name} ausgeblendet` : `${p.name} wieder sichtbar`);
+    reload();
+  };
+
+  const merge = async () => {
+    if (!mergeFrom || !mergeInto) return;
+    setSaving(true);
+    const { error } = await supabase.rpc('merge_products', { p_keep: mergeInto, p_drop: mergeFrom.id });
+    setSaving(false);
+    if (error) return toast.error(error.code === 'PGRST202' ? 'Die Datenbank kennt das Zusammenführen noch nicht (Migration fehlt).' : error.message || 'Zusammenführen fehlgeschlagen.');
+    toast.success(`${mergeFrom.name} zusammengeführt`);
+    setMergeFrom(null);
+    setMergeInto('');
+    reload();
+    loadUsage();
+  };
+
+  // Ähnliche Produkte zuerst: gleicher Bereich, gemeinsame Wörter
+  const mergeCandidates = useMemo(() => {
+    if (!mergeFrom) return [];
+    const words = new Set(mergeFrom.name.toLowerCase().split(/[^a-zäöüß]+/).filter((w) => w.length > 2));
+    const score = (p: Product) => (p.area === mergeFrom.area ? 2 : 0) + (p.name.toLowerCase().split(/[^a-zäöüß]+/).some((w) => words.has(w)) ? 3 : 0);
+    return products.filter((p) => p.id !== mergeFrom.id).sort((a, b) => score(b) - score(a) || a.name.localeCompare(b.name, 'de'));
+  }, [mergeFrom, products]);
 
   const list = useMemo(
     () =>
@@ -142,7 +186,7 @@ export const CommissionRates = ({ myRates, onSaved }: Props) => {
                 <th className="hidden md:table-cell">Berechnung</th>
                 <th className="text-right">Team-Standard</th>
                 <th className="w-36 text-right">Mein Satz</th>
-                {isAdmin && <th className="w-12"><span className="sr-only">Bearbeiten</span></th>}
+                {isAdmin && <th className="w-32"><span className="sr-only">Bearbeiten</span></th>}
               </tr>
             </thead>
             <tbody>
@@ -157,6 +201,7 @@ export const CommissionRates = ({ myRates, onSaved }: Props) => {
                       <td>
                         <span className="font-medium text-gray-900 dark:text-white">{p.name}</span>
                         {!p.active && <EyeOff className="ml-1.5 inline h-3.5 w-3.5 text-gray-400" aria-label="ausgeblendet" />}
+                        {usage && <span className="ml-2 text-2xs text-gray-400">{usage[p.name] ? `${usage[p.name]}× genutzt` : 'ungenutzt'}</span>}
                         <span className="block text-2xs text-gray-400 md:hidden">{m.label}</span>
                       </td>
                       <td className="hidden text-xs text-gray-500 md:table-cell" title={m.hint}>{m.label}</td>
@@ -177,7 +222,13 @@ export const CommissionRates = ({ myRates, onSaved }: Props) => {
                         </div>
                       </td>
                       {isAdmin && (
-                        <td className="text-right">
+                        <td className="whitespace-nowrap text-right">
+                          <button type="button" onClick={() => toggleActive(p)} className="btn-icon p-1.5" title={p.active ? 'In der Auswahl ausblenden' : 'Wieder anzeigen'} aria-label={p.active ? `${p.name} ausblenden` : `${p.name} anzeigen`}>
+                            {p.active ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </button>
+                          <button type="button" onClick={() => { setMergeFrom(p); setMergeInto(''); }} className="btn-icon p-1.5" title="Mit anderem Produkt zusammenführen" aria-label={`${p.name} zusammenführen`}>
+                            <GitMerge className="h-4 w-4" />
+                          </button>
                           <button type="button" onClick={() => openEdit(p)} className="btn-icon p-1.5" aria-label={`${p.name} bearbeiten`}>
                             <Pencil className="h-4 w-4" />
                           </button>
@@ -252,6 +303,31 @@ export const CommissionRates = ({ myRates, onSaved }: Props) => {
             </div>
           </div>
         )}
+      </Modal>
+
+      <Modal
+        isOpen={!!mergeFrom}
+        onClose={() => setMergeFrom(null)}
+        title="Produkte zusammenführen"
+        description={mergeFrom ? `„${mergeFrom.name}“ wird gelöscht. Verträge, Bestandsverträge, Leads und eigene Sätze wandern zum gewählten Produkt.` : undefined}
+      >
+        <div className="space-y-4">
+          <Field label="Zusammenführen in" htmlFor="pm-into" hint="Der alte Name bleibt als Suchbegriff erhalten.">
+            <select id="pm-into" value={mergeInto} onChange={(e) => setMergeInto(e.target.value)} className="input">
+              <option value="">Bitte wählen</option>
+              {mergeCandidates.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name} · {areaOf(p.area).label}{!p.active ? ' (ausgeblendet)' : ''}
+                </option>
+              ))}
+            </select>
+          </Field>
+          {mergeFrom && usage && <p className="text-xs text-gray-500">Betroffen: {usage[mergeFrom.name] || 0} Einträge.</p>}
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" onClick={() => setMergeFrom(null)}>Abbrechen</Button>
+            <Button icon={GitMerge} disabled={!mergeInto} loading={saving} onClick={merge}>Zusammenführen</Button>
+          </div>
+        </div>
       </Modal>
     </section>
   );

@@ -21,10 +21,12 @@ import { courtageInstallments, isCourtage, summarizeCourtage, type CourtagePayou
 import { AREAS, areaLabel, calcCommission, methodOf, productByName, useProducts } from '@/lib/products';
 import { ProductPicker } from '@/components/ProductPicker';
 import { CommissionRates } from '@/components/Production/CommissionRates';
+import { Leaderboard } from '@/components/Production/Leaderboard';
 import { extractPdfText } from '@/utils/extractPdfText';
 import { parseContractFromText } from '@/utils/pdfParser';
 import { CATEGORY_COLORS } from '@/lib/chartTheme';
 import { correctedMonthlyLv, computedMonthlyLv, fetchLvSnapshots, sumUntil, type LvSnapshot } from '@/lib/lifeValues';
+import { exportMonthlyReport, exportProductionCsv, exportProductionPdf } from '@/lib/productionExport';
 
 const formatCurrency = (amount: number | null | undefined) => {
   if (amount === null || amount === undefined || isNaN(amount)) return '0,00 €';
@@ -70,7 +72,6 @@ export const Production = () => {
   const [reportScope, setReportScope] = useState<'me' | 'team'>('me');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'personal' | 'leaderboard' | 'rates'>(() => (new URLSearchParams(window.location.search).get('tab') === 'rates' ? 'rates' : 'personal'));
-  const [boardPeriod, setBoardPeriod] = useState<'month' | 'year' | 'all'>('month');
   const thisYear = new Date().getFullYear();
   // Angezeigtes Jahr (auch Vorjahre); 'all' = alle Jahre
   const [selectedYear, setSelectedYear] = useState<number | 'all'>(thisYear);
@@ -616,43 +617,6 @@ export const Production = () => {
   const yearOptions = Array.from(new Set([thisYear, ...entries.map(e => Number(String(e.submission_date || '').slice(0, 4))).filter(Boolean)])).sort((a, b) => b - a);
 
   // --- LEADERBOARD CALCULATION ---
-  // Zeitraum wählbar; Zielerreichung nach Lebenswerten gegen das eigene Monats- bzw. Jahresziel
-  const getLeaderboardData = () => {
-      const prefix = boardPeriod === 'month' ? format(new Date(), 'yyyy-MM') : boardPeriod === 'year' ? format(new Date(), 'yyyy') : '';
-      const userTotals: Record<string, { name: string; avatar: string; amount: number; lv: number; count: number }> = {};
-
-      entries.filter(e => e.status !== 'cancelled' && String(e.submission_date || '').startsWith(prefix)).forEach(e => {
-          const userId = e.user_id;
-          if (!userTotals[userId]) {
-              userTotals[userId] = {
-                  name: e.profiles?.full_name || 'Unbekannt',
-                  avatar: e.profiles?.avatar_url,
-                  amount: 0,
-                  lv: 0,
-                  count: 0
-              };
-          }
-          userTotals[userId].amount += Number(e.commission_amount || 0);
-          userTotals[userId].lv += Number(e.life_values || 0);
-          userTotals[userId].count += 1;
-      });
-
-      return Object.entries(userTotals)
-        .map(([id, data]) => {
-            const p = profiles.find(pr => pr.id === id);
-            const monthly = Number(p?.monthly_goal) || 0;
-            // Lebenswerte nach Monatsliste korrigiert (Monat bzw. Jahr bis heute)
-            if (boardPeriod !== 'all') {
-                const corrected = correctedMonthlyLv(entries, lvSnapshots, id, thisYear);
-                data.lv = boardPeriod === 'month' ? corrected[new Date().getMonth()] : sumUntil(corrected);
-            }
-            const goal = boardPeriod === 'month' ? monthly : boardPeriod === 'year' ? Number(p?.yearly_goal) || monthly * 12 : 0;
-            return { id, ...data, goal, goalPct: goal ? Math.round((data.lv / goal) * 100) : null };
-        })
-        .sort((a, b) => b.amount - a.amount);
-  };
-
-  const leaderboardData = getLeaderboardData();
 
   // Monatsverlauf für den Kopfbereich: ganzes gewähltes Jahr, bei "Alle Jahre" die letzten 12 Monate
   const heroMonths: HeroMonth[] = (() => {
@@ -695,103 +659,20 @@ export const Production = () => {
       ? Number(myGoalProfile?.yearly_goal) || (Number(myGoalProfile?.monthly_goal) || 0) * 12
       : 0;
 
+  // Eigene Verträge in der aktuellen Auswahl (Sparte, Suche) für die Exporte
+  const ownForExport = () => {
+      const search = searchQuery.toLowerCase();
+      return entries.filter(e =>
+          e.user_id === user?.id &&
+          (filterCategory === 'all' || e.category === filterCategory) &&
+          (e.customer_name?.toLowerCase().includes(search) || e.policy_number?.toLowerCase().includes(search))
+      );
+  };
+
   const handleExport = () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const exportEntries = entries.filter((e: any) => {
-          if (e.user_id !== user?.id) return false;
-          if (filterCategory !== 'all' && e.category !== filterCategory) return false;
-          const search = searchQuery.toLowerCase();
-          return (
-              e.customer_name?.toLowerCase().includes(search) ||
-              e.policy_number?.toLowerCase().includes(search)
-          );
-      });
-
-      if (exportEntries.length === 0) {
-          toast.error('Keine eigenen Verträge in dieser Auswahl.');
-          return;
-      }
-      
-      const headers = [
-          'Status',
-          'Einreichung',
-          'Policierung',
-          'Nachname', 
-          'Vorname', 
-          'Schein-Nr', 
-          'Sparte', 
-          'Tarif', 
-          'Zahlweise', 
-          'Beitrag (Brutto)', 
-          'Beitrag (Netto)', 
-          'Bewertungssumme', 
-          'Faktor (LW)',
-          'Lebenswerte',
-          'Satz', 
-          'Provision',
-          'Betreuer'
-      ];
-
-      // Text für CSV: Anführungszeichen verdoppeln, Formel-Anfänge entschärfen (Excel würde sie ausführen)
-      const csvText = (val: string | null | undefined) => {
-          const v = String(val ?? '');
-          return `"${(/^[=+\-@\t\r]/.test(v) ? "'" + v : v).replace(/"/g, '""')}"`;
-      };
-
-      // Helper for German number format (comma as decimal)
-      const fmtNum = (val: number | null | undefined) => {
-          if (val === null || val === undefined) return '';
-          return val.toString().replace('.', ',');
-      };
-
-      // Helper maps
-      const catMap: Record<string, string> = {
-          'life': 'Leben', 'health': 'Kranken', 'property': 'Sach',
-          'car': 'KFZ', 'legal': 'Recht', 'other': 'Sonstige'
-      };
-      const payMap: Record<string, string> = {
-          'monthly': 'Monatlich', 'quarterly': 'Vierteljährlich',
-          'half_yearly': 'Halbjährlich', 'yearly': 'Jährlich', 'one_time': 'Einmalig'
-      };
-      const statusMap: Record<string, string> = {
-          'submitted': 'Eingereicht', 'policed': 'Policiert', 'cancelled': 'Storniert'
-      };
-
-      const csvContent = [
-          '\uFEFF' + headers.join(';'), // Add BOM for Excel
-          ...exportEntries.map(e => {
-              // Find manager name if possible (not joined in current select, need to check fetch)
-              // We fetched profiles(full_name) for user_id. We might need managed_by join too.
-              // For now, let's just use what we have or skip name if not joined.
-              // We only joined `profiles` on `user_id`.
-              // We should update fetchEntries to join `managed_by` as well.
-              return [
-                  statusMap[e.status] || e.status,
-                  format(new Date(e.submission_date), 'dd.MM.yyyy'),
-                  e.policing_date ? format(new Date(e.policing_date), 'dd.MM.yyyy') : '',
-                  csvText(e.customer_name),
-                  csvText(e.customer_firstname),
-                  csvText(e.policy_number),
-                  catMap[e.category] || e.category,
-                  csvText(e.sub_category),
-                  payMap[e.payment_method] || e.payment_method,
-                  fmtNum(e.gross_premium),
-                  fmtNum(e.net_premium),
-                  fmtNum(e.valuation_sum),
-                  fmtNum(e.life_value_factor),
-                  fmtNum(e.life_values),
-                  fmtNum(e.commission_rate),
-                  fmtNum(e.commission_amount),
-                  csvText(e.manager?.full_name)
-              ].join(';');
-          })
-      ].join('\n');
-
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
-      link.download = `Produktion_Export_Personal_${format(new Date(), 'yyyy-MM-dd')}.csv`;
-      link.click();
+      const list = ownForExport();
+      if (list.length === 0) return toast.error('Keine eigenen Verträge in dieser Auswahl.');
+      exportProductionCsv(list);
   };
 
   // Provision noch nicht eingegangen: policierte eigene Verträge ohne Eingangsdatum
@@ -844,157 +725,25 @@ export const Production = () => {
   };
 
   const handleMonthlyReport = async () => {
-      const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([import('jspdf'), import('jspdf-autotable')]);
-      const [y, m] = reportMonth.split('-').map(Number);
-      const snaps = await fetchLvSnapshots(y);
-      const monthDate = new Date(y, m - 1, 1);
-      const monthLabel = format(monthDate, 'MMMM yyyy', { locale: de });
-      const inMonth = entries.filter(e => String(e.submission_date || '').startsWith(reportMonth));
-      const scope = profile?.roles?.includes('admin') ? reportScope : 'me';
-      const scoped = scope === 'me' ? inMonth.filter(e => e.user_id === user?.id) : inMonth;
-      const num = (v: number) => new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 }).format(v);
-
-      const doc = new jsPDF();
-      doc.setFontSize(18);
-      doc.text(`Monatsbericht ${monthLabel}`, 14, 20);
-      doc.setFontSize(10);
-      doc.setTextColor(110);
-      doc.text(`${scope === 'me' ? (profile?.full_name || '') : 'Ganzes Team'} · erstellt am ${format(new Date(), 'dd.MM.yyyy')}`, 14, 27);
-      doc.setTextColor(0);
-
-      // Übersicht je Person
-      const people = scope === 'me' ? profiles.filter(p => p.id === user?.id) : profiles.filter(p => p.is_approved !== false);
-      const rows = people
-          .map(p => {
-              const own = scoped.filter(e => e.user_id === p.id);
-              const active = own.filter(e => e.status !== 'cancelled');
-              const lv = correctedMonthlyLv(entries, snaps, p.id, y)[m - 1];
-              const comm = active.reduce((a, e) => a + Number(e.commission_amount || 0), 0);
-              const goal = Number(p.monthly_goal) || 0;
-              return { name: p.full_name, count: active.length, cancelled: own.length - active.length, lv, comm, goal, pct: goal ? Math.round((lv / goal) * 100) : null };
-          })
-          .filter(r => scope === 'me' || r.count > 0 || r.cancelled > 0)
-          .sort((a, b) => b.lv - a.lv);
-
-      if (rows.length === 0) {
-          toast.error(`Keine Verträge im ${monthLabel}.`);
-          return;
-      }
-
-      autoTable(doc, {
-          startY: 34,
-          head: [['Person', 'Verträge', 'Storno', 'Lebenswerte', 'Ziel', 'Erreicht', 'Provision']],
-          body: rows.map(r => [r.name, r.count, r.cancelled || '–', num(r.lv), r.goal ? num(r.goal) : '–', r.pct !== null ? `${r.pct} %` : '–', formatCurrency(r.comm)]),
-          foot: rows.length > 1 ? [['Summe', rows.reduce((a, r) => a + r.count, 0), rows.reduce((a, r) => a + r.cancelled, 0) || '–', num(rows.reduce((a, r) => a + r.lv, 0)), '', '', formatCurrency(rows.reduce((a, r) => a + r.comm, 0))]] : undefined,
-          theme: 'grid',
-          headStyles: { fillColor: [20, 106, 104] },
-          footStyles: { fillColor: [236, 238, 234], textColor: [0, 0, 0], fontStyle: 'bold' },
-          columnStyles: { 1: { halign: 'right' }, 2: { halign: 'right' }, 3: { halign: 'right' }, 4: { halign: 'right' }, 5: { halign: 'right' }, 6: { halign: 'right' } },
+      const y = Number(reportMonth.slice(0, 4));
+      const ok = await exportMonthlyReport({
+          entries,
+          snapshots: await fetchLvSnapshots(y),
+          month: reportMonth,
+          scope: profile?.roles?.includes('admin') ? reportScope : 'me',
+          userId: user?.id,
+          userName: profile?.full_name || '',
+          people: profiles,
       });
-
-      // Sparten
-      const byCat: Record<string, { count: number; comm: number; lv: number }> = {};
-      scoped.filter(e => e.status !== 'cancelled').forEach(e => {
-          const k = categoryLabel(e.category);
-          byCat[k] = byCat[k] || { count: 0, comm: 0, lv: 0 };
-          byCat[k].count++;
-          byCat[k].comm += Number(e.commission_amount || 0);
-          byCat[k].lv += Number(e.life_values || 0);
-      });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let y2 = ((doc as any).lastAutoTable?.finalY || 40) + 10;
-      doc.setFontSize(12);
-      doc.text('Nach Sparte', 14, y2);
-      autoTable(doc, {
-          startY: y2 + 3,
-          head: [['Sparte', 'Verträge', 'Lebenswerte', 'Provision']],
-          body: Object.entries(byCat).sort((a, b) => b[1].comm - a[1].comm).map(([k, v]) => [k, v.count, num(v.lv), formatCurrency(v.comm)]),
-          theme: 'grid',
-          headStyles: { fillColor: [20, 106, 104] },
-          columnStyles: { 1: { halign: 'right' }, 2: { halign: 'right' }, 3: { halign: 'right' } },
-      });
-
-      // Einzelne Verträge nur im persönlichen Bericht
-      if (scope === 'me') {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          y2 = ((doc as any).lastAutoTable?.finalY || 60) + 10;
-          doc.setFontSize(12);
-          doc.text('Verträge', 14, y2);
-          autoTable(doc, {
-              startY: y2 + 3,
-              head: [['Eingereicht', 'Kunde', 'Tarif', 'Status', 'Lebenswerte', 'Provision']],
-              body: scoped.map(e => [format(new Date(e.submission_date), 'dd.MM.'), `${e.customer_name}${e.customer_firstname ? ', ' + e.customer_firstname : ''}`, e.sub_category || categoryLabel(e.category), STATUS_META[e.status]?.label || e.status, num(Number(e.life_values || 0)), formatCurrency(e.commission_amount)]),
-              theme: 'grid',
-              headStyles: { fillColor: [20, 106, 104] },
-              columnStyles: { 4: { halign: 'right' }, 5: { halign: 'right' } },
-          });
-      }
-
-      doc.save(`Monatsbericht_${reportMonth}${scope === 'me' ? '' : '_Team'}.pdf`);
+      if (!ok) return toast.error(`Keine Verträge im ${format(new Date(y, Number(reportMonth.slice(5, 7)) - 1, 1), 'MMMM yyyy', { locale: de })}.`);
       setReportOpen(false);
   };
 
   const handleExportPDF = async () => {
-      // Filter entries for export: ALWAYS restrict to current user
-      const exportEntries = entries.filter(e => {
-          // 1. Strict ownership check
-          if (e.user_id !== user?.id) return false;
-          
-          // 2. Respect active filters
-          if (filterCategory !== 'all' && e.category !== filterCategory) return false;
-          const search = searchQuery.toLowerCase();
-          return (
-              e.customer_name?.toLowerCase().includes(search) ||
-              e.policy_number?.toLowerCase().includes(search)
-          );
-      });
-
-      if (exportEntries.length === 0) {
-          toast.error('Keine eigenen Einträge gefunden.');
-          return;
-      }
-      
-      const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([import('jspdf'), import('jspdf-autotable')]);
-      const doc = new jsPDF();
-      
-      // Recalculate totals for the PDF based on exportEntries
-      const exportActive = exportEntries.filter(e => e.status !== 'cancelled');
-      const exportTotalCommission = exportActive.reduce((acc, curr) => acc + (curr.commission_amount || 0), 0);
-      const exportTotalLifeValues = exportActive.reduce((acc, curr) => acc + (curr.life_values || 0), 0);
-      
-      doc.setFontSize(18);
-      doc.text('Produktionsnachweis (Persönlich)', 14, 20);
-      
-      doc.setFontSize(10);
-      doc.text(`Erstellt: ${new Date().toLocaleDateString('de-DE')}`, 14, 28);
-      doc.text(`Sparte: ${filterCategory === 'all' ? 'Alle' : categoryLabel(filterCategory)}`, 14, 33);
-      doc.text(`Mitarbeiter: ${profile?.full_name || user?.email || ''}`, 14, 38);
-
-      const tableData = exportEntries.map(e => [
-          format(new Date(e.submission_date), 'dd.MM.yy'),
-          e.policing_date ? format(new Date(e.policing_date), 'dd.MM.yy') : '-',
-          `${e.customer_name}, ${e.customer_firstname}`,
-          e.sub_category || e.category,
-          e.status === 'policed' ? 'Policiert' : (e.status === 'cancelled' ? 'Storno' : 'Offen'),
-          formatCurrency(e.valuation_sum),
-          new Intl.NumberFormat('de-DE', { maximumFractionDigits: 2 }).format(e.life_values || 0),
-          formatCurrency(e.commission_amount)
-      ]);
-
-      autoTable(doc, {
-          startY: 45,
-          head: [['Eingereicht', 'Policiert', 'Kunde', 'Sparte', 'Status', 'Bewertung', 'Lebenswerte', 'Provision']],
-          body: tableData,
-          foot: [['', '', '', '', 'Summe ohne Storno:', '', new Intl.NumberFormat('de-DE', { maximumFractionDigits: 2 }).format(exportTotalLifeValues), formatCurrency(exportTotalCommission)]],
-          theme: 'grid',
-          headStyles: { fillColor: [20, 106, 104] },
-          footStyles: { fillColor: [243, 244, 246], textColor: [0, 0, 0], fontStyle: 'bold' } // Gray 100
-      });
-
-      
-      doc.save(`Produktion_Personal_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
+      const list = ownForExport();
+      if (list.length === 0) return toast.error('Keine eigenen Einträge gefunden.');
+      await exportProductionPdf(list, { person: profile?.full_name || user?.email || '', category: filterCategory });
   };
-
 
   return (
     <div className="space-y-6">
@@ -1056,55 +805,7 @@ export const Production = () => {
         {viewMode === 'rates' ? (
             <CommissionRates myRates={myRates} onSaved={(name, value) => setMyRates((m) => { const n = { ...m }; if (value === null) delete n[name]; else n[name] = value; return n; })} />
         ) : viewMode === 'leaderboard' ? (
-            <div className="card overflow-hidden">
-                <div className="flex flex-col gap-3 border-b border-gray-100 px-5 py-4 dark:border-gray-700 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-                    <div>
-                        <h2 className="text-base font-semibold text-gray-900 dark:text-white">Rangliste nach Provision</h2>
-                        <p className="text-sm text-gray-500">Eingereichte und policierte Verträge, ohne Stornos. Balken = Lebenswerte im Verhältnis zum eigenen Ziel.</p>
-                    </div>
-                    <div className="flex shrink-0 gap-1 rounded-xl bg-gray-100 p-1 dark:bg-gray-800" role="group" aria-label="Zeitraum">
-                        {([['month', 'Monat'], ['year', 'Jahr'], ['all', 'Gesamt']] as const).map(([v, label]) => (
-                            <button
-                                key={v}
-                                type="button"
-                                onClick={() => setBoardPeriod(v)}
-                                aria-pressed={boardPeriod === v}
-                                className={cn('rounded-lg px-3 py-1 text-xs font-medium', boardPeriod === v ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-white' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white')}
-                            >
-                                {label}
-                            </button>
-                        ))}
-                    </div>
-                </div>
-                {leaderboardData.length === 0 ? (
-                    <EmptyState icon={Trophy} title="Noch keine Verträge erfasst" />
-                ) : (
-                    <ol className="divide-y divide-gray-100 dark:divide-gray-700/70">
-                        {leaderboardData.map((data, index) => (
-                            <li key={data.id} className={cn('flex items-center gap-4 px-5 py-3.5 sm:px-6', data.id === user?.id && 'bg-brand-50/50 dark:bg-brand-900/20')}>
-                                <span className={cn('tabular w-8 font-display text-xl font-semibold', index === 0 ? 'text-amber-500' : 'text-gray-300 dark:text-gray-600')}>{index + 1}</span>
-                                <Avatar name={data.name} src={data.avatar} size="md" />
-                                <div className="min-w-0 flex-1">
-                                    <p className="truncate text-sm font-medium text-gray-900 dark:text-white">{data.name}{data.id === user?.id && <span className="font-normal text-gray-400"> (du)</span>}</p>
-                                    <p className="text-xs text-gray-500">
-                                        {data.count} {data.count === 1 ? 'Vertrag' : 'Verträge'} · {new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 }).format(data.lv)} LW
-                                        {data.goalPct !== null && <> · <span className={cn(data.goalPct >= 100 && 'font-semibold text-emerald-700 dark:text-emerald-400')}>{data.goalPct} % vom Ziel</span></>}
-                                    </p>
-                                </div>
-                                <span className="tabular hidden text-sm font-semibold text-gray-900 dark:text-white sm:block">{formatCurrency(data.amount)}</span>
-                                <div className="hidden w-40 sm:block">
-                                    <div className="h-1.5 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-700">
-                                        <div
-                                            className={cn('h-full rounded-full', data.goalPct !== null && data.goalPct >= 100 ? 'bg-emerald-500' : 'bg-brand-600 dark:bg-brand-400')}
-                                            style={{ width: `${data.goalPct !== null ? Math.min(data.goalPct, 100) : leaderboardData[0].amount ? (data.amount / leaderboardData[0].amount) * 100 : 0}%` }}
-                                        />
-                                    </div>
-                                </div>
-                            </li>
-                        ))}
-                    </ol>
-                )}
-            </div>
+            <Leaderboard entries={entries} profiles={profiles} snapshots={lvSnapshots} year={thisYear} userId={user?.id} />
         ) : (
             <>
                 <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">

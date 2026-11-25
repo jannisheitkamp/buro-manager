@@ -1,135 +1,45 @@
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { addYears, differenceInCalendarDays, differenceInYears, format, startOfDay } from 'date-fns';
+import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { BellRing, Briefcase, Building2, Cake, ChevronDown, EyeOff, FileText, GitMerge, Mail, MapPin, Pencil, Phone, Plus, Search, SlidersHorizontal, Users } from 'lucide-react';
+import { BellRing, Building2, Cake, ChevronDown, EyeOff, FileSpreadsheet, Phone, Plus, Search, SlidersHorizontal, Users } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { supabase } from '@/lib/supabase';
 import { useStore } from '@/store/useStore';
-import { Button, EmptyState, Field, PageHeader, PageLoading, Segmented } from '@/components/ui';
+import { Button, EmptyState, PageHeader, PageLoading, Segmented } from '@/components/ui';
 import { CountUp, HeroDivider, HeroPanel, HeroStat, StatusPill, Tag } from '@/components/ui/hero';
-import { Modal } from '@/components/Modal';
-import { ContractDocuments } from '@/components/ContractDocuments';
 import { CATEGORY_COLORS } from '@/lib/chartTheme';
 import { deadlineTopic, upcomingDeadlines, REMIND_DAYS, type Deadline } from '@/lib/followups';
 import { productByName, useProducts } from '@/lib/products';
-import { ProductPicker } from '@/components/ProductPicker';
 import { GapRulesEditor } from '@/components/GapRulesEditor';
-import { customerGaps, HOUSING, MARITAL, OCCUPATIONS, PETS, VEHICLES, type GapRule } from '@/lib/gaps';
+import { customerGaps, type GapRule } from '@/lib/gaps';
+import { CustomerFormModal } from '@/components/customers/CustomerFormModal';
+import { ExistingContractModal } from '@/components/customers/ExistingContractModal';
+import { CallbackModal } from '@/components/customers/CallbackModal';
+import { MergeModal } from '@/components/customers/MergeModal';
+import { CustomerDetail } from '@/components/customers/CustomerDetail';
+import { GapOverview } from '@/components/customers/GapOverview';
+import { CustomerImportModal } from '@/components/customers/CustomerImportModal';
+import {
+  BIRTHDAY_DAYS,
+  entryName,
+  eur0,
+  fullName,
+  hasLifestyle,
+  nextBirthday,
+  nf0,
+  product,
+  type Customer,
+  type CustomerRow,
+  type DeadlineEntry,
+  type Entry,
+  type Existing,
+  type Followup,
+  type OpenCallback,
+} from '@/components/customers/shared';
 import { cn } from '@/utils/cn';
 
-type Entry = {
-  id: string;
-  user_id: string;
-  managed_by: string | null;
-  customer_id: string | null;
-  status: 'submitted' | 'policed' | 'cancelled';
-  category: string;
-  sub_category: string | null;
-  start_date: string | null;
-  submission_date: string;
-  customer_name: string;
-  customer_firstname: string | null;
-  policy_number: string | null;
-  commission_amount: number | null;
-  life_values: number | null;
-  cancelled_at: string | null;
-  cancel_reason: string | null;
-};
-
-export type Customer = {
-  id: string;
-  created_at: string;
-  created_by: string | null;
-  last_name: string;
-  first_name: string | null;
-  birth_date: string | null;
-  phone: string | null;
-  email: string | null;
-  address: string | null;
-  household: string | null;
-  notes: string | null;
-  customer_type: 'person' | 'company';
-  contact_person: string | null;
-  industry: string | null;
-  employees: number | null;
-  occupation: string | null;
-  marital_status: string | null;
-  children: number | null;
-  housing: string | null;
-  vehicles: string[] | null;
-  pets: string[] | null;
-};
-
-/** Bestandsvertrag: lag schon vor der Produktion vor, zählt nicht zur Provision */
-type Existing = {
-  id: string;
-  customer_id: string;
-  category: string;
-  sub_category: string;
-  insurer: string | null;
-  policy_number: string | null;
-  start_date: string | null;
-  premium: number | null;
-  notes: string | null;
-  handled_until: string | null;
-  created_by: string;
-};
-/** Bestandsvertrag in Vertragsform, damit Fristen ihn mitberechnen */
-type DeadlineEntry = Entry & { existing?: Existing };
-
-type OpenCallback ={ id: string; customer_id: string; topic: string | null; priority: string; status: string; created_at: string };
-type Followup = { entry_id: string; due_date: string; state: 'callback' | 'dismissed' };
-
-/** So viele Tage im Voraus werden Geburtstage angezeigt */
-const BIRTHDAY_DAYS = 14;
-
-const nf0 = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 });
-const eur0 = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
-const eur2 = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' });
-
-const fullName = (c: Pick<Customer, 'last_name' | 'first_name'>) => `${c.last_name}${c.first_name ? `, ${c.first_name}` : ''}`;
-const entryName = (e: Entry) => `${e.customer_name}${e.customer_firstname ? `, ${e.customer_firstname}` : ''}`;
-const product = (e: Entry) => e.sub_category || e.category;
-const day = (d: string) => new Date(`${d}T00:00:00`);
-
-/** Tage bis zum nächsten Geburtstag (0 = heute) */
-function nextBirthday(birth: string, today = new Date()) {
-  const b = day(birth);
-  const t = startOfDay(today);
-  let next = new Date(t.getFullYear(), b.getMonth(), b.getDate());
-  if (next < t) next = addYears(next, 1);
-  return { date: next, days: differenceInCalendarDays(next, t), age: differenceInYears(next, b) };
-}
-
-const EMPTY_EXISTING = { sub_category: 'PHV', insurer: '', policy_number: '', start_date: '', premium: '', notes: '' };
-type ExistingForm = typeof EMPTY_EXISTING;
-
-const EMPTY_FORM = {
-  customer_type: 'person' as 'person' | 'company',
-  last_name: '', first_name: '', birth_date: '', phone: '', email: '', address: '', household: '', notes: '',
-  contact_person: '', industry: '', employees: '', occupation: '', marital_status: '', children: '', housing: '',
-  vehicles: [] as string[], pets: [] as string[],
-};
-type FormState = typeof EMPTY_FORM;
-type TextKey = Exclude<keyof FormState, 'customer_type' | 'vehicles' | 'pets'>;
-
-/** Hat der Kunde Angaben zur Lebenslage? Dann zeigen wir Lücken auch ohne Vertrag. */
-const hasLifestyle = (c: Customer) =>
-  c.customer_type === 'company' || !!(c.occupation || c.marital_status || c.housing || c.children || c.vehicles?.length || c.pets?.length);
-
-const labelOf = (list: readonly { id: string; label: string }[], id: string | null | undefined) => list.find((x) => x.id === id)?.label;
-/** Lebenslage in einer Zeile, z. B. „Angestellt · Verheiratet · 2 Kinder · Eigenes Haus · Auto, Hund“ */
-const lifestyleText = (c: Customer) =>
-  [
-    labelOf(OCCUPATIONS, c.occupation),
-    labelOf(MARITAL, c.marital_status),
-    c.children ? `${c.children} ${c.children === 1 ? 'Kind' : 'Kinder'}` : null,
-    labelOf(HOUSING, c.housing),
-    [...(c.vehicles || []).map((v) => labelOf(VEHICLES, v)), ...(c.pets || []).map((v) => labelOf(PETS, v))].filter(Boolean).join(', ') || null,
-  ]
-    .filter(Boolean)
-    .join(' · ');
+export type { Customer } from '@/components/customers/shared';
 
 export const Customers = () => {
   const { user, profile } = useStore();
@@ -142,22 +52,18 @@ export const Customers = () => {
   const [loading, setLoading] = useState(true);
   const [scope, setScope] = useState<'mine' | 'team'>('mine');
   const [query, setQuery] = useState('');
-  const [onlyGaps, setOnlyGaps] = useState(false);
   const [open, setOpen] = useState<string | null>(null);
-  const [openDocs, setOpenDocs] = useState<string | null>(null);
+  const [view, setView] = useState<'akte' | 'gaps'>('akte');
   const [busy, setBusy] = useState<string | null>(null);
   const [editing, setEditing] = useState<Customer | 'new' | null>(null);
-  const [form, setForm] = useState<FormState>(EMPTY_FORM);
-  const [saving, setSaving] = useState(false);
-  const [callbackFor, setCallbackFor] = useState<Customer | null>(null);
-  const [callbackTopic, setCallbackTopic] = useState('');
+  const [callbackFor, setCallbackFor] = useState<{ customers: Customer[]; topic: string } | null>(null);
   const [mergeFor, setMergeFor] = useState<Customer | null>(null);
-  const [mergeDrop, setMergeDrop] = useState('');
   const [existing, setExisting] = useState<Existing[]>([]);
   const [existingFor, setExistingFor] = useState<{ customer: Customer; contract: Existing | null } | null>(null);
-  const [existingForm, setExistingForm] = useState<ExistingForm>(EMPTY_EXISTING);
   const [rules, setRules] = useState<GapRule[]>([]);
   const [rulesOpen, setRulesOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [people, setPeople] = useState<{ id: string; full_name: string }[]>([]);
   const { products } = useProducts();
 
   const load = useCallback(async () => {
@@ -171,8 +77,12 @@ export const Customers = () => {
       supabase.from('contract_followups').select('entry_id, due_date, state'),
       supabase.from('customer_contracts').select('*').order('created_at'),
     ]);
-    const { data: gr } = await supabase.from('gap_rules').select('*').order('sort');
+    const [{ data: gr }, { data: pp }] = await Promise.all([
+      supabase.from('gap_rules').select('*').order('sort'),
+      supabase.from('profiles').select('id, full_name'),
+    ]);
     setRules((gr as GapRule[]) || []);
+    setPeople((pp as { id: string; full_name: string }[]) || []);
     setExisting((x as Existing[]) || []);
     if (error) toast.error('Kunden konnten nicht geladen werden.');
     setCustomers((c as Customer[]) || []);
@@ -205,7 +115,7 @@ export const Customers = () => {
   const scopedEntries = useMemo(() => (scope === 'mine' ? entries.filter(mineEntry) : entries), [entries, scope, mineEntry]);
 
   // Kunden mit ihren Verträgen und Lücken
-  const rows = useMemo(() => {
+  const rows = useMemo<CustomerRow[]>(() => {
     const byCustomer = new Map<string, Entry[]>();
     entries.forEach((e) => {
       if (!e.customer_id) return;
@@ -221,6 +131,13 @@ export const Customers = () => {
         const active = all.filter((e) => e.status !== 'cancelled');
         const prior = existingBy.get(c.id) || [];
         // Lücken nach Lebenslage: Gruppen, die ein aktiver Vertrag abdeckt
+        // Betreuer: wer die meisten aktiven Verträge hält, sonst wer den Kunden angelegt hat
+        const counts = new Map<string, number>();
+        active.forEach((e) => {
+          const who = e.managed_by || e.user_id;
+          counts.set(who, (counts.get(who) || 0) + 1);
+        });
+        const owner = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || c.created_by || prior[0]?.created_by || null;
         const covered = new Set([...active.map(product), ...prior.map((x) => x.sub_category)].map((n) => productByName(n)?.gap_group).filter((g): g is string => !!g));
         return {
           customer: c,
@@ -229,6 +146,7 @@ export const Customers = () => {
           active,
           existing: prior,
           mine: all.some(mineEntry) || (all.length === 0 && (mineId(c.created_by) || prior.some((x) => mineId(x.created_by)))),
+          owner,
           cancelled: all.length - active.length,
           gaps: active.length || prior.length || hasLifestyle(c) ? customerGaps(rules, c, covered) : [],
           lv: active.reduce((a, e) => a + Number(e.life_values || 0), 0),
@@ -287,7 +205,6 @@ export const Customers = () => {
 
   const q = query.trim().toLowerCase();
   const visible = rows.filter((r) => {
-    if (onlyGaps && r.gaps.length === 0) return false;
     if (!q) return true;
     const c = r.customer;
     return (
@@ -346,173 +263,26 @@ export const Customers = () => {
     else load();
   };
 
-  const openForm = (c: Customer | 'new') => {
-    setEditing(c);
-    if (c === 'new') return setForm(EMPTY_FORM);
-    const str = (v: string | number | null | undefined) => (v == null ? '' : String(v));
-    setForm({
-      customer_type: c.customer_type || 'person',
-      last_name: c.last_name,
-      first_name: str(c.first_name),
-      birth_date: str(c.birth_date),
-      phone: str(c.phone),
-      email: str(c.email),
-      address: str(c.address),
-      household: str(c.household),
-      notes: str(c.notes),
-      contact_person: str(c.contact_person),
-      industry: str(c.industry),
-      employees: str(c.employees),
-      occupation: str(c.occupation),
-      marital_status: str(c.marital_status),
-      children: str(c.children),
-      housing: str(c.housing),
-      vehicles: c.vehicles || [],
-      pets: c.pets || [],
-    });
-  };
+  /** Darf ich den Kunden bearbeiten? Gleiche Regel wie can_edit_customer in der Datenbank */
+  const canEditCustomer = useCallback(
+    (id: string) => {
+      if (isAdmin) return true;
+      const c = customers.find((x) => x.id === id);
+      const mineId = (x: string | null | undefined) => !!x && (x === user?.id || (!!boss && x === boss));
+      return !!c && (mineId(c.created_by) || entries.some((e) => e.customer_id === id && mineEntry(e)));
+    },
+    [isAdmin, customers, entries, user?.id, boss, mineEntry],
+  );
 
-  const saveForm = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editing || !form.last_name.trim()) return;
-    setSaving(true);
-    const t = (v: string) => v.trim() || null;
-    const n = (v: string) => (v.trim() === '' ? null : Math.max(0, Math.round(Number(v))) || 0);
-    const company = form.customer_type === 'company';
-    const payload = {
-      customer_type: form.customer_type,
-      last_name: form.last_name.trim(),
-      first_name: company ? null : t(form.first_name),
-      birth_date: company ? null : t(form.birth_date),
-      phone: t(form.phone),
-      email: t(form.email),
-      address: t(form.address),
-      household: company ? null : t(form.household),
-      notes: t(form.notes),
-      contact_person: company ? t(form.contact_person) : null,
-      industry: company ? t(form.industry) : null,
-      employees: company ? n(form.employees) : null,
-      occupation: company ? null : t(form.occupation),
-      marital_status: company ? null : t(form.marital_status),
-      children: company ? null : n(form.children),
-      housing: company ? null : t(form.housing),
-      vehicles: company ? [] : form.vehicles,
-      pets: company ? [] : form.pets,
-    };
-    const { data, error } =
-      editing === 'new'
-        ? await supabase.from('customers').insert({ ...payload, created_by: user?.id }).select('id').single()
-        : await supabase.from('customers').update(payload).eq('id', editing.id).select('id').single();
-    setSaving(false);
-    if (error) return toast.error('Kunde konnte nicht gespeichert werden.');
-    toast.success(editing === 'new' ? 'Kunde angelegt' : 'Gespeichert');
-    setEditing(null);
-    if (data?.id) setOpen(data.id);
-    load();
-  };
-
-  const createCallback = async () => {
-    if (!user || !callbackFor) return;
-    setBusy(callbackFor.id);
-    const { error } = await supabase.from('callbacks').insert({
-      customer_name: fullName(callbackFor),
-      customer_id: callbackFor.id,
-      phone: callbackFor.phone,
-      topic: callbackTopic.trim() || null,
-      priority: 'normal',
-      status: 'open',
-      created_by: user.id,
-      assigned_to: user.id,
-    });
-    setBusy(null);
-    if (error) return toast.error('Rückruf konnte nicht angelegt werden.');
-    toast.success('Rückruf angelegt');
-    setCallbackFor(null);
-    setCallbackTopic('');
-    load();
-  };
-
-  const openExisting = (customer: Customer, contract: Existing | null) => {
-    setExistingFor({ customer, contract });
-    setExistingForm(
-      contract
-        ? {
-            sub_category: contract.sub_category,
-            insurer: contract.insurer || '',
-            policy_number: contract.policy_number || '',
-            start_date: contract.start_date || '',
-            premium: contract.premium != null ? String(contract.premium).replace('.', ',') : '',
-            notes: contract.notes || '',
-          }
-        : EMPTY_EXISTING,
-    );
-  };
-
-  const saveExisting = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!existingFor || !user) return;
-    const f = existingForm;
-    const premium = f.premium.trim() ? Number(f.premium.replace(/\./g, '').replace(',', '.')) : null;
-    if (premium != null && Number.isNaN(premium)) return toast.error('Beitrag bitte als Zahl eingeben.');
-    const payload = {
-      sub_category: f.sub_category,
-      category: productByName(f.sub_category)?.area || 'other',
-      insurer: f.insurer.trim() || null,
-      policy_number: f.policy_number.trim() || null,
-      start_date: f.start_date || null,
-      premium,
-      notes: f.notes.trim() || null,
-    };
-    setSaving(true);
-    const { error } = existingFor.contract
-      ? await supabase.from('customer_contracts').update(payload).eq('id', existingFor.contract.id)
-      : await supabase.from('customer_contracts').insert({ ...payload, customer_id: existingFor.customer.id, created_by: user.id });
-    setSaving(false);
-    if (error) return toast.error('Vertrag konnte nicht gespeichert werden.');
-    toast.success(existingFor.contract ? 'Gespeichert' : 'Bestandsvertrag hinzugefügt');
-    setExistingFor(null);
-    load();
-  };
-
-  const deleteExisting = async () => {
-    const x = existingFor?.contract;
-    if (!x) return;
-    setSaving(true);
-    const { error } = await supabase.from('customer_contracts').delete().eq('id', x.id);
-    setSaving(false);
-    if (error) return toast.error('Vertrag konnte nicht gelöscht werden.');
-    toast.success('Bestandsvertrag entfernt');
-    setExistingFor(null);
-    load();
-  };
-
-  const merge = async () => {
-    if (!mergeFor || !mergeDrop) return;
-    setBusy('merge');
-    const { error } = await supabase.rpc('merge_customers', { p_keep: mergeFor.id, p_drop: mergeDrop });
-    setBusy(null);
-    if (error) return toast.error(error.message || 'Zusammenführen fehlgeschlagen.');
-    toast.success('Kunden zusammengeführt');
-    setMergeFor(null);
-    setMergeDrop('');
-    load();
+  const openCustomer = (id: string) => {
+    setView('akte');
+    setOpen(id);
+    setTimeout(() => document.getElementById(`customer-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
   };
 
   if (loading) return <PageLoading label="Kunden werden geladen" />;
 
   const kfzDeadline = kfzDue[0]?.deadline;
-  const mergeCandidates = mergeFor
-    ? customers
-        .filter((c) => c.id !== mergeFor.id)
-        .sort((a, b) => {
-          // ähnliche Nachnamen zuerst
-          const s = (c: Customer) => (c.last_name.trim().toLowerCase().slice(0, 3) === mergeFor.last_name.trim().toLowerCase().slice(0, 3) ? 0 : 1);
-          return s(a) - s(b) || fullName(a).localeCompare(fullName(b), 'de');
-        })
-    : [];
-  const setX = (k: keyof ExistingForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => setExistingForm((f) => ({ ...f, [k]: e.target.value }));
-  const set = (k: TextKey) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => setForm((f) => ({ ...f, [k]: e.target.value }));
-  const toggle = (k: 'vehicles' | 'pets', v: string) => setForm((f) => ({ ...f, [k]: f[k].includes(v) ? f[k].filter((x) => x !== v) : [...f[k], v] }));
 
   return (
     <div className="space-y-6">
@@ -520,7 +290,7 @@ export const Customers = () => {
         title="Kunden"
         description="Stammdaten, Verträge und Dokumente je Kunde, fehlende Absicherungen und anstehende Fristen."
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Segmented
               value={scope}
               onChange={(v) => setScope(v as 'mine' | 'team')}
@@ -530,7 +300,8 @@ export const Customers = () => {
               ]}
             />
             {isAdmin && <Button variant="secondary" icon={SlidersHorizontal} onClick={() => setRulesOpen(true)}>Lückenregeln</Button>}
-            <Button icon={Plus} onClick={() => openForm('new')}>Neuer Kunde</Button>
+            <Button variant="secondary" icon={FileSpreadsheet} onClick={() => setImportOpen(true)}>Import</Button>
+            <Button icon={Plus} onClick={() => setEditing('new')}>Neuer Kunde</Button>
           </div>
         }
       />
@@ -558,7 +329,9 @@ export const Customers = () => {
         <HeroDivider />
         <dl className="grid grid-cols-2 gap-6 px-6 py-5 sm:grid-cols-4 sm:px-8">
           <HeroStat label="Kunden" value={rows.length} />
-          <HeroStat label="Mit Lücken" value={withGaps.length} accent={withGaps.length > 0} hint="nach Lebenslage und Lückenregeln" />
+          <button type="button" onClick={() => setView('gaps')} className="text-left">
+            <HeroStat label="Mit Lücken" value={withGaps.length} accent={withGaps.length > 0} hint="Liste öffnen" />
+          </button>
           <HeroStat label="Fristen in 60 Tagen" value={deadlines.length} />
           <HeroStat label={`Geburtstage in ${BIRTHDAY_DAYS} Tagen`} value={birthdays.length} accent={birthdays.some((b) => b.birthday!.days === 0)} />
         </dl>
@@ -616,7 +389,7 @@ export const Customers = () => {
             <ul className="divide-y divide-gray-100 dark:divide-gray-700/70">
               {birthdays.map((r) => (
                 <li key={r.customer.id}>
-                  <button type="button" onClick={() => setOpen(r.customer.id)} className="flex w-full items-center justify-between gap-3 px-5 py-3 text-left hover:bg-brand-50/40 dark:hover:bg-white/[0.03]">
+                  <button type="button" onClick={() => openCustomer(r.customer.id)} className="flex w-full items-center justify-between gap-3 px-5 py-3 text-left hover:bg-brand-50/40 dark:hover:bg-white/[0.03]">
                     <span className="min-w-0">
                       <span className="block truncate text-sm font-semibold text-gray-900 dark:text-white">{r.name}</span>
                       <span className="block text-xs text-gray-500">wird {r.birthday!.age}, {format(r.birthday!.date, 'EEEE, d. MMM', { locale: de })}</span>
@@ -633,29 +406,28 @@ export const Customers = () => {
       {/* Kunden */}
       <section aria-labelledby="customers-title" className="card overflow-clip">
         <div className="flex flex-col gap-3 border-b border-gray-100 px-4 py-4 dark:border-gray-700 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-          <h2 id="customers-title" className="font-display text-lg font-semibold text-gray-900 dark:text-white">
-            Kundenakte <span className="tabular ml-1 font-sans text-sm font-normal text-gray-400">{visible.length}</span>
-          </h2>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              aria-pressed={onlyGaps}
-              onClick={() => setOnlyGaps((v) => !v)}
-              className={cn(
-                'inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-2 text-xs font-medium transition-colors',
-                onlyGaps ? 'border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-200' : 'border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700/50',
-              )}
-            >
-              Nur mit Lücken
-            </button>
+          <div className="flex items-center gap-3">
+            <h2 id="customers-title" className="sr-only">Kundenakte</h2>
+            <Segmented
+              value={view}
+              onChange={(v) => setView(v as 'akte' | 'gaps')}
+              options={[
+                { value: 'akte', label: `Kundenakte · ${visible.length}` },
+                { value: 'gaps', label: `Lücken · ${withGaps.length}` },
+              ]}
+            />
+          </div>
+          {view === 'akte' && (
             <div className="relative w-full sm:w-64">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
               <input type="search" placeholder="Name, Telefon, Schein-Nr." aria-label="Kunden durchsuchen" value={query} onChange={(e) => setQuery(e.target.value)} className="input pl-9" />
             </div>
-          </div>
+          )}
         </div>
 
-        {visible.length === 0 ? (
+        {view === 'gaps' ? (
+          <GapOverview rows={rows} people={people} onOpen={openCustomer} onCallbacks={(list, topic) => setCallbackFor({ customers: list, topic })} />
+        ) : visible.length === 0 ? (
           <EmptyState
             icon={Users}
             title={rows.length ? 'Kein Kunde in dieser Auswahl' : 'Noch keine Kunden'}
@@ -667,7 +439,6 @@ export const Customers = () => {
               const c = r.customer;
               const isOpen = open === c.id;
               const household = isOpen ? householdOf(c) : [];
-              const canEdit = isAdmin || c.created_by === user?.id || (!!boss && c.created_by === boss) || r.entries.some(mineEntry);
               return (
                 <li key={c.id} id={`customer-${c.id}`} className="scroll-mt-20">
                   <button
@@ -709,185 +480,17 @@ export const Customers = () => {
                   </button>
 
                   {isOpen && (
-                    <div className="animate-fade-in space-y-4 border-t border-gray-100 bg-gray-50/60 px-4 py-4 dark:border-gray-700 dark:bg-gray-900/30 sm:px-6">
-                      {/* Stammdaten */}
-                      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                        <dl className="grid flex-1 grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
-                          {c.customer_type === 'company' ? (
-                            <div className="flex items-center gap-2">
-                              <Building2 className="h-4 w-4 shrink-0 text-gray-400" />
-                              <dt className="sr-only">Firma</dt>
-                              <dd className="text-gray-700 dark:text-gray-200">
-                                {[c.industry, c.employees != null ? `${c.employees} Mitarbeiter` : null].filter(Boolean).join(' · ') || 'Firma'}
-                                {c.contact_person && <span className="text-gray-500"> · Ansprechpartner {c.contact_person}</span>}
-                              </dd>
-                            </div>
-                          ) : (
-                          <div className="flex items-center gap-2">
-                            <Cake className="h-4 w-4 shrink-0 text-gray-400" />
-                            <dt className="sr-only">Geburtstag</dt>
-                            <dd className="text-gray-700 dark:text-gray-200">{c.birth_date ? `${format(day(c.birth_date), 'dd.MM.yyyy')} (${differenceInYears(new Date(), day(c.birth_date))} Jahre)` : <span className="text-gray-400">kein Geburtstag</span>}</dd>
-                          </div>
-                          )}
-                          <div className="flex items-center gap-2">
-                            <Phone className="h-4 w-4 shrink-0 text-gray-400" />
-                            <dt className="sr-only">Telefon</dt>
-                            <dd>{c.phone ? <a href={`tel:${c.phone.replace(/\s/g, '')}`} className="font-medium text-brand-700 hover:underline dark:text-brand-300">{c.phone}</a> : <span className="text-gray-400">keine Nummer</span>}</dd>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Mail className="h-4 w-4 shrink-0 text-gray-400" />
-                            <dt className="sr-only">E-Mail</dt>
-                            <dd className="min-w-0 truncate">{c.email ? <a href={`mailto:${c.email}`} className="font-medium text-brand-700 hover:underline dark:text-brand-300">{c.email}</a> : <span className="text-gray-400">keine E-Mail</span>}</dd>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <MapPin className="h-4 w-4 shrink-0 text-gray-400" />
-                            <dt className="sr-only">Adresse</dt>
-                            <dd className="text-gray-700 dark:text-gray-200">{c.address || <span className="text-gray-400">keine Adresse</span>}</dd>
-                          </div>
-                          {c.household && (
-                            <div className="flex items-start gap-2 sm:col-span-2">
-                              <Users className="mt-0.5 h-4 w-4 shrink-0 text-gray-400" />
-                              <dt className="sr-only">Haushalt</dt>
-                              <dd className="text-gray-700 dark:text-gray-200">
-                                Haushalt {c.household}
-                                {household.length > 0 && (
-                                  <span className="text-gray-500">
-                                    {' · '}
-                                    {household.map((h, i) => (
-                                      <span key={h.id}>
-                                        {i > 0 && ', '}
-                                        <button type="button" onClick={() => setOpen(h.id)} className="font-medium text-brand-700 hover:underline dark:text-brand-300">{fullName(h)}</button>
-                                      </span>
-                                    ))}
-                                  </span>
-                                )}
-                              </dd>
-                            </div>
-                          )}
-                          {c.customer_type !== 'company' && lifestyleText(c) && (
-                            <div className="flex items-start gap-2 sm:col-span-2">
-                              <Briefcase className="mt-0.5 h-4 w-4 shrink-0 text-gray-400" />
-                              <dt className="sr-only">Lebenslage</dt>
-                              <dd className="text-gray-700 dark:text-gray-200">{lifestyleText(c)}</dd>
-                            </div>
-                          )}
-                          {c.notes && <p className="whitespace-pre-line text-gray-600 dark:text-gray-300 sm:col-span-2">{c.notes}</p>}
-                        </dl>
-                        <div className="flex flex-wrap gap-1.5">
-                          {canEdit && <Button size="sm" variant="secondary" icon={Pencil} onClick={() => openForm(c)}>Bearbeiten</Button>}
-                          {canEdit && <Button size="sm" variant="secondary" icon={Plus} onClick={() => openExisting(c, null)}>Bestandsvertrag</Button>}
-                          <Button size="sm" variant="secondary" icon={Phone} onClick={() => { setCallbackFor(c); setCallbackTopic(''); }}>Rückruf</Button>
-                          {isAdmin && <Button size="sm" variant="ghost" icon={GitMerge} onClick={() => { setMergeFor(c); setMergeDrop(''); }}>Zusammenführen</Button>}
-                        </div>
-                      </div>
-
-                      {/* Offene Rückrufe */}
-                      {r.callbacks.length > 0 && (
-                        <div className="rounded-lg border border-sky-200 bg-sky-50/60 px-3 py-2 text-sm dark:border-sky-800 dark:bg-sky-900/20">
-                          <p className="text-xs font-semibold text-sky-800 dark:text-sky-200">Offene Rückrufe</p>
-                          <ul className="mt-1 space-y-0.5">
-                            {r.callbacks.map((cb) => (
-                              <li key={cb.id} className="flex items-center gap-2 text-gray-700 dark:text-gray-200">
-                                {cb.priority === 'high' && <StatusPill tone="red">dringend</StatusPill>}
-                                {cb.topic || 'Rückruf'}
-                                <span className="text-xs text-gray-500">seit {format(new Date(cb.created_at), 'dd.MM.')}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-
-                      {/* Verträge */}
-                      {r.entries.length > 0 && (
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-sm">
-                            <thead>
-                              <tr className="text-left text-xs text-gray-500 [&>th]:pb-2 [&>th]:font-medium">
-                                <th>Vertrag</th>
-                                <th>Schein-Nr.</th>
-                                <th>Beginn</th>
-                                <th>Status</th>
-                                <th className="text-right">Provision</th>
-                                <th className="w-10"><span className="sr-only">Dokumente</span></th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {r.entries.map((e) => (
-                                <Fragment key={e.id}>
-                                  <tr className={cn('[&>td]:py-1.5', e.status === 'cancelled' && 'opacity-60')}>
-                                    <td><Tag color={CATEGORY_COLORS[e.category] || '#9AA39C'}>{product(e)}</Tag></td>
-                                    <td className="font-mono text-xs text-gray-600 dark:text-gray-300">{e.policy_number || '–'}</td>
-                                    <td className="text-gray-600 dark:text-gray-300">{e.start_date ? format(day(e.start_date), 'dd.MM.yy') : '–'}</td>
-                                    <td>
-                                      <StatusPill tone={e.status === 'policed' ? 'emerald' : e.status === 'cancelled' ? 'red' : 'sky'}>
-                                        {e.status === 'policed' ? 'Policiert' : e.status === 'cancelled' ? `Storniert${e.cancelled_at ? ` ${format(day(e.cancelled_at), 'dd.MM.yy')}` : ''}` : 'Eingereicht'}
-                                      </StatusPill>
-                                    </td>
-                                    <td className="tabular text-right font-medium text-gray-900 dark:text-white">{eur0.format(Number(e.commission_amount || 0))}</td>
-                                    <td className="text-right">
-                                      <button
-                                        type="button"
-                                        onClick={() => setOpenDocs(openDocs === e.id ? null : e.id)}
-                                        aria-expanded={openDocs === e.id}
-                                        className={cn('btn-icon p-1.5', openDocs === e.id && 'bg-brand-50 text-brand-700 dark:bg-brand-900/40 dark:text-brand-300')}
-                                        title="Dokumente"
-                                        aria-label="Dokumente"
-                                      >
-                                        <FileText className="h-4 w-4" />
-                                      </button>
-                                    </td>
-                                  </tr>
-                                  {openDocs === e.id && (
-                                    <tr>
-                                      <td colSpan={6} className="pb-3 pt-1">
-                                        <ContractDocuments entryId={e.id} />
-                                      </td>
-                                    </tr>
-                                  )}
-                                </Fragment>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
-
-                      {/* Bestandsverträge */}
-                      {r.existing.length > 0 && (
-                        <div className="overflow-x-auto">
-                          <p className="mb-1.5 text-xs font-semibold text-gray-500">Bestandsverträge <span className="font-normal">(zählen nicht zur Produktion)</span></p>
-                          <table className="w-full text-sm">
-                            <thead>
-                              <tr className="text-left text-xs text-gray-500 [&>th]:pb-2 [&>th]:font-medium">
-                                <th>Vertrag</th>
-                                <th>Gesellschaft</th>
-                                <th>Schein-Nr.</th>
-                                <th>Beginn</th>
-                                <th className="text-right">Beitrag</th>
-                                <th className="w-10"><span className="sr-only">Bearbeiten</span></th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {r.existing.map((x) => (
-                                <tr key={x.id} className="[&>td]:py-1.5">
-                                  <td><Tag color={CATEGORY_COLORS[x.category] || '#9AA39C'}>{x.sub_category}</Tag></td>
-                                  <td className="text-gray-700 dark:text-gray-200">{x.insurer || '–'}</td>
-                                  <td className="font-mono text-xs text-gray-600 dark:text-gray-300">{x.policy_number || '–'}</td>
-                                  <td className="text-gray-600 dark:text-gray-300">{x.start_date ? format(day(x.start_date), 'dd.MM.yy') : '–'}</td>
-                                  <td className="tabular text-right text-gray-700 dark:text-gray-200">{x.premium != null ? eur2.format(Number(x.premium)) : '–'}</td>
-                                  <td className="text-right">
-                                    {canEdit && (
-                                      <button type="button" onClick={() => openExisting(c, x)} className="btn-icon p-1.5" title="Bestandsvertrag bearbeiten" aria-label={`${x.sub_category} bearbeiten`}>
-                                        <Pencil className="h-4 w-4" />
-                                      </button>
-                                    )}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
-                    </div>
+                    <CustomerDetail
+                      row={r}
+                      household={household}
+                      canEdit={canEditCustomer(c.id)}
+                      isAdmin={!!isAdmin}
+                      onOpen={openCustomer}
+                      onEdit={setEditing}
+                      onExisting={(customer, contract) => setExistingFor({ customer, contract })}
+                      onCallback={(customer) => setCallbackFor({ customers: [customer], topic: '' })}
+                      onMerge={setMergeFor}
+                    />
                   )}
                 </li>
               );
@@ -896,154 +499,59 @@ export const Customers = () => {
         )}
       </section>
 
-      {/* Kunde anlegen / bearbeiten */}
-      <Modal isOpen={!!editing} onClose={() => setEditing(null)} title={editing === 'new' ? 'Neuer Kunde' : 'Kunde bearbeiten'} size="lg">
-        <form onSubmit={saveForm} className="space-y-4">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="sm:col-span-2">
-              <Segmented
-                value={form.customer_type}
-                onChange={(v) => setForm((f) => ({ ...f, customer_type: v as 'person' | 'company' }))}
-                options={[
-                  { value: 'person', label: 'Privatkunde' },
-                  { value: 'company', label: 'Firma' },
-                ]}
-              />
-            </div>
-            {form.customer_type === 'company' ? (
-              <>
-                <Field label="Firmenname" htmlFor="cf-last" className="sm:col-span-2"><input id="cf-last" required value={form.last_name} onChange={set('last_name')} className="input" /></Field>
-                <Field label="Ansprechpartner" htmlFor="cf-contact"><input id="cf-contact" value={form.contact_person} onChange={set('contact_person')} className="input" /></Field>
-                <Field label="Branche" htmlFor="cf-industry"><input id="cf-industry" value={form.industry} onChange={set('industry')} className="input" placeholder="z. B. Handwerk, Gastronomie" /></Field>
-                <Field label="Mitarbeiter" htmlFor="cf-emp" hint="Ab 1 Mitarbeiter: bAV und bKV als Lücke"><input id="cf-emp" type="number" min={0} value={form.employees} onChange={set('employees')} className="input tabular" /></Field>
-                <Field label="Telefon" htmlFor="cf-phone"><input id="cf-phone" type="tel" value={form.phone} onChange={set('phone')} className="input" /></Field>
-                <Field label="E-Mail" htmlFor="cf-mail"><input id="cf-mail" type="email" value={form.email} onChange={set('email')} className="input" /></Field>
-              </>
-            ) : (
-              <>
-                <Field label="Nachname" htmlFor="cf-last"><input id="cf-last" required value={form.last_name} onChange={set('last_name')} className="input" /></Field>
-                <Field label="Vorname" htmlFor="cf-first"><input id="cf-first" value={form.first_name} onChange={set('first_name')} className="input" /></Field>
-                <Field label="Geburtstag" htmlFor="cf-birth"><input id="cf-birth" type="date" value={form.birth_date} onChange={set('birth_date')} className="input" /></Field>
-                <Field label="Telefon" htmlFor="cf-phone"><input id="cf-phone" type="tel" value={form.phone} onChange={set('phone')} className="input" /></Field>
-                <Field label="E-Mail" htmlFor="cf-mail"><input id="cf-mail" type="email" value={form.email} onChange={set('email')} className="input" /></Field>
-                <Field label="Haushalt" htmlFor="cf-house" hint="Gleicher Name verbindet Familienmitglieder, z. B. Familie Müller"><input id="cf-house" value={form.household} onChange={set('household')} className="input" list="cf-households" /></Field>
-                <datalist id="cf-households">
-                  {Array.from(new Set(customers.map((c) => c.household).filter(Boolean))).map((h) => <option key={h!} value={h!} />)}
-                </datalist>
-                <fieldset className="space-y-3 rounded-xl border border-gray-200 p-4 dark:border-gray-700 sm:col-span-2">
-                  <legend className="px-1 text-sm font-semibold text-gray-700 dark:text-gray-200">Lebenslage <span className="font-normal text-gray-400">(für passende Lücken)</span></legend>
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <Field label="Beruf" htmlFor="cf-occ">
-                      <select id="cf-occ" value={form.occupation} onChange={set('occupation')} className="input">
-                        <option value="">unbekannt</option>
-                        {OCCUPATIONS.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
-                      </select>
-                    </Field>
-                    <Field label="Familienstand" htmlFor="cf-mar">
-                      <select id="cf-mar" value={form.marital_status} onChange={set('marital_status')} className="input">
-                        <option value="">unbekannt</option>
-                        {MARITAL.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
-                      </select>
-                    </Field>
-                    <Field label="Kinder" htmlFor="cf-kids"><input id="cf-kids" type="number" min={0} value={form.children} onChange={set('children')} className="input tabular" /></Field>
-                    <Field label="Wohnen" htmlFor="cf-housing">
-                      <select id="cf-housing" value={form.housing} onChange={set('housing')} className="input">
-                        <option value="">unbekannt</option>
-                        {HOUSING.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
-                      </select>
-                    </Field>
-                  </div>
-                  <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-gray-700 dark:text-gray-200">
-                    {VEHICLES.map((v) => (
-                      <label key={v.id} className="flex items-center gap-2"><input type="checkbox" checked={form.vehicles.includes(v.id)} onChange={() => toggle('vehicles', v.id)} className="rounded" /> {v.label}</label>
-                    ))}
-                    {PETS.map((v) => (
-                      <label key={v.id} className="flex items-center gap-2"><input type="checkbox" checked={form.pets.includes(v.id)} onChange={() => toggle('pets', v.id)} className="rounded" /> {v.label}</label>
-                    ))}
-                  </div>
-                </fieldset>
-              </>
-            )}
-            <Field label="Adresse" htmlFor="cf-addr" className="sm:col-span-2"><input id="cf-addr" value={form.address} onChange={set('address')} className="input" placeholder="Straße, PLZ Ort" /></Field>
-            <Field label="Notizen" htmlFor="cf-notes" className="sm:col-span-2"><textarea id="cf-notes" rows={3} value={form.notes} onChange={set('notes')} className="input resize-none" /></Field>
-          </div>
-          {editing !== 'new' && editing && form.last_name.trim() !== editing.last_name && (
-            <p className="text-xs text-gray-500">Der neue Name wird auch in allen Verträgen dieses Kunden übernommen.</p>
-          )}
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="ghost" onClick={() => setEditing(null)}>Abbrechen</Button>
-            <Button type="submit" loading={saving}>{editing === 'new' ? 'Anlegen' : 'Speichern'}</Button>
-          </div>
-        </form>
-      </Modal>
-
-      {/* Bestandsvertrag */}
-      <Modal
-        isOpen={!!existingFor}
+      <CustomerFormModal
+        editing={editing}
+        households={Array.from(new Set(customers.map((c) => c.household).filter((h): h is string => !!h)))}
+        userId={user?.id}
+        onClose={() => setEditing(null)}
+        onSaved={(id) => {
+          setEditing(null);
+          if (id) setOpen(id);
+          load();
+        }}
+      />
+      <ExistingContractModal
+        target={existingFor}
+        insurers={Array.from(new Set(existing.map((x) => x.insurer).filter((i): i is string => !!i)))}
+        userId={user?.id}
         onClose={() => setExistingFor(null)}
-        title={existingFor?.contract ? 'Bestandsvertrag bearbeiten' : 'Bestandsvertrag hinzufügen'}
-        description={existingFor ? `${fullName(existingFor.customer)} · zählt für Lücken und Fristen, nicht für Produktion und Provision` : undefined}
-      >
-        <form onSubmit={saveExisting} className="space-y-4">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field label="Versicherung / Produkt" htmlFor="ex-sub" className="sm:col-span-2">
-              <ProductPicker id="ex-sub" value={existingForm.sub_category} onChange={(p) => setExistingForm((f) => ({ ...f, sub_category: p.name }))} />
-            </Field>
-            <Field label="Gesellschaft" htmlFor="ex-ins"><input id="ex-ins" value={existingForm.insurer} onChange={setX('insurer')} className="input" placeholder="z. B. Allianz" list="ex-insurers" /></Field>
-            <datalist id="ex-insurers">
-              {Array.from(new Set(existing.map((x) => x.insurer).filter(Boolean))).map((i) => <option key={i!} value={i!} />)}
-            </datalist>
-            <Field label="Schein-Nr." htmlFor="ex-pol"><input id="ex-pol" value={existingForm.policy_number} onChange={setX('policy_number')} className="input" /></Field>
-            <Field label="Beginn" htmlFor="ex-start" hint="Für die Kündigungsfrist"><input id="ex-start" type="date" value={existingForm.start_date} onChange={setX('start_date')} className="input" /></Field>
-            <Field label="Beitrag (€)" htmlFor="ex-prem"><input id="ex-prem" inputMode="decimal" value={existingForm.premium} onChange={setX('premium')} className="input" placeholder="z. B. 12,50" /></Field>
-            <Field label="Notizen" htmlFor="ex-notes" className="sm:col-span-2"><textarea id="ex-notes" rows={2} value={existingForm.notes} onChange={setX('notes')} className="input resize-none" /></Field>
-          </div>
-          <div className="flex items-center justify-between gap-2">
-            {existingFor?.contract ? <Button type="button" variant="ghost" onClick={deleteExisting} disabled={saving} className="text-red-600">Entfernen</Button> : <span />}
-            <div className="flex gap-2">
-              <Button type="button" variant="ghost" onClick={() => setExistingFor(null)}>Abbrechen</Button>
-              <Button type="submit" loading={saving}>{existingFor?.contract ? 'Speichern' : 'Hinzufügen'}</Button>
-            </div>
-          </div>
-        </form>
-      </Modal>
-
-      {/* Rückruf */}
-      <Modal isOpen={!!callbackFor} onClose={() => setCallbackFor(null)} title="Rückruf anlegen" description={callbackFor ? fullName(callbackFor) : undefined} size="sm">
-        <div className="space-y-4">
-          <Field label="Worum geht es?" htmlFor="cb-topic">
-            <input id="cb-topic" autoFocus value={callbackTopic} onChange={(e) => setCallbackTopic(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && createCallback()} className="input" placeholder="z. B. Angebot BU besprechen" />
-          </Field>
-          {!callbackFor?.phone && <p className="text-xs text-amber-700 dark:text-amber-300">Für diesen Kunden ist keine Telefonnummer hinterlegt.</p>}
-          <div className="flex justify-end gap-2">
-            <Button variant="ghost" onClick={() => setCallbackFor(null)}>Abbrechen</Button>
-            <Button icon={Phone} loading={busy === callbackFor?.id} onClick={createCallback}>Anlegen</Button>
-          </div>
-        </div>
-      </Modal>
-
+        onSaved={() => {
+          setExistingFor(null);
+          load();
+        }}
+      />
+      <CallbackModal
+        customers={callbackFor?.customers || null}
+        defaultTopic={callbackFor?.topic}
+        userId={user?.id}
+        onClose={() => setCallbackFor(null)}
+        onSaved={() => {
+          setCallbackFor(null);
+          load();
+        }}
+      />
       {isAdmin && <GapRulesEditor isOpen={rulesOpen} onClose={() => setRulesOpen(false)} rules={rules} onChanged={load} />}
-
-      {/* Zusammenführen */}
-      <Modal isOpen={!!mergeFor} onClose={() => setMergeFor(null)} title="Kunden zusammenführen" description={mergeFor ? `${fullName(mergeFor)} bleibt bestehen.` : undefined}>
-        <div className="space-y-4">
-          <Field label="Doppelten Eintrag wählen" htmlFor="mg-drop" hint="Verträge, Rückrufe und fehlende Stammdaten wandern zu diesem Kunden, der doppelte Eintrag wird gelöscht.">
-            <select id="mg-drop" value={mergeDrop} onChange={(e) => setMergeDrop(e.target.value)} className="input">
-              <option value="">Bitte wählen</option>
-              {mergeCandidates.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {fullName(c)}
-                  {c.birth_date ? ` (${format(day(c.birth_date), 'dd.MM.yyyy')})` : ''} · {entries.filter((e) => e.customer_id === c.id).length} Verträge
-                </option>
-              ))}
-            </select>
-          </Field>
-          <div className="flex justify-end gap-2">
-            <Button variant="ghost" onClick={() => setMergeFor(null)}>Abbrechen</Button>
-            <Button icon={GitMerge} disabled={!mergeDrop} loading={busy === 'merge'} onClick={merge}>Zusammenführen</Button>
-          </div>
-        </div>
-      </Modal>
+      {isAdmin && (
+        <MergeModal
+          keep={mergeFor}
+          customers={customers}
+          entries={entries}
+          onClose={() => setMergeFor(null)}
+          onSaved={() => {
+            setMergeFor(null);
+            load();
+          }}
+        />
+      )}
+      <CustomerImportModal
+        isOpen={importOpen}
+        customers={customers}
+        existing={existing}
+        userId={user?.id}
+        canEdit={canEditCustomer}
+        onClose={() => setImportOpen(false)}
+        onDone={load}
+      />
     </div>
   );
 };
