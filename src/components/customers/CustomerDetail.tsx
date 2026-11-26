@@ -1,9 +1,11 @@
 import { Fragment, useState } from 'react';
 import { differenceInYears, format } from 'date-fns';
-import { Briefcase, Building2, Cake, FileText, GitMerge, Mail, MapPin, Pencil, Phone, Plus, Users } from 'lucide-react';
+import { Briefcase, Building2, Cake, FileDown, FileText, GitMerge, Mail, MapPin, Pencil, Phone, Plus, Users } from 'lucide-react';
 import { Button } from '@/components/ui';
 import { StatusPill, Tag } from '@/components/ui/hero';
 import { ContractDocuments } from '@/components/ContractDocuments';
+import { CustomerHistory } from './CustomerHistory';
+import { exportCustomerPdf } from './customerPdf';
 import { CATEGORY_COLORS } from '@/lib/chartTheme';
 import { cn } from '@/utils/cn';
 import { day, eur0, eur2, fullName, lifestyleText, product, type Customer, type CustomerRow, type Existing } from './shared';
@@ -14,6 +16,7 @@ export function CustomerDetail({
   household,
   canEdit,
   isAdmin,
+  names,
   onOpen,
   onEdit,
   onExisting,
@@ -24,6 +27,8 @@ export function CustomerDetail({
   household: Customer[];
   canEdit: boolean;
   isAdmin: boolean;
+  /** Personen-ID → Name, für Notizen und Rückrufe */
+  names: Map<string, string>;
   onOpen: (id: string) => void;
   onEdit: (c: Customer) => void;
   onExisting: (c: Customer, x: Existing | null) => void;
@@ -32,6 +37,15 @@ export function CustomerDetail({
 }) {
   const c = r.customer;
   const [openDocs, setOpenDocs] = useState<string | null>(null);
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const pdf = async () => {
+    setPdfBusy(true);
+    try {
+      await exportCustomerPdf(r, names);
+    } finally {
+      setPdfBusy(false);
+    }
+  };
   return (
 <div className="animate-fade-in space-y-4 border-t border-gray-100 bg-gray-50/60 px-4 py-4 dark:border-gray-700 dark:bg-gray-900/30 sm:px-6">
   {/* Stammdaten */}
@@ -101,6 +115,7 @@ export function CustomerDetail({
       {canEdit && <Button size="sm" variant="secondary" icon={Pencil} onClick={() => onEdit(c)}>Bearbeiten</Button>}
       {canEdit && <Button size="sm" variant="secondary" icon={Plus} onClick={() => onExisting(c, null)}>Bestandsvertrag</Button>}
       <Button size="sm" variant="secondary" icon={Phone} onClick={() => onCallback(c)}>Rückruf</Button>
+      <Button size="sm" variant="secondary" icon={FileDown} loading={pdfBusy} onClick={pdf}>PDF</Button>
       {isAdmin && <Button size="sm" variant="ghost" icon={GitMerge} onClick={() => onMerge(c)}>Zusammenführen</Button>}
     </div>
   </div>
@@ -120,6 +135,8 @@ export function CustomerDetail({
       </ul>
     </div>
   )}
+
+  <CustomerHistory customerId={c.id} names={names} isAdmin={isAdmin} />
 
   {/* Verträge */}
   {r.entries.length > 0 && (

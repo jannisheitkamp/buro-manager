@@ -124,6 +124,7 @@ export const Customers = () => {
   }, [searchParams, loading, setSearchParams, isAdmin]);
 
   // Eigene Kunden: meine, als Azubi die des Chefs, als Chef die meiner Azubis (wie my_circle in der Datenbank)
+  const names = useMemo(() => new Map(people.map((p) => [p.id, p.full_name])), [people]);
   const boss = profile?.is_vocational_student ? profile.boss_id || null : null;
   const circle = useMemo(
     () => new Set([user?.id, boss, ...people.filter((p) => p.is_vocational_student && p.boss_id === user?.id).map((p) => p.id)].filter((id): id is string => !!id)),
@@ -512,6 +513,7 @@ export const Customers = () => {
                       household={household}
                       canEdit={canEditCustomer(c.id)}
                       isAdmin={!!isAdmin}
+                      names={names}
                       onOpen={openCustomer}
                       onEdit={setEditing}
                       onExisting={(customer, contract) => setExistingFor({ customer, contract })}
