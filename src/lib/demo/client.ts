@@ -30,6 +30,7 @@ const KEYS: Record<string, string[]> = {
   production_lv_snapshots: ['user_id', 'month'],
   vacation_carryover: ['user_id', 'year'],
   calendar_tokens: ['user_id'],
+  insurer_addresses: ['name'],
 };
 const keyOf = (t: string) => KEYS[t] || ['id'];
 
