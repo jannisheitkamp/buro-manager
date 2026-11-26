@@ -113,10 +113,11 @@ export async function exportTrainingPdf(reports: TrainingReport[], opts: { name:
     doc.setFontSize(9);
     doc.text(`Auszubildende/r: ${opts.name}`, 14, lineY + 5);
     if (r.submitted_at) doc.text(`eingereicht am ${format(new Date(r.submitted_at), 'dd.MM.yyyy')}`, 14, lineY + 10);
-    const reviewer = r.reviewed_by ? opts.names.get(r.reviewed_by) || '' : '';
+    // Nicht abgezeichnet: Linie bleibt frei für die Unterschrift von Hand
+    const approved = r.status === 'approved' && r.reviewed_at;
+    const reviewer = approved && r.reviewed_by ? opts.names.get(r.reviewed_by) || '' : '';
     doc.text(`Ausbilder/in${reviewer ? `: ${reviewer}` : ''}`, W - 94, lineY + 5);
-    if (r.status === 'approved' && r.reviewed_at) doc.text(`elektronisch abgezeichnet am ${format(new Date(r.reviewed_at), 'dd.MM.yyyy')}`, W - 94, lineY + 10);
-    else doc.text('noch nicht abgezeichnet', W - 94, lineY + 10);
+    doc.text(approved ? `elektronisch abgezeichnet am ${format(new Date(r.reviewed_at!), 'dd.MM.yyyy')}` : 'Datum, Unterschrift', W - 94, lineY + 10);
   });
 
   const file = opts.name.replace(/[^\p{L}\p{N}]+/gu, '_');
