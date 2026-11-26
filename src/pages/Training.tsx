@@ -99,9 +99,9 @@ function MyReports({ reports, names, reload }: { reports: TrainingReport[]; name
     if (submit && !form.company.trim()) return toast.error('Bitte zuerst die betrieblichen Tätigkeiten eintragen.');
     setBusy(true);
     const status = submit ? 'submitted' : 'draft';
-    const fields = { ...form, status, submitted_at: submit ? new Date().toISOString() : null };
+    const fields = { ...form, status };
     const { error } = current
-      ? await supabase.from('training_reports').update({ ...fields, updated_at: new Date().toISOString() }).eq('id', current.id)
+      ? await supabase.from('training_reports').update(fields).eq('id', current.id)
       : await supabase.from('training_reports').insert({ ...fields, user_id: user.id, week_start: week });
     setBusy(false);
     if (error) return toast.error('Bericht konnte nicht gespeichert werden.');
@@ -111,7 +111,7 @@ function MyReports({ reports, names, reload }: { reports: TrainingReport[]; name
 
   const pull = async () => {
     if (!current) return;
-    const { error } = await supabase.from('training_reports').update({ status: 'draft', submitted_at: null }).eq('id', current.id);
+    const { error } = await supabase.rpc('withdraw_training_report', { p_id: current.id });
     if (error) return toast.error('Konnte nicht zurückgeholt werden.');
     reload();
   };
@@ -213,9 +213,13 @@ function Review({ reports, trainees, names, reload }: { reports: TrainingReport[
   const review = async (r: TrainingReport, approve: boolean) => {
     if (!approve && !notes[r.id]?.trim()) return toast.error('Schreib kurz dazu, was noch fehlt.');
     setBusy(r.id);
-    const { error } = await supabase.rpc('review_training_report', { p_id: r.id, p_approve: approve, p_note: notes[r.id] || null });
+    // p_seen: abgezeichnet wird nur der Stand, der hier angezeigt wird
+    const { error } = await supabase.rpc('review_training_report', { p_id: r.id, p_approve: approve, p_seen: r.updated_at, p_note: notes[r.id] || null });
     setBusy(null);
-    if (error) return toast.error(error.message || 'Hat nicht geklappt.');
+    if (error) {
+      toast.error(error.message || 'Hat nicht geklappt.');
+      return reload();
+    }
     toast.success(approve ? 'Abgezeichnet' : 'Zurückgegeben');
     reload();
   };
