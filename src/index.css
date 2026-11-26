@@ -51,7 +51,8 @@
     font-variant-numeric: tabular-nums;
   }
 
-  /* Einheitliche Formularfelder überall, auch in alten Seiten */
+  /* Einheitliche Formularfelder überall, auch in alten Seiten (auch Felder ohne type) */
+  input:not([type]),
   input[type='text'],
   input[type='email'],
   input[type='password'],
@@ -70,6 +71,7 @@
     transition: border-color 120ms, box-shadow 120ms;
   }
 
+  input:not([type]):focus,
   input[type='text']:focus,
   input[type='email']:focus,
   input[type='password']:focus,

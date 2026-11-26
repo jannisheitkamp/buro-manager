@@ -1,11 +1,12 @@
 import { Fragment, useState } from 'react';
 import { differenceInYears, format } from 'date-fns';
-import { Briefcase, Building2, Cake, FileDown, FileText, GitMerge, Mail, MapPin, Pencil, Phone, Plus, Users } from 'lucide-react';
+import { Briefcase, Building2, Cake, FileDown, FileText, FileX2, GitMerge, Mail, MapPin, Pencil, Phone, Plus, Users } from 'lucide-react';
 import { Button } from '@/components/ui';
 import { StatusPill, Tag } from '@/components/ui/hero';
 import { ContractDocuments } from '@/components/ContractDocuments';
 import { CustomerHistory } from './CustomerHistory';
 import { CustomerUpdatePanel } from './CustomerUpdatePanel';
+import { CancellationModal } from './CancellationModal';
 import { exportCustomerPdf } from './customerPdf';
 import { CATEGORY_COLORS } from '@/lib/chartTheme';
 import { cn } from '@/utils/cn';
@@ -44,6 +45,7 @@ export function CustomerDetail({
   const [pdfBusy, setPdfBusy] = useState(false);
   // Neu laden der Historie, wenn ein Daten-Update eine Notiz anlegt
   const [historyKey, setHistoryKey] = useState(0);
+  const [cancelFor, setCancelFor] = useState<Existing | null>(null);
   const pdf = async () => {
     setPdfBusy(true);
     try {
@@ -214,7 +216,7 @@ export function CustomerDetail({
             <th>Ablauf</th>
             <th>Fällig</th>
             <th className="text-right">Beitrag</th>
-            <th className="w-10"><span className="sr-only">Bearbeiten</span></th>
+            <th className="w-20"><span className="sr-only">Kündigen und bearbeiten</span></th>
           </tr>
         </thead>
         <tbody>
@@ -229,9 +231,14 @@ export function CustomerDetail({
               <td className="tabular text-right text-gray-700 dark:text-gray-200">{x.premium != null ? eur2.format(Number(x.premium)) : '–'}</td>
               <td className="text-right">
                 {canEdit && (
-                  <button type="button" onClick={() => onExisting(c, x)} className="btn-icon p-1.5" title="Bestandsvertrag bearbeiten" aria-label={`${x.sub_category} bearbeiten`}>
-                    <Pencil className="h-4 w-4" />
-                  </button>
+                  <span className="inline-flex">
+                    <button type="button" onClick={() => setCancelFor(x)} className="btn-icon p-1.5" title="Kündigung erstellen" aria-label={`${x.sub_category} kündigen`}>
+                      <FileX2 className="h-4 w-4" />
+                    </button>
+                    <button type="button" onClick={() => onExisting(c, x)} className="btn-icon p-1.5" title="Bestandsvertrag bearbeiten" aria-label={`${x.sub_category} bearbeiten`}>
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                  </span>
                 )}
               </td>
             </tr>
@@ -240,6 +247,7 @@ export function CustomerDetail({
       </table>
     </div>
   )}
+  <CancellationModal target={cancelFor ? { customer: c, contract: cancelFor } : null} onClose={() => setCancelFor(null)} onDone={() => setHistoryKey((k) => k + 1)} />
 </div>
   );
 }
