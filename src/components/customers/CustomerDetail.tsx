@@ -5,6 +5,7 @@ import { Button } from '@/components/ui';
 import { StatusPill, Tag } from '@/components/ui/hero';
 import { ContractDocuments } from '@/components/ContractDocuments';
 import { CustomerHistory } from './CustomerHistory';
+import { CustomerUpdatePanel } from './CustomerUpdatePanel';
 import { exportCustomerPdf } from './customerPdf';
 import { CATEGORY_COLORS } from '@/lib/chartTheme';
 import { cn } from '@/utils/cn';
@@ -17,6 +18,7 @@ export function CustomerDetail({
   canEdit,
   isAdmin,
   names,
+  onReload,
   onOpen,
   onEdit,
   onExisting,
@@ -29,6 +31,8 @@ export function CustomerDetail({
   isAdmin: boolean;
   /** Personen-ID → Name, für Notizen und Rückrufe */
   names: Map<string, string>;
+  /** Kundendaten neu laden, z. B. nach übernommenem Daten-Update */
+  onReload: () => void;
   onOpen: (id: string) => void;
   onEdit: (c: Customer) => void;
   onExisting: (c: Customer, x: Existing | null) => void;
@@ -38,6 +42,8 @@ export function CustomerDetail({
   const c = r.customer;
   const [openDocs, setOpenDocs] = useState<string | null>(null);
   const [pdfBusy, setPdfBusy] = useState(false);
+  // Neu laden der Historie, wenn ein Daten-Update eine Notiz anlegt
+  const [historyKey, setHistoryKey] = useState(0);
   const pdf = async () => {
     setPdfBusy(true);
     try {
@@ -136,7 +142,9 @@ export function CustomerDetail({
     </div>
   )}
 
-  <CustomerHistory customerId={c.id} names={names} isAdmin={isAdmin} />
+  <CustomerUpdatePanel customer={c} canEdit={canEdit} onApplied={() => { setHistoryKey((k) => k + 1); onReload(); }} />
+
+  <CustomerHistory key={historyKey} customerId={c.id} names={names} isAdmin={isAdmin} />
 
   {/* Verträge */}
   {r.entries.length > 0 && (

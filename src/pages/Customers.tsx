@@ -55,6 +55,8 @@ export const Customers = () => {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState<string | null>(null);
   const [view, setView] = useState<'akte' | 'gaps'>('akte');
+  // Kunden, die per Update-Link neue Daten geschickt haben
+  const [pendingUpdates, setPendingUpdates] = useState<string[]>([]);
   // Fristenliste standardmäßig eingeklappt, Zustand merkt sich der Browser
   const [deadlinesOpen, setDeadlinesOpen] = useState(() => {
     try {
@@ -95,10 +97,12 @@ export const Customers = () => {
       supabase.from('contract_followups').select('entry_id, due_date, state'),
       supabase.from('customer_contracts').select('*').order('created_at'),
     ]);
-    const [{ data: gr }, { data: pp }] = await Promise.all([
+    const [{ data: gr }, { data: pp }, { data: ur }] = await Promise.all([
       supabase.from('gap_rules').select('*').order('sort'),
       supabase.from('profiles').select('id, full_name, boss_id, is_vocational_student'),
+      supabase.from('customer_update_requests').select('customer_id').eq('status', 'submitted'),
     ]);
+    setPendingUpdates([...new Set(((ur as { customer_id: string }[]) || []).map((u) => u.customer_id))]);
     setRules((gr as GapRule[]) || []);
     setPeople((pp as typeof people) || []);
     setExisting((x as Existing[]) || []);
@@ -449,6 +453,22 @@ export const Customers = () => {
         )}
       </div>
 
+      {pendingUpdates.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-violet-200 bg-violet-50/60 px-4 py-3 text-sm dark:border-violet-800 dark:bg-violet-900/20">
+          <span className="font-semibold text-violet-900 dark:text-violet-100">
+            {pendingUpdates.length === 1 ? 'Ein Kunde hat' : `${pendingUpdates.length} Kunden haben`} neue Daten geschickt:
+          </span>
+          {pendingUpdates.map((id) => {
+            const c = customers.find((x) => x.id === id);
+            return c ? (
+              <button key={id} type="button" onClick={() => openCustomer(id)} className="font-medium text-violet-800 underline-offset-2 hover:underline dark:text-violet-200">
+                {fullName(c)}
+              </button>
+            ) : null;
+          })}
+        </div>
+      )}
+
       {/* Kunden */}
       <section aria-labelledby="customers-title" className="card overflow-clip">
         <div className="flex flex-col gap-3 border-b border-gray-100 px-4 py-4 dark:border-gray-700 sm:flex-row sm:items-center sm:justify-between sm:px-6">
@@ -532,6 +552,7 @@ export const Customers = () => {
                       canEdit={canEditCustomer(c.id)}
                       isAdmin={!!isAdmin}
                       names={names}
+                      onReload={load}
                       onOpen={openCustomer}
                       onEdit={setEditing}
                       onExisting={(customer, contract) => setExistingFor({ customer, contract })}

@@ -374,6 +374,30 @@ export const createDemoClient = (): any => {
       }));
       return Promise.resolve({ data, error: null });
     }
+    // Daten-Update per Link (in der Demo liegt der Token im Klartext, nur im Speicher)
+    if (fn === 'create_customer_update_link') {
+      table('customer_update_requests').filter((r) => r.customer_id === args?.p_customer && r.status === 'open').forEach((r) => { r.status = 'expired'; });
+      const token = (uuid() + uuid()).replace(/-/g, '').slice(0, 64);
+      table('customer_update_requests').push({ id: uuid(), customer_id: args?.p_customer, token_hash: token, created_by: DEMO_USER_ID, created_at: new Date().toISOString(), expires_at: new Date(Date.now() + 14 * 864e5).toISOString(), status: 'open', payload: null });
+      return Promise.resolve({ data: token, error: null });
+    }
+    if (fn === 'get_customer_update_form') {
+      const r = table('customer_update_requests').find((x) => x.token_hash === args?.p_token);
+      if (!r) return Promise.resolve({ data: { status: 'invalid' }, error: null });
+      if (r.status !== 'open') return Promise.resolve({ data: { status: 'used' }, error: null });
+      const c = table('customers').find((x) => x.id === r.customer_id);
+      const p = table('profiles').find((x) => x.id === r.created_by);
+      return Promise.resolve({ data: { status: 'open', first_name: c?.first_name ?? null, advisor: p?.full_name ?? null }, error: null });
+    }
+    if (fn === 'submit_customer_update') {
+      const r = table('customer_update_requests').find((x) => x.token_hash === args?.p_token);
+      if (!r) return Promise.resolve({ data: 'invalid', error: null });
+      if (r.status !== 'open') return Promise.resolve({ data: 'used', error: null });
+      const clean = Object.fromEntries(Object.entries(args?.p_data || {}).filter(([, v]) => v !== '' && v != null).map(([k, v]) => [k, k === 'children' ? Number(v) : v]));
+      if (!Object.keys(clean).length) return Promise.resolve({ data: 'empty', error: null });
+      Object.assign(r, { status: 'submitted', submitted_at: new Date().toISOString(), payload: clean });
+      return Promise.resolve({ data: 'ok', error: null });
+    }
     if (fn === 'review_training_report') {
       const r = table('training_reports').find((x) => x.id === args?.p_id);
       if (!r || r.status !== 'submitted') return Promise.resolve({ data: null, error: { message: 'Der Bericht ist nicht eingereicht' } });
