@@ -19,7 +19,7 @@ import { CourtagePanel } from '@/components/Production/CourtagePanel';
 import { CategoryTiles } from '@/components/Production/CategoryTiles';
 import { CANCEL_REASONS, stornoStats } from '@/lib/storno';
 import { courtageInstallments, isCourtage, summarizeCourtage, type CourtagePayout } from '@/lib/courtage';
-import { AREAS, areaLabel, calcCommission, methodOf, productByName, useProducts } from '@/lib/products';
+import { AREAS, areaLabel, calcCommission, maxYearsFor, methodOf, productByName, useProducts } from '@/lib/products';
 import { ProductPicker } from '@/components/ProductPicker';
 import { CommissionRates } from '@/components/Production/CommissionRates';
 import { Leaderboard } from '@/components/Production/Leaderboard';
@@ -287,10 +287,10 @@ export const Production = () => {
     const rate = userRates[subCategory] ?? product?.default_rate ?? 0;
     // Ein von Hand eingetragener Faktor geht vor (sonst würde er bei jeder Änderung überschrieben)
     const lvFactor = manualLvFactor !== null ? manualLvFactor : product?.lv_factor ?? 0;
-    // Provision und Lebenswerte werden höchstens auf 35 Jahre gerechnet (in calcCommission)
+    // Provision und Lebenswerte höchstens auf 35 Jahre, bei BU auf 45 Jahre
     const result = calcCommission(method, {
         rate, net: netP, gross: grossP, factor, duration, installments: courtageInstallments(startDate, paymentMethod),
-        contractSum: Number(contractSum) || 0, lvFactor,
+        contractSum: Number(contractSum) || 0, lvFactor, maxYears: maxYearsFor(subCategory),
     });
 
     setCommissionRate(rate);
@@ -1172,7 +1172,7 @@ export const Production = () => {
                                     <option value="one_time">Einmalbeitrag</option>
                                 </select>
                             </Field>
-                            <Field label="Laufzeit in Jahren" htmlFor="pf-dur" hint={duration > 35 ? 'Berechnet wird mit höchstens 35 Jahren.' : undefined}>
+                            <Field label="Laufzeit in Jahren" htmlFor="pf-dur" hint={duration > maxYearsFor(subCategory) ? `Berechnet wird mit höchstens ${maxYearsFor(subCategory)} Jahren.` : undefined}>
                                 <input id="pf-dur" type="number" min={1} value={duration} onChange={e => setDuration(Number(e.target.value))} className="input tabular" />
                             </Field>
                             <Field label="Beitrag netto" htmlFor="pf-net">

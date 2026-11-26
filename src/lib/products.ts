@@ -18,7 +18,7 @@ export type Area = {
 
 /** Bereiche mit Standard-Rechenart, Standard-Satz und Lebenswerte-Faktor */
 export const AREAS: Area[] = [
-  { id: 'life', label: 'Leben & Vorsorge', color: '#146A68', method: 'promille_sum', rate: 8, lv: 1.147 },
+  { id: 'life', label: 'Leben & Vorsorge', color: '#146A68', method: 'promille_sum', rate: 8, lv: 1.142 },
   { id: 'health', label: 'Kranken & Pflege', color: '#C2577A', method: 'monthly_multiple', rate: 3, lv: 0 },
   { id: 'property', label: 'Sach & Haftpflicht', color: '#F2A541', method: 'courtage_rate', rate: 7.5, lv: 20 },
   { id: 'car', label: 'KFZ', color: '#5B8DB8', method: 'courtage_rate', rate: 3, lv: 1 },
@@ -33,7 +33,7 @@ export const areaOf = (id: string | null | undefined) => AREAS.find((a) => a.id 
 export const areaLabel = (id: string | null | undefined) => areaOf(id).label;
 
 export const METHODS: { id: CalcMethod; label: string; unit: string; hint: string }[] = [
-  { id: 'promille_sum', label: 'Promille der Beitragssumme', unit: '‰', hint: 'Jahresbeitrag brutto × Laufzeit (max. 35 Jahre) × Satz ‰' },
+  { id: 'promille_sum', label: 'Promille der Beitragssumme', unit: '‰', hint: 'Jahresbeitrag brutto × Laufzeit (max. 35 Jahre, BU 45 Jahre) × Satz ‰' },
   { id: 'monthly_multiple', label: 'Monatsbeiträge', unit: 'MB', hint: 'Monatsbeitrag brutto × Anzahl Monatsbeiträge' },
   { id: 'percent_yearly', label: 'Prozent vom Jahresbeitrag', unit: '%', hint: 'Einmal: Jahresbeitrag brutto × Satz %' },
   { id: 'courtage_rate', label: 'Laufende Courtage', unit: '%', hint: 'Je Rate: Nettobeitrag × Satz %, Auszahlung zum 31.12.' },
@@ -124,10 +124,13 @@ export const matchesProduct = (p: Product, q: string) => {
     .every((w) => hay.includes(w));
 };
 
+/** Höchste Laufzeit für die Provision: BU 45 Jahre, alles andere 35 Jahre */
+export const maxYearsFor = (subCategory: string | null | undefined) => (subCategory === 'BU' ? 45 : 35);
+
 /** Provision und Lebenswerte eines Vertrags nach Rechenart */
 export function calcCommission(
   method: CalcMethod,
-  o: { rate: number; net: number; gross: number; factor: number; duration: number; installments: number; contractSum: number; lvFactor: number },
+  o: { rate: number; net: number; gross: number; factor: number; duration: number; installments: number; contractSum: number; lvFactor: number; maxYears?: number },
 ) {
   const netYearly = o.net * o.factor;
   const grossYearly = o.gross * o.factor;
@@ -136,7 +139,7 @@ export function calcCommission(
   let lvBase = netYearly;
   switch (method) {
     case 'promille_sum':
-      valuation = grossYearly * Math.min(o.duration, 35);
+      valuation = grossYearly * Math.min(o.duration, o.maxYears ?? 35);
       commission = valuation * (o.rate / 1000);
       lvBase = valuation;
       break;

@@ -1,6 +1,6 @@
 // Tests für Geld- und Fristenlogik: Provision, Courtage, Storno, Kündigungsfristen und Lücken
 import { describe, expect, it } from 'vitest';
-import { calcCommission } from './products';
+import { calcCommission, maxYearsFor } from './products';
 import { courtageForYear, courtageMonthsInYear, courtagePerRate, courtageRateMonths, type CourtageEntry } from './courtage';
 import { stornoStats } from './storno';
 import { nextDeadline, upcomingDeadlines } from './followups';
@@ -10,11 +10,19 @@ const base = { rate: 0, net: 0, gross: 0, factor: 12, duration: 0, installments:
 
 describe('calcCommission', () => {
   it('Promille der Beitragssumme, Laufzeit höchstens 35 Jahre', () => {
-    const r = calcCommission('promille_sum', { ...base, rate: 8, gross: 100, duration: 40, lvFactor: 1.147 });
+    const r = calcCommission('promille_sum', { ...base, rate: 8, gross: 100, duration: 40, lvFactor: 1.142 });
     // 100 € × 12 × 35 = 42.000 €, davon 8 ‰
     expect(r.valuation).toBe(42000);
     expect(r.commission).toBeCloseTo(336);
-    expect(r.lifeValues).toBeCloseTo(42000 * 1.147);
+    expect(r.lifeValues).toBeCloseTo(42000 * 1.142);
+  });
+
+  it('BU: Laufzeit höchstens 45 Jahre, Fondsrente bleibt bei 35', () => {
+    expect(maxYearsFor('BU')).toBe(45);
+    expect(maxYearsFor('Fondsrente')).toBe(35);
+    const r = calcCommission('promille_sum', { ...base, rate: 8, gross: 100, duration: 49, lvFactor: 1.142, maxYears: maxYearsFor('BU') });
+    expect(r.valuation).toBe(54000);
+    expect(r.commission).toBeCloseTo(432);
   });
 
   it('Monatsbeiträge', () => {
