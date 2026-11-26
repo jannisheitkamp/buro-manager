@@ -28,6 +28,7 @@ const ProfilePage = page(() => import('@/pages/Profile'), 'ProfilePage');
 const GeneralCalendar = page(() => import('@/pages/GeneralCalendar'), 'GeneralCalendar');
 const Production = page(() => import('@/pages/Production'), 'Production');
 const Vacation = page(() => import('@/pages/Vacation'), 'Vacation');
+const Training = page(() => import('@/pages/Training'), 'Training');
 const Reception = page(() => import('@/pages/Reception'), 'Reception');
 const Admin = page(() => import('@/pages/Admin'), 'Admin');
 const Onboarding = page(() => import('@/pages/Onboarding'), 'Onboarding');
@@ -131,6 +132,7 @@ function App() {
                   <Route path="/directory" element={<Directory />} />
                   <Route path="/admin" element={<Admin />} />
                   <Route path="/documents" element={<Documents />} />
+                  <Route path="/training" element={<Training />} />
                   <Route path="/calls" element={<PhoneCalls />} />
                   <Route path="/profile" element={<ProfilePage />} />
                   {/* Alte Links weiterleiten */}

@@ -366,6 +366,12 @@ export const createDemoClient = (): any => {
       }));
       return Promise.resolve({ data, error: null });
     }
+    if (fn === 'review_training_report') {
+      const r = table('training_reports').find((x) => x.id === args?.p_id);
+      if (!r || r.status !== 'submitted') return Promise.resolve({ data: null, error: { message: 'Der Bericht ist nicht eingereicht' } });
+      Object.assign(r, { status: args?.p_approve ? 'approved' : 'returned', reviewed_by: DEMO_USER_ID, reviewed_at: new Date().toISOString(), review_note: args?.p_note?.trim() || null });
+      return Promise.resolve({ data: null, error: null });
+    }
     if (fn === 'get_my_webhook_secret') return Promise.resolve({ data: 'demo-geheimnis', error: null });
     if (fn === 'respond_reception_swap') {
       const s = table('reception_swaps').find((x) => x.id === args?.p_swap_id);

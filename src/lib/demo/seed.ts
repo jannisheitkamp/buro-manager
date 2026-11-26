@@ -18,6 +18,7 @@ const TEAM = [
   { id: '00000000-0000-4000-8000-000000000006', first: 'Sara', last: 'Yilmaz', roles: ['employee'], ext: '26' },
 ];
 const [ME, MIA, JONAS, LENA, TOM, SARA] = TEAM.map((t) => t.id);
+const TRAINEE = SARA;
 
 const FIRST = ['Anna', 'Bernd', 'Clara', 'David', 'Elif', 'Felix', 'Greta', 'Hannes', 'Ida', 'Jan', 'Klara', 'Lukas', 'Marie', 'Noah', 'Olga', 'Paul', 'Rosa', 'Simon', 'Tina', 'Uwe', 'Vera', 'Willi', 'Yara', 'Zoe'];
 const LAST = ['Albers', 'Brandt', 'Conrad', 'Dietrich', 'Engel', 'Fuchs', 'Graf', 'Hartmann', 'Jansen', 'Krüger', 'Lange', 'Möller', 'Neumann', 'Otto', 'Peters', 'Roth', 'Seidel', 'Thiel', 'Vogt', 'Winter'];
@@ -123,8 +124,10 @@ export function createSeed(): DemoDb {
     monthly_goal: t.id === ME ? 30000 : 20000,
     yearly_goal: t.id === ME ? 360000 : 240000,
     total_vacation_days: 30,
-    is_vocational_student: false,
-    vocational_school_days: null,
+    // Sara ist Azubi bei Alex: so lässt sich das Berichtsheft ausprobieren
+    is_vocational_student: t.id === TRAINEE,
+    boss_id: t.id === TRAINEE ? ME : null,
+    vocational_school_days: t.id === TRAINEE ? [{ dayOfWeek: 2, type: 'full' }, { dayOfWeek: 4, type: 'half' }] : null,
     webhook_secret: null,
     todoist_api_key: null,
   }));
@@ -443,7 +446,32 @@ export function createSeed(): DemoDb {
     callbacks.push({ id: crypto.randomUUID(), customer_name: `${c.first_name} ${c.last_name}`, customer_id: c.id, phone: c.phone, topic: 'Jahresgespräch vereinbaren', priority: 'normal', status: 'open', assigned_to: ME, created_by: ME, created_at: at(-1, 11) } as any);
   }
 
+  /* ---------------- Berichtsheft ---------------- */
+  const monday = (weeksAgo: number) => { const d = addDays(-((today.getDay() + 6) % 7) - 7 * weeksAgo); return ymd(d); };
+  const REPORTS: [number, string, string, string, string][] = [
+    [5, 'approved', 'Post bearbeitet, Kundendaten im System gepflegt, beim Empfang mitgeholfen.', 'Einführung in die Sparten der Sachversicherung.', 'Grundlagen Versicherungsvertrag, VVG.'],
+    [4, 'approved', 'Angebote für Hausrat vorbereitet, Rückrufe angenommen und weitergegeben.', 'Beratungsgespräch Hausrat begleitet.', 'Hausratversicherung: versicherte Gefahren.'],
+    [3, 'approved', 'Kfz-Wechselgeschäft: Verträge geprüft, Kunden angeschrieben.', 'Schulung Tarifrechner Kfz.', 'Kfz-Haftpflicht und Kasko.'],
+    [1, 'submitted', 'Beim Jahresgespräch mit einem Kunden dabei gewesen, Lückenliste erstellt.', 'Gesprächsführung am Telefon.', 'Privathaftpflicht, Deckungssummen.'],
+  ];
+  const training_reports = REPORTS.map(([w, status, company, training, school]) => ({
+    id: crypto.randomUUID(),
+    user_id: TRAINEE,
+    week_start: monday(w),
+    company,
+    training,
+    school,
+    status,
+    submitted_at: at(-7 * w + 4, 16),
+    reviewed_by: status === 'approved' ? ME : null,
+    reviewed_at: status === 'approved' ? at(-7 * w + 7, 9) : null,
+    review_note: null,
+    created_at: at(-7 * w + 4, 15),
+    updated_at: at(-7 * w + 4, 16),
+  }));
+
   return {
+    training_reports,
     profiles,
     customers: customerRows,
     contract_documents,

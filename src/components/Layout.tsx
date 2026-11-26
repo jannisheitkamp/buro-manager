@@ -5,6 +5,7 @@ import { Bot, LogOut, Menu, Moon, Search, Sun, X, UserCircle, Grid2x2 } from 'lu
 import { useStore } from '@/store/useStore';
 import { useTheme } from '@/hooks/useTheme';
 import { IS_DEMO, supabase } from '@/lib/supabase';
+import { useTrainingAccess } from '@/hooks/useTrainingAccess';
 import { ADMIN_ITEM, MOBILE_TABS, NAV_GROUPS, PROFILE_ITEM, findNavItem, type NavItem } from '@/lib/navigation';
 import { useNotifications } from '@/hooks/useNotifications';
 import { cn } from '@/utils/cn';
@@ -78,6 +79,7 @@ const SidebarLink = ({ item, badge, onNavigate }: { item: NavItem; badge?: numbe
 
 const Sidebar = ({ pendingCount, onNavigate }: { pendingCount: number; onNavigate?: () => void }) => {
   const isAdmin = useStore((s) => s.profile?.roles?.includes('admin'));
+  const showTraining = useTrainingAccess();
   return (
     <div className="flex h-full flex-col bg-brand-900 text-white dark:bg-gray-950">
       <Link to="/" onClick={onNavigate} className="flex items-center gap-2.5 px-5 pb-5 pt-[max(1.25rem,env(safe-area-inset-top))]">
@@ -90,7 +92,7 @@ const Sidebar = ({ pendingCount, onNavigate }: { pendingCount: number; onNavigat
           <div key={group.label}>
             <p className="mb-1 px-3 text-2xs font-medium text-brand-200/50">{group.label}</p>
             <div className="space-y-0.5">
-              {group.items.map((item) => (
+              {group.items.filter((item) => !item.training || showTraining).map((item) => (
                 <SidebarLink
                   key={item.href}
                   item={item}
