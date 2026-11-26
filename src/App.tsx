@@ -29,6 +29,7 @@ const GeneralCalendar = page(() => import('@/pages/GeneralCalendar'), 'GeneralCa
 const Production = page(() => import('@/pages/Production'), 'Production');
 const Vacation = page(() => import('@/pages/Vacation'), 'Vacation');
 const Training = page(() => import('@/pages/Training'), 'Training');
+const CustomerUpdate = page(() => import('@/pages/CustomerUpdate'), 'CustomerUpdate');
 const Reception = page(() => import('@/pages/Reception'), 'Reception');
 const Admin = page(() => import('@/pages/Admin'), 'Admin');
 const Onboarding = page(() => import('@/pages/Onboarding'), 'Onboarding');
@@ -108,6 +109,8 @@ function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/incoming-call" element={<IncomingCallHandler />} />
           <Route path="/pending-approval" element={<PendingApproval />} />
+          {/* Öffentlich: Kunde aktualisiert seine Daten per Link */}
+          <Route path="/update/:token" element={<CustomerUpdate />} />
 
           <Route element={<ProtectedRoute />}>
             <Route path="/mfa-setup" element={<MfaSetup />} />
