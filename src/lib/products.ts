@@ -33,7 +33,7 @@ export const areaOf = (id: string | null | undefined) => AREAS.find((a) => a.id 
 export const areaLabel = (id: string | null | undefined) => areaOf(id).label;
 
 export const METHODS: { id: CalcMethod; label: string; unit: string; hint: string }[] = [
-  { id: 'promille_sum', label: 'Promille der Beitragssumme', unit: '‰', hint: 'Jahresbeitrag brutto × Laufzeit (max. 35 Jahre, BU 45 Jahre) × Satz ‰' },
+  { id: 'promille_sum', label: 'Promille der Beitragssumme', unit: '‰', hint: 'Jahresbeitrag brutto × Laufzeit (max. 35 Jahre, Biometrie 45 Jahre) × Satz ‰' },
   { id: 'monthly_multiple', label: 'Monatsbeiträge', unit: 'MB', hint: 'Monatsbeitrag brutto × Anzahl Monatsbeiträge' },
   { id: 'percent_yearly', label: 'Prozent vom Jahresbeitrag', unit: '%', hint: 'Einmal: Jahresbeitrag brutto × Satz %' },
   { id: 'courtage_rate', label: 'Laufende Courtage', unit: '%', hint: 'Je Rate: Nettobeitrag × Satz %, Auszahlung zum 31.12.' },
@@ -124,8 +124,14 @@ export const matchesProduct = (p: Product, q: string) => {
     .every((w) => hay.includes(w));
 };
 
-/** Höchste Laufzeit für die Provision: BU 45 Jahre, alles andere 35 Jahre */
-export const maxYearsFor = (subCategory: string | null | undefined) => (subCategory === 'BU' ? 45 : 35);
+/** Biometrie-Produkte (Arbeitskraft, Tod, Pflege, schwere Krankheit): Provision auf bis zu 45 Jahre */
+export const BIOMETRIC = [
+  'BU', 'Berufsunfähigkeitsversicherung', 'Erwerbsunfähigkeitsversicherung', 'Dienstunfähigkeitsversicherung',
+  'Grundfähigkeitsversicherung', 'Existenzschutzversicherung', 'Schwere-Krankheiten-Versicherung',
+  'Risikolebensversicherung', 'Pflegerentenversicherung',
+];
+/** Höchste Laufzeit für die Provision: Biometrie 45 Jahre, alles andere 35 Jahre */
+export const maxYearsFor = (subCategory: string | null | undefined) => (subCategory && BIOMETRIC.includes(subCategory) ? 45 : 35);
 
 /** Provision und Lebenswerte eines Vertrags nach Rechenart */
 export function calcCommission(

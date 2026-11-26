@@ -20,6 +20,8 @@ describe('calcCommission', () => {
   it('BU: Laufzeit höchstens 45 Jahre, Fondsrente bleibt bei 35', () => {
     expect(maxYearsFor('BU')).toBe(45);
     expect(maxYearsFor('Fondsrente')).toBe(35);
+    expect(maxYearsFor('Risikolebensversicherung')).toBe(45);
+    expect(maxYearsFor('Leben')).toBe(35);
     const r = calcCommission('promille_sum', { ...base, rate: 8, gross: 100, duration: 49, lvFactor: 1.142, maxYears: maxYearsFor('BU') });
     expect(r.valuation).toBe(54000);
     expect(r.commission).toBeCloseTo(432);
