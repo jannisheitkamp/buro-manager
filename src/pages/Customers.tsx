@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { BellRing, Building2, Cake, ChevronDown, EyeOff, FileSpreadsheet, Phone, Plus, Search, SlidersHorizontal, Users } from 'lucide-react';
+import { BellRing, Building2, Cake, ChevronDown, Mail, MessageCircle, EyeOff, FileSpreadsheet, Phone, Plus, Search, SlidersHorizontal, Users } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { supabase } from '@/lib/supabase';
 import { useStore } from '@/store/useStore';
@@ -25,6 +25,7 @@ import {
   entryName,
   eur0,
   fullName,
+  birthdayLinks,
   hasLifestyle,
   nextBirthday,
   nf0,
@@ -416,14 +417,31 @@ export const Customers = () => {
             </h2>
             <ul className="divide-y divide-gray-100 dark:divide-gray-700/70">
               {birthdays.map((r) => (
-                <li key={r.customer.id}>
-                  <button type="button" onClick={() => openCustomer(r.customer.id)} className="flex w-full items-center justify-between gap-3 px-5 py-3 text-left hover:bg-brand-50/40 dark:hover:bg-white/[0.03]">
+                <li key={r.customer.id} className="flex items-center gap-1 pr-3 hover:bg-brand-50/40 dark:hover:bg-white/[0.03]">
+                  <button type="button" onClick={() => openCustomer(r.customer.id)} className="flex min-w-0 flex-1 items-center justify-between gap-3 py-3 pl-5 pr-1 text-left">
                     <span className="min-w-0">
                       <span className="block truncate text-sm font-semibold text-gray-900 dark:text-white">{r.name}</span>
                       <span className="block text-xs text-gray-500">wird {r.birthday!.age}, {format(r.birthday!.date, 'EEEE, d. MMM', { locale: de })}</span>
                     </span>
                     {r.birthday!.days === 0 ? <StatusPill tone="amber" pulse>heute</StatusPill> : <span className="tabular shrink-0 text-xs font-medium text-gray-500">in {r.birthday!.days} {r.birthday!.days === 1 ? 'Tag' : 'Tagen'}</span>}
                   </button>
+                  {(() => {
+                    const l = birthdayLinks(r.customer, profile?.full_name);
+                    return (
+                      <>
+                        {l.whatsapp && (
+                          <a href={l.whatsapp} target="_blank" rel="noreferrer" className="btn-icon p-1.5 text-emerald-600" title="Per WhatsApp gratulieren" aria-label={`${r.name} per WhatsApp gratulieren`}>
+                            <MessageCircle className="h-4 w-4" />
+                          </a>
+                        )}
+                        {l.mail && (
+                          <a href={l.mail} className="btn-icon p-1.5" title="Per E-Mail gratulieren" aria-label={`${r.name} per E-Mail gratulieren`}>
+                            <Mail className="h-4 w-4" />
+                          </a>
+                        )}
+                      </>
+                    );
+                  })()}
                 </li>
               ))}
             </ul>
