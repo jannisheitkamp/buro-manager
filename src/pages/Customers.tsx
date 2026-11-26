@@ -54,6 +54,23 @@ export const Customers = () => {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState<string | null>(null);
   const [view, setView] = useState<'akte' | 'gaps'>('akte');
+  // Fristenliste standardmäßig eingeklappt, Zustand merkt sich der Browser
+  const [deadlinesOpen, setDeadlinesOpen] = useState(() => {
+    try {
+      return localStorage.getItem('customers.deadlinesOpen') === '1';
+    } catch {
+      return false;
+    }
+  });
+  const toggleDeadlines = () =>
+    setDeadlinesOpen((o) => {
+      try {
+        localStorage.setItem('customers.deadlinesOpen', o ? '0' : '1');
+      } catch {
+        /* ohne Speicher einfach nicht merken */
+      }
+      return !o;
+    });
   const [busy, setBusy] = useState<string | null>(null);
   const [editing, setEditing] = useState<Customer | 'new' | null>(null);
   const [callbackFor, setCallbackFor] = useState<{ customers: Customer[]; topic: string } | null>(null);
@@ -347,17 +364,20 @@ export const Customers = () => {
       <div className={cn('grid gap-6', birthdays.length > 0 && 'lg:grid-cols-[1fr_20rem]')}>
         {/* Fristen */}
         <section aria-labelledby="deadlines-title" className="card overflow-hidden">
-          <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4 dark:border-gray-700 sm:px-6">
-            <h2 id="deadlines-title" className="flex items-center gap-2 font-display text-lg font-semibold text-gray-900 dark:text-white">
-              <BellRing className="h-4 w-4 text-gray-400" /> Anstehende Fristen
-              <span className="tabular rounded-full bg-gray-100 px-2 py-0.5 font-sans text-xs font-semibold text-gray-600 dark:bg-gray-700 dark:text-gray-300">{deadlines.length}</span>
+          <div className={cn('flex items-center justify-between gap-3 px-5 py-4 sm:px-6', deadlinesOpen && 'border-b border-gray-100 dark:border-gray-700')}>
+            <h2 id="deadlines-title" className="min-w-0 flex-1">
+              <button type="button" onClick={toggleDeadlines} aria-expanded={deadlinesOpen} aria-controls="deadlines-list" className="flex w-full items-center gap-2 text-left font-display text-lg font-semibold text-gray-900 dark:text-white">
+                <BellRing className="h-4 w-4 text-gray-400" /> Anstehende Fristen
+                <span className="tabular rounded-full bg-gray-100 px-2 py-0.5 font-sans text-xs font-semibold text-gray-600 dark:bg-gray-700 dark:text-gray-300">{deadlines.length}</span>
+                <ChevronDown className={cn('h-4 w-4 text-gray-400 transition-transform', deadlinesOpen && 'rotate-180')} aria-hidden />
+              </button>
             </h2>
             <Link to="/calls?tab=tasks" className="text-sm font-medium text-brand-700 hover:underline dark:text-brand-300">Rückrufe</Link>
           </div>
-          {deadlines.length === 0 ? (
+          {!deadlinesOpen ? null : deadlines.length === 0 ? (
             <p className="px-6 py-6 text-sm text-gray-500">In den nächsten 60 Tagen läuft keine Frist ab. KFZ-Verträge melden sich vor dem 30.11., andere Sachverträge 3 Monate vor ihrem Jahrestag.</p>
           ) : (
-            <ul className="divide-y divide-gray-100 dark:divide-gray-700/70">
+            <ul id="deadlines-list" className="divide-y divide-gray-100 dark:divide-gray-700/70">
               {deadlines.map((d) => (
                 <li key={d.key} className="group relative flex flex-col gap-3 py-3.5 pl-6 pr-5 sm:flex-row sm:items-center sm:pr-6">
                   <span aria-hidden className="absolute inset-y-2.5 left-0 w-1 rounded-r" style={{ background: d.due ? '#F2A541' : '#9AA39C' }} />
