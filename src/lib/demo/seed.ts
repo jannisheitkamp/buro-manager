@@ -51,7 +51,7 @@ function contract(o: { user: string; manager?: string; sub: string; submitted: D
   const cat = CATEGORY[o.sub];
   const net = o.net ?? o.gross;
   const f = FACTOR[o.pay];
-  const dur = Math.min(o.duration ?? 1, 35);
+  const dur = Math.min(o.duration ?? 1, o.sub === 'BU' ? 45 : 35);
   let valuation = 0, comm = 0;
   if (o.sub === 'Leben' || o.sub === 'BU') { valuation = o.gross * f * dur; comm = valuation * rate / 1000; }
   else if (o.sub === 'KV Voll' || o.sub === 'KV Zusatz') { valuation = o.gross; comm = o.gross * rate; }
@@ -62,7 +62,7 @@ function contract(o: { user: string; manager?: string; sub: string; submitted: D
     const rates = o.pay === 'one_time' ? 1 : Math.floor((11 - startMonth) / STEP[o.pay]) + 1;
     comm = net * rate / 100 * rates;
   }
-  const lvFactor = cat === 'life' ? 1.147 : cat === 'car' ? 1 : cat === 'health' ? 0 : 20;
+  const lvFactor = cat === 'life' ? 1.142 : cat === 'car' ? 1 : cat === 'health' ? 0 : 20;
   const lv = (cat === 'life' ? valuation : net * f) * lvFactor;
   const policed = o.status === 'policed';
   return {
