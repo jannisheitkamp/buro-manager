@@ -22,6 +22,7 @@ describe('calcCommission', () => {
     expect(maxYearsFor('Fondsrente')).toBe(35);
     expect(maxYearsFor('Risikolebensversicherung')).toBe(45);
     expect(maxYearsFor('Leben')).toBe(35);
+    expect(maxYearsFor('Sterbegeldversicherung')).toBe(45);
     const r = calcCommission('promille_sum', { ...base, rate: 8, gross: 100, duration: 49, lvFactor: 1.142, maxYears: maxYearsFor('BU') });
     expect(r.valuation).toBe(54000);
     expect(r.commission).toBeCloseTo(432);
