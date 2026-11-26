@@ -192,9 +192,10 @@ function MyReports({ reports, names, reload }: { reports: TrainingReport[]; name
             );
           })}
         </ul>
-        {approved.length > 0 && (
-          <div className="border-t border-gray-100 p-3 dark:border-gray-700">
-            <Button size="sm" variant="secondary" icon={FileDown} className="w-full" onClick={() => exportTrainingPdf(approved, pdfOpts)}>Alle abgezeichneten als PDF</Button>
+        {reports.length > 0 && (
+          <div className="space-y-2 border-t border-gray-100 p-3 dark:border-gray-700">
+            <Button size="sm" variant="secondary" icon={FileDown} className="w-full" disabled={!approved.length} onClick={() => exportTrainingPdf(approved, pdfOpts)}>Abgezeichnete als PDF</Button>
+            <Button size="sm" variant="ghost" icon={FileDown} className="w-full" onClick={() => exportTrainingPdf(reports, pdfOpts)}>Alle Wochen als PDF</Button>
           </div>
         )}
       </aside>
@@ -276,6 +277,7 @@ function Review({ reports, trainees, names, reload }: { reports: TrainingReport[
               {trainees.map((t) => <option key={t.id} value={t.id}>{t.full_name}</option>)}
             </select>
             <Button size="sm" variant="secondary" icon={FileDown} disabled={!approved.length} onClick={() => exportTrainingPdf(approved, { name: names.get(who) || 'Azubi', firstWeek, names })}>Abgezeichnete als PDF</Button>
+            <Button size="sm" variant="ghost" icon={FileDown} disabled={!theirs.length} onClick={() => exportTrainingPdf(theirs, { name: names.get(who) || 'Azubi', firstWeek, names })}>Alle als PDF</Button>
           </div>
         </div>
         <p className="px-5 pt-3 text-xs text-gray-500">
