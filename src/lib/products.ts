@@ -128,7 +128,7 @@ export const matchesProduct = (p: Product, q: string) => {
 export const BIOMETRIC = [
   'BU', 'Berufsunfähigkeitsversicherung', 'Erwerbsunfähigkeitsversicherung', 'Dienstunfähigkeitsversicherung',
   'Grundfähigkeitsversicherung', 'Existenzschutzversicherung', 'Schwere-Krankheiten-Versicherung',
-  'Risikolebensversicherung', 'Pflegerentenversicherung',
+  'Risikolebensversicherung', 'Pflegerentenversicherung', 'Sterbegeldversicherung', 'Kindervorsorge / Ausbildungsversicherung',
 ];
 /** Höchste Laufzeit für die Provision: Biometrie 45 Jahre, alles andere 35 Jahre */
 export const maxYearsFor = (subCategory: string | null | undefined) => (subCategory && BIOMETRIC.includes(subCategory) ? 45 : 35);
