@@ -131,3 +131,25 @@ export const parseEuro = (v: string) => {
   if (!s) return null;
   return Number(s.includes(',') ? s.replace(/\./g, '').replace(',', '.') : s);
 };
+
+/** Telefonnummer für wa.me: nur Ziffern, international ohne +, deutsche Nummern mit 49 */
+export function waNumber(phone: string | null | undefined) {
+  if (!phone) return null;
+  let d = phone.trim().replace(/^\+/, '00').replace(/\D/g, '');
+  if (d.startsWith('00')) d = d.slice(2);
+  else if (d.startsWith('0')) d = `49${d.slice(1)}`;
+  return d.length >= 8 ? d : null;
+}
+
+/** Glückwunsch zum Geburtstag, gesiezt und mit vollem Namen (Geschlecht ist nicht bekannt) */
+export const birthdayText = (c: Pick<Customer, 'first_name' | 'last_name'>, sender?: string | null) =>
+  `Herzlichen Glückwunsch zum Geburtstag, ${[c.first_name, c.last_name].filter(Boolean).join(' ')}! Ich wünsche Ihnen alles Gute, Gesundheit und einen schönen Tag.${sender ? `\n\nHerzliche Grüße\n${sender}` : ''}`;
+
+export const birthdayLinks = (c: Pick<Customer, 'first_name' | 'last_name' | 'phone' | 'email'>, sender?: string | null) => {
+  const text = birthdayText(c, sender);
+  const wa = waNumber(c.phone);
+  return {
+    whatsapp: wa ? `https://wa.me/${wa}?text=${encodeURIComponent(text)}` : null,
+    mail: c.email ? `mailto:${c.email}?subject=${encodeURIComponent('Herzlichen Glückwunsch zum Geburtstag')}&body=${encodeURIComponent(text)}` : null,
+  };
+};
