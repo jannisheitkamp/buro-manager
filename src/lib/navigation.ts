@@ -16,6 +16,7 @@ import {
   Headset,
   UserCircle,
   Contact,
+  BookOpen,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -24,6 +25,8 @@ export type NavItem = {
   href: string;
   icon: LucideIcon;
   keywords?: string;
+  /** Nur für Azubis, ihre Chefs und Admins */
+  training?: boolean;
 };
 
 export type NavGroup = {
@@ -65,6 +68,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { name: 'Umfragen', href: '/polls', icon: BarChart2, keywords: 'abstimmung' },
       { name: 'Dokumente', href: '/documents', icon: FileText, keywords: 'dateien' },
       { name: 'Verzeichnis', href: '/directory', icon: Users, keywords: 'kollegen mitarbeiter' },
+      { name: 'Berichtsheft', href: '/training', icon: BookOpen, keywords: 'ausbildungsnachweis azubi ihk wochenbericht', training: true },
     ],
   },
 ];

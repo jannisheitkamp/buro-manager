@@ -33,6 +33,12 @@ const KEYS: Record<string, string[]> = {
 };
 const keyOf = (t: string) => KEYS[t] || ['id'];
 
+// Wie der Trigger training_reports_stamp: Zeitstempel setzt der Server
+const stampReport = (r: Row, oldStatus: string | null) => {
+  r.updated_at = new Date().toISOString();
+  if (r.status === 'submitted' && oldStatus !== 'submitted') r.submitted_at = r.updated_at;
+};
+
 // Ohne Alias zeigt "profiles(...)" je Tabelle auf diese Spalte
 const BARE_PROFILE_FK: Record<string, string> = { polls: 'created_by' };
 const singular = (t: string) => (t.endsWith('ies') ? t.slice(0, -3) + 'y' : t.replace(/s$/, ''));
@@ -210,6 +216,7 @@ class Query implements PromiseLike<Result> {
         if (t === 'production_entries') linkCustomer(v);
         // Wie die berechnete Spalte in der Datenbank
         if (t === 'customers') v.name_key = nameKey(v.last_name, v.first_name);
+        if (t === 'training_reports') stampReport(v, null);
         const key = keyOf(t);
         const existing = rows.find((r) => key.every((k) => String(r[k]) === String(v[k])));
         if (existing) {
@@ -224,8 +231,9 @@ class Query implements PromiseLike<Result> {
     } else if (this.mode === 'update') {
       affected = rows.filter((r) => this.match_(r));
       affected.forEach((r) => {
-        const before = { name: r.customer_name, first: r.customer_firstname };
+        const before = { name: r.customer_name, first: r.customer_firstname, status: r.status };
         Object.assign(r, this.payload);
+        if (t === 'training_reports') stampReport(r, before.status);
         if (t === 'absences') applyAbsenceRules(r);
         if (t === 'production_entries' && (before.name !== r.customer_name || before.first !== r.customer_firstname)) {
           r.customer_id = null;
@@ -365,6 +373,19 @@ export const createDemoClient = (): any => {
         leads: table('leads').filter((l) => l.product === p.name).length,
       }));
       return Promise.resolve({ data, error: null });
+    }
+    if (fn === 'review_training_report') {
+      const r = table('training_reports').find((x) => x.id === args?.p_id);
+      if (!r || r.status !== 'submitted') return Promise.resolve({ data: null, error: { message: 'Der Bericht ist nicht eingereicht' } });
+      if (r.updated_at !== args?.p_seen) return Promise.resolve({ data: null, error: { message: 'Der Bericht wurde inzwischen geändert, bitte neu laden' } });
+      const now = new Date().toISOString();
+      Object.assign(r, { status: args?.p_approve ? 'approved' : 'returned', reviewed_by: DEMO_USER_ID, reviewed_at: now, updated_at: now, review_note: args?.p_note?.trim() || null });
+      return Promise.resolve({ data: null, error: null });
+    }
+    if (fn === 'withdraw_training_report') {
+      const r = table('training_reports').find((x) => x.id === args?.p_id && x.status === 'submitted');
+      if (r) Object.assign(r, { status: 'draft', submitted_at: null, updated_at: new Date().toISOString() });
+      return Promise.resolve({ data: null, error: r ? null : { message: 'Der Bericht kann nicht zurückgeholt werden' } });
     }
     if (fn === 'get_my_webhook_secret') return Promise.resolve({ data: 'demo-geheimnis', error: null });
     if (fn === 'respond_reception_swap') {

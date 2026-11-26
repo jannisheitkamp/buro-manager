@@ -5,6 +5,7 @@ import { Dialog, DialogPanel, Combobox, ComboboxInput, ComboboxOptions, Combobox
 import { useCommandPalette } from '@/store/overlays';
 import { supabase } from '@/lib/supabase';
 import { ALL_NAV_ITEMS } from '@/lib/navigation';
+import { useTrainingAccess } from '@/hooks/useTrainingAccess';
 import { useStore } from '@/store/useStore';
 import { Avatar } from '@/components/ui';
 import { cn } from '@/utils/cn';
@@ -25,6 +26,7 @@ export const CommandPalette = () => {
   const [records, setRecords] = useState<Item[] | null>(null);
   const navigate = useNavigate();
   const isAdmin = useStore((s) => s.profile?.roles?.includes('admin'));
+  const showTraining = useTrainingAccess();
 
   useEffect(() => {
     const onKeydown = (e: KeyboardEvent) => {
@@ -125,7 +127,7 @@ export const CommandPalette = () => {
 
   const pages = useMemo<Item[]>(
     () =>
-      ALL_NAV_ITEMS.filter((i) => i.href !== '/admin' || isAdmin).map((i) => ({
+      ALL_NAV_ITEMS.filter((i) => (i.href !== '/admin' || isAdmin) && (!i.training || showTraining)).map((i) => ({
         kind: 'page' as const,
         id: i.href,
         name: i.name,
@@ -133,7 +135,7 @@ export const CommandPalette = () => {
         icon: i.icon,
         keywords: `${i.name} ${i.keywords || ''}`.toLowerCase(),
       })),
-    [isAdmin],
+    [isAdmin, showTraining],
   );
 
   const q = query.trim().toLowerCase();
