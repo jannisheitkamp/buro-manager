@@ -56,27 +56,38 @@ const GAP_WORDS: Record<string, RegExp> = {
   bkv: /\bbkv\b/,
 };
 
-type Data = { customers: C[]; entries: E[]; existing: X[]; rules: GapRule[] };
+type P = { id: string; boss_id: string | null; is_vocational_student: boolean | null };
+type Data = { customers: C[]; entries: E[]; existing: X[]; rules: GapRule[]; people: P[] };
 
 async function loadData(): Promise<Data> {
-  const [c, e, x, r] = await Promise.all([
+  const [c, e, x, r, p] = await Promise.all([
     supabase.from('customers').select('id, created_by, last_name, first_name, birth_date, phone, email, customer_type, occupation, marital_status, children, housing, vehicles, pets, employees'),
     supabase.from('production_entries').select('id, customer_id, user_id, managed_by, status, category, sub_category, start_date, customer_name, customer_firstname, policy_number'),
     supabase.from('customer_contracts').select('id, customer_id, created_by, category, sub_category, start_date, end_date, main_due, policy_number'),
     supabase.from('gap_rules').select('*'),
+    supabase.from('profiles').select('id, boss_id, is_vocational_student'),
     loadProducts(),
   ]);
   if (c.error) throw c.error;
-  return { customers: (c.data as C[]) || [], entries: (e.data as E[]) || [], existing: (x.data as X[]) || [], rules: (r.data as GapRule[]) || [] };
+  return { customers: (c.data as C[]) || [], entries: (e.data as E[]) || [], existing: (x.data as X[]) || [], rules: (r.data as GapRule[]) || [], people: (p.data as P[]) || [] };
 }
 
-/** Eigene Kunden: angelegt oder betreut; mit „alle/team“ der ganze Bestand */
+/** Eigener Kreis wie auf der Kundenseite (my_circle in der DB): ich, als Azubi mein Chef, als Chef meine Azubis */
+export function circleOf(userId: string, people: P[]) {
+  const me = people.find((p) => p.id === userId);
+  const boss = me?.is_vocational_student ? me.boss_id : null;
+  return new Set([userId, ...(boss ? [boss] : []), ...people.filter((p) => p.is_vocational_student && p.boss_id === userId).map((p) => p.id)]);
+}
+
+/** Eigene Kunden: im Kreis angelegt oder betreut; mit „alle/team“ (nur Admins) der ganze Bestand */
 function scoped(d: Data, ctx: BrainContext, team: boolean) {
   if (team) return d.customers;
+  const circle = circleOf(ctx.userId, d.people);
+  const has = (id: string | null | undefined) => !!id && circle.has(id);
   const mine = new Set<string>();
-  d.entries.forEach((e) => e.customer_id && (e.user_id === ctx.userId || e.managed_by === ctx.userId) && mine.add(e.customer_id));
-  d.existing.forEach((x) => x.created_by === ctx.userId && mine.add(x.customer_id));
-  return d.customers.filter((c) => c.created_by === ctx.userId || mine.has(c.id));
+  d.entries.forEach((e) => e.customer_id && (has(e.user_id) || has(e.managed_by)) && mine.add(e.customer_id));
+  d.existing.forEach((x) => has(x.created_by) && mine.add(x.customer_id));
+  return d.customers.filter((c) => has(c.created_by) || mine.has(c.id));
 }
 
 function gapsOf(c: C, d: Data) {
@@ -219,7 +230,7 @@ export const gapGroupIn = (t: string) => Object.entries(GAP_WORDS).find(([, re])
 
 /** Kundenfragen beantworten; null, wenn es keine ist */
 export const customerBrain = async (t: string, ctx: BrainContext): Promise<BrainAnswer | null> => {
-  const team = /\b(team|alle kunden|gesamt|bestand|buero|agentur)\b/.test(t);
+  const team = ctx.isAdmin && /\b(team|alle kunden|gesamt|bestand|buero|agentur)\b/.test(t);
   switch (customerIntent(t)) {
     case 'birthday':
       return birthdayAnswer(t, ctx, team);
